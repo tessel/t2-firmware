@@ -1,111 +1,38 @@
-##############################################################################
-CONFIG = Debug
-#CONFIG = Release
+TARGETS = firmware
+BUILD = build
 
-##############################################################################
-.PHONY: all directory clean size
+all: $(TARGETS)
+.PHONY: all clean
 
-AT_PATH = sam0/
-CMSIS_PATH = sam0/cmsis/samr21
-DRIVERS_PATH = sam0/drivers
-SRC_PATH = src
-
-USB_PATH=usb
-include usb/samd/makefile
+ATMEL_PATH = deps/sam0
+CMSIS_PATH = $(ATMEL_PATH)/cmsis/samr21
+DRIVERS_PATH = $(ATMEL_PATH)/drivers
 
 CC = arm-none-eabi-gcc
 OBJCOPY = arm-none-eabi-objcopy
 SIZE = arm-none-eabi-size
-LD = arm-none-eabi-gcc
 
-CFLAGS += -W -Wall --std=gnu99 -Os
-CFLAGS += -fdata-sections -ffunction-sections
-CFLAGS += -funsigned-char -funsigned-bitfields
-CFLAGS += -mcpu=cortex-m0plus -mthumb
-CFLAGS += -MD -MP -MT $(CONFIG)/$(*F).o -MF $(CONFIG)/$(@F).d
+include $(addsuffix .mk,$(TARGETS))
 
-ifeq ($(CONFIG), Debug)
-  CFLAGS += -g
-endif
+define each_target
+$(1): $(BUILD)/$(1).elf $(BUILD)/$(1).bin
+.PHONY: $(1)
 
-LDFLAGS += -mcpu=cortex-m0plus -mthumb
-LDFLAGS += -Wl,--gc-sections --specs=nano.specs
-LDFLAGS += -Wl,--script=sam0/linker_scripts/samr21/gcc/samr21g18a_flash.ld
+$(1)_OBJS := $$(addprefix $(BUILD)/$(1)/, $$(subst .c,.o, $$($(1)_SRC)))
+-include $$($(1)_OBJS:.o=.d)
 
-INCLUDES += \
-  -I$(SRC_PATH) \
-  -I$(CMSIS_PATH)/.. \
-  -I$(CMSIS_PATH)/include \
-  -I$(CMSIS_PATH)/source \
-  -I$(DRIVERS_PATH)/interrupt \
-  -I$(DRIVERS_PATH)/port \
-  -I$(DRIVERS_PATH)/sercom \
-  -I$(DRIVERS_PATH)/sercom/usart \
-  -I$(DRIVERS_PATH)/sercom/i2c \
-  -I$(DRIVERS_PATH)/sercom/spi \
-  -I$(DRIVERS_PATH)/sercom/spi/module_config \
-  -I$(DRIVERS_PATH)/system \
-  -I$(DRIVERS_PATH)/system/clock \
-  -I$(DRIVERS_PATH)/system/clock/clock_samd21_r21 \
-  -I$(DRIVERS_PATH)/system/clock/clock_samd21_r21/module_config \
-  -I$(DRIVERS_PATH)/system/interrupt \
-  -I$(DRIVERS_PATH)/system/interrupt/system_interrupt_samr21 \
-  -I$(DRIVERS_PATH)/system/pinmux \
-  -I$(AT_PATH)/include \
-  -I$(SRC_PATH)/radio \
-  $(USB_OPTS)
+$$($(1)_OBJS): $(BUILD)/$(1)/%.o: %.c
+	@mkdir -p $$(shell dirname $$@)
+	$(Q)$(CC) $$($(1)_CFLAGS) $$($(1)_INCLUDE) $$($(1)_DEFINE) -c $$< -o $$@ -MMD -MP -MF $$(patsubst %.o,%.d,$$@)
 
-SRCS += \
-  $(CMSIS_PATH)/source/gcc/startup_samr21.c \
-  $(CMSIS_PATH)/source/system_samr21.c \
-  $(DRIVERS_PATH)/system/interrupt/interrupt_sam_nvic.c \
-  $(DRIVERS_PATH)/system/clock/clock_samd21_r21/clock.c \
-  $(DRIVERS_PATH)/system/clock/clock_samd21_r21/gclk.c  \
-  $(DRIVERS_PATH)/system/pinmux/pinmux.c                \
-  $(DRIVERS_PATH)/system/interrupt/system_interrupt.c   \
-  $(DRIVERS_PATH)/system/system.c                       \
-  $(SRC_USB) \
-  $(SRC_PATH)/main.c \
-  $(SRC_PATH)/usb.c
+$(BUILD)/$(1).bin $(BUILD)/$(1).elf: $$($(1)_OBJS)
+	$(Q)$(CC) $$($(1)_CFLAGS) $$($(1)_LDFLAGS) $$($(1)_OBJS) -o $(BUILD)/$(1).elf
+	$(Q)$(OBJCOPY) -O binary -R .eeprom $(BUILD)/$(1).elf $(BUILD)/$(1).bin
+endef
 
-DEFINES += \
-  -DPHY_AT86RF233 \
-  -DHAL_ATSAMD21J18 \
-  -DPLATFORM_XPLAINED_PRO_SAMR21 \
-  -DF_CPU=8000000 \
-  -BOARD=SAMR21_XPLAINED_PRO \
-  -D __SAMR21G18A__
-
-CFLAGS += $(INCLUDES) $(DEFINES)
-
-OBJS = $(addprefix $(CONFIG)/, $(notdir %/$(subst .c,.o, $(SRCS))))
-
-all: directory $(CONFIG)/firmware.elf $(CONFIG)/firmware.hex $(CONFIG)/firmware.bin size
-
-$(CONFIG)/firmware.elf:
-	$(Q)$(LD) $(LDFLAGS) $(CFLAGS) $(obj-y) $(libflags-gnu-y) $(SRCS) -o $@
-	@echo $(MSG_SIZE)
-	$(Q)$(SIZE) -Ax $@
-	$(Q)$(SIZE) -Bx $@
-
-
-$(CONFIG)/firmware.hex: $(CONFIG)/firmware.elf
-	@echo OBJCOPY $@
-	@$(OBJCOPY) -O ihex -R .eeprom $^ $@
-
-$(CONFIG)/firmware.bin: $(CONFIG)/firmware.elf
-	@echo OBJCOPY $@
-	@$(OBJCOPY) -O binary -R .eeprom $^ $@
-
-directory:
-	@mkdir -p $(CONFIG)
-
-size: $(CONFIG)/firmware.elf
-	@echo size:
-	@$(SIZE) -t $^
+$(foreach t,$(TARGETS),$(eval $(call each_target,$(t))))
 
 clean:
-	@echo clean
-	@-rm -rf $(CONFIG)
+	@-rm -rf $(BUILD)
 
--include $(wildcard $(CONFIG)/*.d)
+print-%	: ; @echo $* = $($*)
