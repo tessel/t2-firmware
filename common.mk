@@ -1,4 +1,5 @@
 $(TARGET)_INCLUDE += \
+  -I . \
   -I$(CMSIS_PATH)/.. \
   -I$(CMSIS_PATH)/include \
   -I$(CMSIS_PATH)/source \
@@ -8,7 +9,7 @@ $(TARGET)_SRC += \
   $(CMSIS_PATH)/source/gcc/startup_samr21.c \
   $(CMSIS_PATH)/source/system_samr21.c \
 
-$(TARGET)_CFLAGS += -Wall --std=gnu99 -Os -g
+$(TARGET)_CFLAGS += -Wall --std=gnu99 -Os -g3
 $(TARGET)_CFLAGS += -fdata-sections -ffunction-sections
 $(TARGET)_CFLAGS += -funsigned-char -funsigned-bitfields
 $(TARGET)_CFLAGS += -mcpu=cortex-m0plus -mthumb
