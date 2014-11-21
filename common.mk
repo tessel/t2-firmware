@@ -7,7 +7,7 @@ $(TARGET)_INCLUDE += \
 
 $(TARGET)_SRC += \
   $(CMSIS_PATH)/source/gcc/startup_samr21.c \
-  $(CMSIS_PATH)/source/system_samr21.c \
+  common/clock.c \
 
 $(TARGET)_CFLAGS += -Wall --std=gnu99 -Os -g3
 $(TARGET)_CFLAGS += -fdata-sections -ffunction-sections

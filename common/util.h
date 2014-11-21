@@ -1,3 +1,7 @@
+#pragma once
+#include "common/board.h"
+
+void clock_init();
 
 inline void pin_mux(uint32_t group, uint32_t pinmux) {
   uint32_t pin = pinmux >> 16;
