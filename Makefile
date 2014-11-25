@@ -1,4 +1,4 @@
-TARGETS = firmware
+TARGETS = firmware boot
 BUILD = build
 
 all: $(TARGETS)
