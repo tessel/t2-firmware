@@ -20,12 +20,6 @@
 
 volatile bool exit_and_jump = 0;
 
-void jump_to_flash(unsigned addr, unsigned val) {
-	(void) addr; (void) val;
-	//TODO
-	while(1);
-}
-
 /*** SysTick ***/
 
 volatile uint32_t g_msTicks;
@@ -115,14 +109,16 @@ void bootloader_main() {
 
 	delay_ms(100);
 
-	/*
-	if (dfu_target == TARGET_RAM) {
-		jump_to_flash(DFU_DEST_BASE, 0);
-	}*/
+	jump_to_flash(FLASH_FW_ADDR, 0);
 }
 
 bool flash_valid() {
-	return ((unsigned *)FLASH_FW_ADDR)[7] == 0x5A5A5A5A;
+	unsigned sp = ((unsigned *)FLASH_FW_ADDR)[0];
+	unsigned ip = ((unsigned *)FLASH_FW_ADDR)[1];
+
+	return sp > 0x20000000
+	    && sp < 0x20008000
+			&& ip < 0x00400000;
 }
 
 bool button_pressed() {

@@ -26,7 +26,7 @@ $$($(1)_OBJS): $(BUILD)/$(1)/%.o: %.c
 	$(Q)$(CC) $$($(1)_CFLAGS) $$($(1)_INCLUDE) $$($(1)_DEFINE) -c $$< -o $$@ -MMD -MP -MF $$(patsubst %.o,%.d,$$@)
 
 $(BUILD)/$(1).bin $(BUILD)/$(1).elf: $$($(1)_OBJS)
-	$(Q)$(CC) $$($(1)_CFLAGS) $$($(1)_LDFLAGS) $$($(1)_OBJS) -o $(BUILD)/$(1).elf
+	$(Q)$(CC) $$($(1)_CFLAGS) $$($(1)_LDFLAGS) $$($(1)_OBJS) -Wl,-T$$($(1)_LDSCRIPT) -o $(BUILD)/$(1).elf
 	$(Q)$(OBJCOPY) -O binary -R .eeprom $(BUILD)/$(1).elf $(BUILD)/$(1).bin
 endef
 

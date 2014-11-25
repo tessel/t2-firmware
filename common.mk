@@ -16,7 +16,8 @@ $(TARGET)_CFLAGS += -mcpu=cortex-m0plus -mthumb
 
 $(TARGET)_LDFLAGS += -mcpu=cortex-m0plus -mthumb
 $(TARGET)_LDFLAGS += -Wl,--gc-sections --specs=nano.specs
-$(TARGET)_LDFLAGS += -Wl,--script=deps/sam0/linker_scripts/samr21/gcc/samr21g18a_flash.ld
+
+$(TARGET)_LDSCRIPT = common/samr21g18a_firmware.ld
 
 $(TARGET)_DEFINE += \
   -DPHY_AT86RF233 \
