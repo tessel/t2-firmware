@@ -6,7 +6,7 @@ $(TARGET)_INCLUDE += \
   -I$(ATMEL_PATH)/include \
 
 $(TARGET)_SRC += \
-  $(CMSIS_PATH)/source/gcc/startup_samr21.c \
+  $(CMSIS_PATH)/source/gcc/startup_samd21.c \
   common/clock.c \
 
 $(TARGET)_CFLAGS += -Wall --std=gnu99 -Os -g3
@@ -20,9 +20,5 @@ $(TARGET)_LDFLAGS += -Wl,--gc-sections --specs=nano.specs
 $(TARGET)_LDSCRIPT = common/samr21g18a_firmware.ld
 
 $(TARGET)_DEFINE += \
-  -DPHY_AT86RF233 \
-  -DHAL_ATSAMD21J18 \
-  -DPLATFORM_XPLAINED_PRO_SAMR21 \
   -DF_CPU=8000000 \
-  -BOARD=SAMR21_XPLAINED_PRO \
-  -D __SAMR21G18A__
+  -D __SAMD21G15A__

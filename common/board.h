@@ -1,5 +1,5 @@
 #pragma once
-#include <samr21g18a.h>
+#include <samd21g15a.h>
 
 // Pinout
 

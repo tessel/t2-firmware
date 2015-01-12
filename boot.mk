@@ -11,4 +11,4 @@ $(TARGET)_SRC += \
   boot/usb.c \
   $(USB_PATH)/class/dfu/dfu.c
 
-$(TARGET)_LDSCRIPT = boot/samr21g18a_boot.ld
+$(TARGET)_LDSCRIPT = deps/sam0/linker_scripts/samd21/gcc/samd21g15a_flash.ld

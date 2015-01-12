@@ -5,7 +5,7 @@ all: $(TARGETS)
 .PHONY: all clean
 
 ATMEL_PATH = deps/sam0
-CMSIS_PATH = $(ATMEL_PATH)/cmsis/samr21
+CMSIS_PATH = $(ATMEL_PATH)/cmsis/samd21
 DRIVERS_PATH = $(ATMEL_PATH)/drivers
 
 CC = arm-none-eabi-gcc
