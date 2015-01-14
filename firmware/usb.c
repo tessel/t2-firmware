@@ -1,4 +1,5 @@
 #include "usb.h"
+#include "firmware.h"
 
 __attribute__((__aligned__(4))) const USB_DeviceDescriptor device_descriptor = {
 	.bLength = sizeof(USB_DeviceDescriptor),
@@ -23,7 +24,8 @@ __attribute__((__aligned__(4))) const USB_DeviceDescriptor device_descriptor = {
 
 typedef struct ConfigDesc {
 	USB_ConfigurationDescriptor Config;
-	USB_InterfaceDescriptor Interface0;
+	USB_InterfaceDescriptor OffInterface;
+	USB_InterfaceDescriptor FlashInterface;
 	USB_EndpointDescriptor DataInEndpoint;
 	USB_EndpointDescriptor DataOutEndpoint;
 
@@ -40,21 +42,32 @@ __attribute__((__aligned__(4))) const ConfigDesc configuration_descriptor = {
 		.bmAttributes = USB_CONFIG_ATTR_BUSPOWERED,
 		.bMaxPower = USB_CONFIG_POWER_MA(500)
 	},
-	.Interface0 = {
+	.OffInterface = {
 		.bLength = sizeof(USB_InterfaceDescriptor),
 		.bDescriptorType = USB_DTYPE_Interface,
 		.bInterfaceNumber = 0,
 		.bAlternateSetting = 0,
+		.bNumEndpoints = 0,
+		.bInterfaceClass = USB_CSCP_VendorSpecificClass,
+		.bInterfaceSubClass = 0x00,
+		.bInterfaceProtocol = 0x00,
+		.iInterface = 0,
+	},
+	.FlashInterface = {
+		.bLength = sizeof(USB_InterfaceDescriptor),
+		.bDescriptorType = USB_DTYPE_Interface,
+		.bInterfaceNumber = 0,
+		.bAlternateSetting = 1,
 		.bNumEndpoints = 2,
 		.bInterfaceClass = USB_CSCP_VendorSpecificClass,
 		.bInterfaceSubClass = 0x00,
 		.bInterfaceProtocol = 0x00,
-		.iInterface = 0
+		.iInterface = 0,
 	},
 	.DataInEndpoint = {
 		.bLength = sizeof(USB_EndpointDescriptor),
 		.bDescriptorType = USB_DTYPE_Endpoint,
-		.bEndpointAddress = 0x81,
+		.bEndpointAddress = USB_EP_FLASH_IN,
 		.bmAttributes = (USB_EP_TYPE_BULK | ENDPOINT_ATTR_NO_SYNC | ENDPOINT_USAGE_DATA),
 		.wMaxPacketSize = 512,
 		.bInterval = 0x00
@@ -62,7 +75,7 @@ __attribute__((__aligned__(4))) const ConfigDesc configuration_descriptor = {
 	.DataOutEndpoint = {
 		.bLength = sizeof(USB_EndpointDescriptor),
 		.bDescriptorType = USB_DTYPE_Endpoint,
-		.bEndpointAddress = 0x2,
+		.bEndpointAddress = USB_EP_FLASH_OUT,
 		.bmAttributes = (USB_EP_TYPE_BULK | ENDPOINT_ATTR_NO_SYNC | ENDPOINT_USAGE_DATA),
 		.wMaxPacketSize = 512,
 		.bInterval = 0x00
@@ -84,7 +97,7 @@ __attribute__((__aligned__(4))) const USB_StringDescriptor manufacturer_string =
 __attribute__((__aligned__(4))) const USB_StringDescriptor product_string = {
 	.bLength = USB_STRING_LEN(14),
 	.bDescriptorType = USB_DTYPE_String,
-	.bString = u"Example Device"
+	.bString = u"Tessel V2"
 };
 
 __attribute__((__aligned__(4))) const USB_StringDescriptor msft_os = {
@@ -151,6 +164,7 @@ void usb_cb_reset(void) {
 
 bool usb_cb_set_configuration(uint8_t config) {
 	if (config <= 1) {
+		//flash_init();
 		return true;
 	}
 	return false;
@@ -161,6 +175,14 @@ void usb_cb_control_setup(void) {
 	if (recipient == USB_RECIPIENT_DEVICE) {
 		if (usb_setup.bRequest == 0xee) {
 			return usb_handle_msft_compatible(&msft_compatible);
+		} else if (usb_setup.bRequest == 0x10) {
+			if (usb_setup.wValue == 1) {
+				pin_high(PIN_SOC_RST);
+			} else {
+				pin_low(PIN_SOC_RST);
+			}
+			usb_ep0_out();
+			return usb_ep0_in(0);
 		}
 	} else if (recipient == USB_RECIPIENT_INTERFACE) {
 	}
@@ -174,9 +196,23 @@ void usb_cb_control_out_completion(void) {
 }
 
 void usb_cb_completion(void) {
+	if (usb_ep_pending(USB_EP_FLASH_OUT)) {
+		flash_usb_out_completion();
+		usb_ep_handled(USB_EP_FLASH_OUT);
+	}
 
+	if (usb_ep_pending(USB_EP_FLASH_IN)) {
+		flash_usb_in_completion();
+		usb_ep_handled(USB_EP_FLASH_IN);
+	}
 }
 
 bool usb_cb_set_interface(uint16_t interface, uint16_t altsetting) {
+	if (interface == 0) {
+		if (altsetting == 1) {
+			flash_init();
+			return true;
+		}
+	}
 	return false;
 }

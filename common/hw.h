@@ -1,8 +1,6 @@
 #pragma once
 #include "common/util.h"
 
-void clock_init();
-
 inline static void pin_mux(Pin p) {
   if (p.pin & 1) {
     PORT->Group[p.group].PMUX[p.pin/2].bit.PMUXO = p.mux;
@@ -55,6 +53,19 @@ inline static bool pin_read(Pin p) {
 inline static Sercom* sercom(SercomId id) {
   return (Sercom*) (0x42000800U + id * 1024);
 }
+
+// clock.c
+void clock_init();
+
+// dma.c
+void dma_init();
+void dma_sercom_start_tx(DmaChan chan, SercomId id, u8* src, unsigned size);
+void dma_sercom_start_rx(DmaChan chan, SercomId id, u8* dst, unsigned size);
+void dma_abort(DmaChan chan);
+
+// sercom.c
+void sercom_spi_slave_init(SercomId id, u32 dipo, u32 dopo, bool cpol, bool cpha);
+void sercom_spi_master_init(SercomId id, u32 dipo, u32 dopo, bool cpol, bool cpha);
 
 inline static void jump_to_flash(uint32_t addr_p, uint32_t r0_val) {
   uint32_t *addr = (void*) addr_p;

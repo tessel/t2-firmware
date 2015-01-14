@@ -8,6 +8,8 @@ $(TARGET)_INCLUDE += \
 $(TARGET)_SRC += \
   $(CMSIS_PATH)/source/gcc/startup_samd21.c \
   common/clock.c \
+  common/dma.c \
+  common/sercom.c \
 
 $(TARGET)_CFLAGS += -Wall --std=gnu99 -Os -g3
 $(TARGET)_CFLAGS += -fdata-sections -ffunction-sections

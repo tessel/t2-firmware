@@ -46,9 +46,9 @@ const static Pin PIN_IRQ = { .group = 0, .pin = 22 };
 const static Pin PIN_IRQ2 = { .group = 0, .pin = 23 };
 
 #define BRIDGE_DIPO 0
-#define BRIDGE_DOPO 0
+#define BRIDGE_DOPO 2
 
-#define FLASH_DIPO 0
+#define FLASH_DIPO 3
 #define FLASH_DOPO 0
 
 // Terminal - UART to SoC
