@@ -209,7 +209,10 @@ void usb_cb_completion(void) {
 
 bool usb_cb_set_interface(uint16_t interface, uint16_t altsetting) {
 	if (interface == 0) {
-		if (altsetting == 1) {
+		if (altsetting == 0) {
+			flash_disable();
+			return true;
+		} else if (altsetting == 1){
 			flash_init();
 			return true;
 		}

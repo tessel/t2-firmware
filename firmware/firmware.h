@@ -15,3 +15,4 @@ void flash_init();
 void flash_dma_rx_completion();
 void flash_usb_in_completion();
 void flash_usb_out_completion();
+void flash_disable();

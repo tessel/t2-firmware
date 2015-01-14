@@ -25,7 +25,7 @@ void flash_init() {
     sercom_spi_master_init(SERCOM_BRIDGE, FLASH_DIPO, FLASH_DOPO, 0, 0);
 
     pin_low(PIN_SOC_RST);
-    
+
     pin_mux(PIN_BRIDGE_MOSI);
     pin_mux(PIN_BRIDGE_MISO);
     pin_mux(PIN_BRIDGE_SCK);
@@ -39,6 +39,14 @@ void flash_init() {
 void flash_disable() {
     dma_abort(DMA_FLASH_TX);
     dma_abort(DMA_FLASH_RX);
+
+    pin_in(PIN_BRIDGE_MOSI);
+    pin_in(PIN_BRIDGE_MISO);
+    pin_in(PIN_BRIDGE_SCK);
+    pin_in(PIN_FLASH_CS);
+
+    // Leave RST low until manually enabled
+
     flash_state = FLASH_STATE_DISABLE;
 }
 
