@@ -63,12 +63,65 @@ const static Pin PIN_SERIAL_RX = {.group = 0, .pin = 21, .mux = MUX_PA21D_SERCOM
 #define TERMINAL_DOPO 0
 #define TERMINAL_DIPO 0
 
-// Port A
+typedef struct TesselPort {
+    union {
+        struct {
+            Pin scl;
+            Pin sda;
+            Pin sck;
+            Pin miso;
+            Pin mosi;
+            Pin tx;
+            Pin rx;
+            Pin g3;
+        };
+        Pin gpio[8];
+    };
+    SercomId spi;
+    SercomId uart_i2c;
+    u32 spi_dopo;
+    u32 spi_dipo;
+    u32 uart_dopo;
+    u32 uart_dipo;
+} TesselPort;
 
-#define SERCOM_PORT_A_SPI 5
-#define SERCOM_PORT_A_UART_I2C 4
+const static TesselPort PORT_A = {
+    .scl =  {.group = 0, .pin = 13, .mux = MUX_PA13D_SERCOM4_PAD1 },
+    .sda =  {.group = 0, .pin = 12, .mux = MUX_PA12D_SERCOM4_PAD0 },
+    .sck =  {.group = 1, .pin = 3,  .mux = MUX_PB03D_SERCOM5_PAD1 },
+    .miso = {.group = 1, .pin = 23, .mux = MUX_PB23D_SERCOM5_PAD3 },
+    .mosi = {.group = 1, .pin = 2,  .mux = MUX_PB02D_SERCOM5_PAD0 },
+    .tx =   {.group = 1, .pin = 10, .mux = MUX_PB10D_SERCOM4_PAD2 },
+    .rx =   {.group = 1, .pin = 11, .mux = MUX_PB11D_SERCOM4_PAD3 },
+    .g3 =   {.group = 1, .pin = 8 },
+    .spi = 5,
+    .uart_i2c = 4,
+    .spi_dipo = 3,
+    .spi_dopo = 2,
+    .uart_dipo = 3,
+    .uart_dopo = 1,
+};
 
-// Port B
+const static TesselPort PORT_B = {
+    .scl =  {.group = 0, .pin = 9,  .mux = MUX_PA09D_SERCOM2_PAD1 },
+    .sda =  {.group = 0, .pin = 8,  .mux = MUX_PA08D_SERCOM2_PAD0 },
+    .sck =  {.group = 0, .pin = 5,  .mux = MUX_PA05D_SERCOM0_PAD1 },
+    .miso = {.group = 0, .pin = 7,  .mux = MUX_PA07D_SERCOM0_PAD3 },
+    .mosi = {.group = 0, .pin = 4,  .mux = MUX_PA04D_SERCOM0_PAD0 },
+    .tx =   {.group = 0, .pin = 10, .mux = MUX_PA10D_SERCOM2_PAD2 },
+    .rx =   {.group = 0, .pin = 11, .mux = MUX_PA11D_SERCOM2_PAD3 },
+    .g3 =   {.group = 1, .pin = 9 },
+    .spi = 0,
+    .uart_i2c = 2,
+    .spi_dipo = 3,
+    .spi_dopo = 2,
+    .uart_dipo = 3,
+    .uart_dopo = 1,
+};
 
-#define SERCOM_PORT_B_SPI 0
-#define SERCOM_PORT_B_UART_I2C 1
+static inline void port_init(const TesselPort* port) {
+    for (int i = 0; i<8; i++) {
+        pin_gpio(port->gpio[i]);
+        pin_pull_up(port->gpio[i]);
+    }
+}

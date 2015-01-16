@@ -22,6 +22,10 @@ int main(void) {
     pin_high(PIN_PORT_B_PWR);
     pin_out(PIN_PORT_B_PWR);
 
+
+    port_init(&PORT_A);
+    port_init(&PORT_B);
+
     dma_init();
     NVIC_EnableIRQ(DMAC_IRQn);
 
