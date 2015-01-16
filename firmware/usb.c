@@ -170,19 +170,48 @@ bool usb_cb_set_configuration(uint8_t config) {
 	return false;
 }
 
+#define REQ_PWR 0x10
+#define REQ_PWR_RST 0x0
+#define REQ_PWR_SOC 0x1
+#define REQ_PWR_PORT_A 0x10
+#define REQ_PWR_PORT_B 0x11
+
+void req_gpio(uint16_t wIndex, uint16_t wValue) {
+	Pin pin;
+	switch (wIndex) {
+		case REQ_PWR_RST:
+			pin = PIN_SOC_RST;
+			break;
+		case REQ_PWR_SOC:
+			pin = PIN_SOC_PWR;
+			break;
+		case REQ_PWR_PORT_A:
+			pin = PIN_PORT_A_PWR;
+			break;
+		case REQ_PWR_PORT_B:
+			pin = PIN_PORT_B_PWR;
+			break;
+		default:
+			return usb_ep0_stall();
+	}
+
+	if (wValue == 0) {
+		pin_low(pin);
+	} else if (wValue == 1) {
+		pin_high(pin);
+	} else {
+		return usb_ep0_stall();
+	}
+	usb_ep0_out();
+	return usb_ep0_in(0);
+}
+
 void usb_cb_control_setup(void) {
 	uint8_t recipient = usb_setup.bmRequestType & USB_REQTYPE_RECIPIENT_MASK;
 	if (recipient == USB_RECIPIENT_DEVICE) {
-		if (usb_setup.bRequest == 0xee) {
-			return usb_handle_msft_compatible(&msft_compatible);
-		} else if (usb_setup.bRequest == 0x10) {
-			if (usb_setup.wValue == 1) {
-				pin_high(PIN_SOC_RST);
-			} else {
-				pin_low(PIN_SOC_RST);
-			}
-			usb_ep0_out();
-			return usb_ep0_in(0);
+		switch(usb_setup.bRequest) {
+			case 0xee:	  return usb_handle_msft_compatible(&msft_compatible);
+			case REQ_PWR: return req_gpio(usb_setup.wIndex, usb_setup.wValue);
 		}
 	} else if (recipient == USB_RECIPIENT_INTERFACE) {
 	}

@@ -30,6 +30,8 @@ const static Pin PIN_USB_DP = {.group = 0, .pin = 25, .mux = MUX_PA25G_USB_DP };
 
 const static Pin PIN_SOC_RST = {.group = 0, .pin = 2};
 const static Pin PIN_SOC_PWR = {.group = 0, .pin = 27};
+const static Pin PIN_PORT_A_PWR = {.group = 0, .pin = 14};
+const static Pin PIN_PORT_B_PWR = {.group = 0, .pin = 15};
 
 // Bridge - SPI to SoC and Flash
 

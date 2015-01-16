@@ -13,6 +13,15 @@ int main(void) {
     pin_high(PIN_SOC_RST);
     pin_out(PIN_SOC_RST);
 
+    pin_high(PIN_SOC_PWR);
+    pin_out(PIN_SOC_PWR);
+
+    pin_high(PIN_PORT_A_PWR);
+    pin_out(PIN_PORT_A_PWR);
+
+    pin_high(PIN_PORT_B_PWR);
+    pin_out(PIN_PORT_B_PWR);
+
     dma_init();
     NVIC_EnableIRQ(DMAC_IRQn);
 
