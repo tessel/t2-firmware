@@ -13,6 +13,9 @@ typedef struct Pin {
   u8 pin;
 } Pin;
 
+#define SERCOM_HANDLER_(ID) SERCOM ## ID ## _Handler()
+#define SERCOM_HANDLER(ID) SERCOM_HANDLER_(ID)
+
 inline static void invalid() {
     __asm__("bkpt");
 }

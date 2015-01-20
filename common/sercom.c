@@ -17,7 +17,8 @@ void sercom_spi_slave_init(SercomId id, u32 dipo, u32 dopo, bool cpol, bool cpha
 
     sercom(id)->SPI.CTRLB.reg
       = SERCOM_SPI_CTRLB_RXEN
-      | SERCOM_SPI_CTRLB_SSDE;
+      | SERCOM_SPI_CTRLB_SSDE
+      | SERCOM_SPI_CTRLB_PLOADEN;
 
     sercom(id)->SPI.CTRLA.reg
       = SERCOM_SPI_CTRLA_ENABLE

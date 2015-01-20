@@ -22,12 +22,16 @@ int main(void) {
     pin_high(PIN_PORT_B_PWR);
     pin_out(PIN_PORT_B_PWR);
 
+    pin_pull_up(PIN_BRIDGE_CS);
+    pin_pull_up(PIN_FLASH_CS);
 
     port_init(&PORT_A);
     port_init(&PORT_B);
 
     dma_init();
     NVIC_EnableIRQ(DMAC_IRQn);
+
+    bridge_init();
 
     __enable_irq();
     SCB->SCR |= SCB_SCR_SLEEPONEXIT_Msk;
@@ -40,6 +44,7 @@ void DMAC_Handler() {
         u32 id = intpend & DMAC_INTPEND_ID_Msk;
 
         if (id == DMA_FLASH_RX) {
+            bridge_dma_rx_completion();
             flash_dma_rx_completion();
         }
     }
@@ -50,3 +55,15 @@ void DMAC_Handler() {
 
     DMAC->INTPEND.reg = intpend;
 }
+
+void SERCOM_HANDLER(SERCOM_BRIDGE) {
+    bridge_handle_sercom();
+}
+
+void bridge_completion_out_0(u8 _) {}
+void bridge_completion_out_1(u8 _) {}
+void bridge_completion_out_2(u8 _) {}
+
+void bridge_completion_in_0() {}
+void bridge_completion_in_1() {}
+void bridge_completion_in_2() {}

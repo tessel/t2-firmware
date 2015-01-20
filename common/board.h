@@ -44,8 +44,8 @@ const static Pin PIN_BRIDGE_MISO = {.group = 0, .pin = 19, .mux = MUX_PA19C_SERC
 
 const static Pin PIN_FLASH_CS = { .group = 0, .pin = 28 };
 
-const static Pin PIN_IRQ = { .group = 0, .pin = 22 };
-const static Pin PIN_IRQ2 = { .group = 0, .pin = 23 };
+const static Pin PIN_BRIDGE_IRQ = { .group = 0, .pin = 22 };
+const static Pin PIN_BRIDGE_SYNC = { .group = 0, .pin = 23 };
 
 #define BRIDGE_DIPO 0
 #define BRIDGE_DOPO 2

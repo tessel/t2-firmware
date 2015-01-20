@@ -58,10 +58,19 @@ inline static Sercom* sercom(SercomId id) {
 void clock_init();
 
 // dma.c
+#define DMA_DESC_ALIGN __attribute__((aligned(16)))
+
 void dma_init();
 void dma_sercom_start_tx(DmaChan chan, SercomId id, u8* src, unsigned size);
 void dma_sercom_start_rx(DmaChan chan, SercomId id, u8* dst, unsigned size);
 void dma_abort(DmaChan chan);
+void dma_fill_sercom_tx(DmacDescriptor* desc, SercomId id, u8 *src, unsigned size);
+void dma_fill_sercom_rx(DmacDescriptor* desc, SercomId id, u8 *dst, unsigned size);
+void dma_sercom_configure_tx(DmaChan chan, SercomId id);
+void dma_sercom_configure_rx(DmaChan chan, SercomId id);
+void dma_link_chain(DmacDescriptor* chain, u32 count);
+void dma_start_descriptor(DmaChan chan, DmacDescriptor* chain);
+
 
 // sercom.c
 void sercom_spi_slave_init(SercomId id, u32 dipo, u32 dopo, bool cpol, bool cpha);

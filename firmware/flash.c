@@ -23,6 +23,8 @@ void flash_init() {
     usb_enable_ep(USB_EP_FLASH_IN, USB_EP_TYPE_BULK, 64);
 
     sercom_spi_master_init(SERCOM_BRIDGE, FLASH_DIPO, FLASH_DOPO, 0, 0);
+    dma_sercom_configure_tx(DMA_FLASH_TX, SERCOM_BRIDGE);
+    dma_sercom_configure_rx(DMA_FLASH_RX, SERCOM_BRIDGE);
 
     pin_low(PIN_SOC_RST);
 
@@ -73,7 +75,9 @@ void flash_usb_out_completion() {
 }
 
 void flash_dma_rx_completion() {
-    if (flash_state == FLASH_STATE_ACTIVE) {
+    if (flash_state == FLASH_STATE_DISABLE) {
+        return;
+    } else if (flash_state == FLASH_STATE_ACTIVE) {
         usb_ep_start_in(USB_EP_FLASH_IN, flash_buffer_in, flash_buffer_count, false);
         if (flash_buffer_count < FLASH_BUFFER_SIZE) {
             pin_high(PIN_FLASH_CS);
