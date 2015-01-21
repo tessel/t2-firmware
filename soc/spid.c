@@ -34,13 +34,12 @@ void gpio_export(const char* gpio) {
       exit(1);
     }
     write(fd, gpio, strlen(gpio));
-    write(fd, "\n", 1);
     close(fd);
 }
 
 int gpio_open(const char* gpio, const char* file) {
     char path[512];
-    snprintf(path, sizeof(path), "/sys/class/gpio/gpio%s/value", gpio);
+    snprintf(path, sizeof(path), "/sys/class/gpio/gpio%s/%s", gpio, file);
     int fd = open(path, O_RDWR);
     if (fd < 0) {
       fprintf(stderr, "Error opening %s: %s\n", path, strerror(errno));
@@ -51,14 +50,12 @@ int gpio_open(const char* gpio, const char* file) {
 void gpio_direction(const char* gpio, const char* mode) {
     int fd = gpio_open(gpio, "direction");
     write(fd, mode, strlen(mode));
-    write(fd, "\n", 1);
     close(fd);
 }
 
 void gpio_edge(const char* gpio, const char* mode) {
     int fd = gpio_open(gpio, "edge");
     write(fd, mode, strlen(mode));
-    write(fd, "\n", 1);
     close(fd);
 }
 
@@ -128,6 +125,7 @@ int main(int argc, char** argv) {
     }
 
     uint8_t writable = 0;
+    int retries = 0;
 
     while (1) {
         for (int i=0; i<N_POLLFDS; i++) {
@@ -142,7 +140,7 @@ int main(int argc, char** argv) {
 
         printf("poll returned: %i\n", nfds);
 
-        write(sync_fd, "0\n", 2);
+        write(sync_fd, "0", 1);
 
         // Check for incoming connections
         for (int i=0; i<N_CHANNEL; i++) {
@@ -201,10 +199,10 @@ int main(int argc, char** argv) {
         uint8_t rx_buf[2 + N_CHANNEL];
 
         tx_buf[0] = 0x53;
-        tx_buf[1] = writable | 0x80;
+        tx_buf[1] = writable;
 
         for (int i=0; i<N_CHANNEL; i++) {
-            tx_buf[2+i] = channels[i].out_length | 0x40;
+            tx_buf[2+i] = channels[i].out_length;
         }
 
         printf("tx: %2x %2x %2x %2x %2x\n", tx_buf[0], tx_buf[1], tx_buf[2], tx_buf[3], tx_buf[4]);
@@ -225,9 +223,49 @@ int main(int argc, char** argv) {
 
         if (rx_buf[0] != 0xCA) {
             printf("Invalid command reply: %x\n", rx_buf[0]);
-            exit(4);
+            retries++;
+
+            if (retries > 5) {
+                exit(4);
+            } else {
+                continue;
+            }
+        }
+        retries = 0;
+        write(sync_fd, "1", 1);
+
+        struct spi_ioc_transfer transfer[N_CHANNEL * 2];
+        memset(transfer, 0, sizeof(transfer));
+        int desc = 0;
+
+        for (int chan=0; chan<N_CHANNEL; chan++) {
+            int size = channels[chan].out_length;
+            if (rx_buf[1] & (1<<chan) && size > 0) {
+                transfer[desc].len = size;
+                transfer[desc].tx_buf = (unsigned long) &channels[chan].out_buf[0];
+                channels[chan].out_length = 0; // TODO: reset poll
+                desc++;
+            }
+
+            size = rx_buf[2+chan];
+            if (writable & (1<<chan) && size > 0) {
+                transfer[desc].len = size;
+                transfer[desc].rx_buf = (unsigned long) &channels[chan].in_buf[0];
+                desc++;
+            }
         }
 
-        write(sync_fd, "1\n", 2);
+        if (desc != 0) {
+            printf("Performing transfer on %i channels\n", desc);
+
+            int status = ioctl(spi_fd, SPI_IOC_MESSAGE(desc), transfer);
+
+            if (status < 0) {
+              perror("SPI_IOC_MESSAGE");
+              exit(3);
+            }
+        }
+
+
     }
 }

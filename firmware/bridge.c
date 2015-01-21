@@ -82,10 +82,16 @@ void bridge_disable() {
 }
 
 void bridge_handle_sercom() {
+    sercom(SERCOM_BRIDGE)->SPI.INTFLAG.reg = SERCOM_SPI_INTFLAG_SSL;
     if (pin_read(PIN_BRIDGE_SYNC) == 0) {
         // Reset DMA in case we were in the middle of an incorrect data phase
         dma_abort(DMA_BRIDGE_TX);
         dma_abort(DMA_BRIDGE_RX);
+
+        // Flush RX buffer
+        (void) sercom(SERCOM_BRIDGE)->SPI.DATA;
+        (void) sercom(SERCOM_BRIDGE)->SPI.DATA;
+        (void) sercom(SERCOM_BRIDGE)->SPI.DATA;
 
         ctrl_tx.cmd = 0xCA;
         for (u8 chan=0; chan<BRIDGE_NUM_CHAN; chan++) {
@@ -96,8 +102,6 @@ void bridge_handle_sercom() {
         dma_start_descriptor(DMA_BRIDGE_TX, &dma_chain_control_tx[0]);
         dma_start_descriptor(DMA_BRIDGE_RX, &dma_chain_control_rx[0]);
         bridge_state = BRIDGE_STATE_CTRL;
-
-        sercom(SERCOM_BRIDGE)->SPI.INTFLAG.reg = SERCOM_SPI_INTFLAG_SSL;
     }
 }
 
@@ -146,7 +150,10 @@ void bridge_dma_rx_completion() {
     } else if (bridge_state == BRIDGE_STATE_DATA) {
 
         #define CHECK_COMPLETION_OUT(x) \
-            if (ctrl_rx.rx_state & (1<<x) && ctrl_tx.tx_size[x] > 0) bridge_completion_out_##x(ctrl_tx.tx_size[x]);
+            if (ctrl_rx.rx_state & (1<<x) && ctrl_tx.tx_size[x] > 0) { \
+                ctrl_tx.tx_size[x] = 0; \
+                bridge_completion_out_##x(ctrl_tx.tx_size[x]); \
+            }
 
         CHECK_COMPLETION_OUT(0);
         CHECK_COMPLETION_OUT(1);
@@ -155,7 +162,10 @@ void bridge_dma_rx_completion() {
         #undef CHECK_COMPLETION_OUT
 
         #define CHECK_COMPLETION_IN(x) \
-            if (ctrl_tx.rx_state & (1<<x) && ctrl_rx.tx_size[x] > 0) bridge_completion_in_##x();
+            if (ctrl_tx.rx_state & (1<<x) && ctrl_rx.tx_size[x] > 0) { \
+                ctrl_tx.rx_state &= ~ (1<<x); \
+                bridge_completion_in_##x(); \
+            }
 
         CHECK_COMPLETION_IN(0);
         CHECK_COMPLETION_IN(1);
