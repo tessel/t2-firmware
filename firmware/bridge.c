@@ -150,27 +150,26 @@ void bridge_dma_rx_completion() {
     } else if (bridge_state == BRIDGE_STATE_DATA) {
 
         #define CHECK_COMPLETION_OUT(x) \
+            if (ctrl_tx.rx_state & (1<<x) && ctrl_rx.tx_size[x] > 0) { \
+                out_chan_ready &= ~ (1<<x); \
+                bridge_completion_out_##x(ctrl_rx.tx_size[x]); \
+            }
+
+        #define CHECK_COMPLETION_IN(x) \
             if (ctrl_rx.rx_state & (1<<x) && ctrl_tx.tx_size[x] > 0) { \
-                ctrl_tx.tx_size[x] = 0; \
-                bridge_completion_out_##x(ctrl_tx.tx_size[x]); \
+                in_chan_size[x] = 0; \
+                bridge_completion_in_##x(); \
             }
 
         CHECK_COMPLETION_OUT(0);
         CHECK_COMPLETION_OUT(1);
         CHECK_COMPLETION_OUT(2);
 
-        #undef CHECK_COMPLETION_OUT
-
-        #define CHECK_COMPLETION_IN(x) \
-            if (ctrl_tx.rx_state & (1<<x) && ctrl_rx.tx_size[x] > 0) { \
-                ctrl_tx.rx_state &= ~ (1<<x); \
-                bridge_completion_in_##x(); \
-            }
-
         CHECK_COMPLETION_IN(0);
         CHECK_COMPLETION_IN(1);
         CHECK_COMPLETION_IN(2);
 
+        #undef CHECK_COMPLETION_OUT
         #undef CHECK_COMPLETION_IN
 
         bridge_state = BRIDGE_STATE_IDLE;

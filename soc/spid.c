@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <stdlib.h>
@@ -18,6 +19,8 @@
 #define N_CHANNEL 3
 #define BUFSIZE 255
 
+#define DEBUG printf
+
 typedef struct ChannelData {
     int in_length;
     char out_buf[BUFSIZE];
@@ -27,6 +30,7 @@ typedef struct ChannelData {
 
 ChannelData channels[N_CHANNEL];
 
+/// Use sysfs to export the specified GPIO
 void gpio_export(const char* gpio) {
     int fd = open("/sys/class/gpio/export", O_WRONLY);
     if (fd < 0) {
@@ -37,6 +41,7 @@ void gpio_export(const char* gpio) {
     close(fd);
 }
 
+/// Open a sysfs GPIO file
 int gpio_open(const char* gpio, const char* file) {
     char path[512];
     snprintf(path, sizeof(path), "/sys/class/gpio/gpio%s/%s", gpio, file);
@@ -47,12 +52,15 @@ int gpio_open(const char* gpio, const char* file) {
     }
     return fd;
 }
+
+/// Set the direction of the specified GPIO pin
 void gpio_direction(const char* gpio, const char* mode) {
     int fd = gpio_open(gpio, "direction");
     write(fd, mode, strlen(mode));
     close(fd);
 }
 
+/// Set the edge trigger mode of the specified GPIO pin
 void gpio_edge(const char* gpio, const char* mode) {
     int fd = gpio_open(gpio, "edge");
     write(fd, mode, strlen(mode));
@@ -73,13 +81,10 @@ int main(int argc, char** argv) {
 
     // Open SPI
     int spi_fd = open(argv[1], O_RDWR);
-
     if (spi_fd < 0) {
       fprintf(stderr, "Error opening SPI device %s: %s\n", argv[1], strerror(errno));
       exit(1);
     }
-
-    memset(channels, 0, sizeof(channels));
 
     // set up IRQ pin
     gpio_export(argv[2]);
@@ -89,14 +94,17 @@ int main(int argc, char** argv) {
 
     // set up sync pin
     gpio_export(argv[3]);
+    gpio_edge(argv[3], "none");
     gpio_direction(argv[3], "low");
     int sync_fd = gpio_open(argv[3], "value");
 
+    memset(channels, 0, sizeof(channels));
     memset(fds, 0, sizeof(fds));
 
     GPIO_POLL.fd = irq_fd;
     GPIO_POLL.events = POLLPRI;
 
+    // Create the listening unix domain sockets
     for (int i = 0; i<N_CHANNEL; i++) {
         struct sockaddr_un addr;
         addr.sun_family = AF_UNIX;
@@ -121,7 +129,6 @@ int main(int argc, char** argv) {
         SOCK_POLL(i).fd = fd;
         SOCK_POLL(i).events = POLLIN;
         CONN_POLL(i).fd = -1;
-        CONN_POLL(i).events = POLLIN;
     }
 
     uint8_t writable = 0;
@@ -132,17 +139,26 @@ int main(int argc, char** argv) {
             fds[i].revents = 0;
         }
 
-        int nfds = poll(fds, N_POLLFDS, 1000);
+        int nfds = poll(fds, N_POLLFDS, 100);
         if (nfds < 0) {
             fprintf(stderr, "Error in poll: %s", strerror(errno));
             exit(2);
         }
 
-        printf("poll returned: %i\n", nfds);
+        DEBUG("poll returned: %i\n", nfds);
 
+        // If it was a GPIO interrupt on the IRQ pin, acknowlege it
+        if (GPIO_POLL.revents & POLLPRI) {
+            char buf[2];
+            lseek(irq_fd, SEEK_SET, 0);
+            read(irq_fd, buf, 2);
+            printf("GPIO interrupt %c\n", buf[0]);
+        }
+
+        // Sync pin low
         write(sync_fd, "0", 1);
 
-        // Check for incoming connections
+        // Check for new connections on unconnected sockets
         for (int i=0; i<N_CHANNEL; i++) {
             if (SOCK_POLL(i).revents & POLLIN) {
                 int fd = accept(SOCK_POLL(i).fd, NULL, 0);
@@ -153,45 +169,56 @@ int main(int argc, char** argv) {
 
                 printf("Accepted connection on %i\n", i);
                 CONN_POLL(i).fd = fd;
+                CONN_POLL(i).events = POLLIN | POLLOUT;
 
                 // disable further events on listening socket
                 SOCK_POLL(i).events = 0;
             }
         }
 
-        // Check GPIO fd
-        if (GPIO_POLL.revents & POLLPRI) {
-            char buf[2];
-            lseek(irq_fd, SEEK_SET, 0);
-            read(irq_fd, buf, 2);
-            printf("GPIO interrupt %c\n", buf[0]);
-        }
-
+        // Check which connected sockets are readable / writable or closed
         for (int i=0; i<N_CHANNEL-1; i++) {
+            bool to_close = false;
             if (CONN_POLL(i).revents & POLLIN) {
-                int length = channels[i].out_length = read(CONN_POLL(i).fd, channels[i].out_buf, BUFSIZE);
-                printf("%i: Read %u\n", i, length);
+                int length = read(CONN_POLL(i).fd, channels[i].out_buf, BUFSIZE);
+                CONN_POLL(i).events &= ~POLLIN;
 
-                if (length <= 0) {
+                DEBUG("%i: Read %u\n", i, length);
+
+                if (length > 0) {
+                    channels[i].out_length = length;
+                } else {
                     if (length < 0) {
-                        fprintf(stderr, "Error in read %i: %s", i, strerror(errno));
+                        fprintf(stderr, "Error in read %i: %s\n", i, strerror(errno));
                     }
-
-                    printf("Closing connection %d\n", i);
-                    close(CONN_POLL(i).fd);
-                    CONN_POLL(i).fd = -1;
-                    writable &= ~(1 << i);
-                    // Re-enable events on a new connection
-                    SOCK_POLL(i).events = POLLIN;
+                    to_close = true;
                 }
             }
 
+            if (to_close || CONN_POLL(i).revents & POLLHUP
+                         || CONN_POLL(i).revents & POLLERR
+                         || CONN_POLL(i).revents & POLLRDHUP) {
+                printf("Closing connection %d\n", i);
+                close(CONN_POLL(i).fd);
+                CONN_POLL(i).fd = -1;
+
+                channels[i].out_length = 0;
+                writable &= ~(1 << i);
+
+                // Re-enable events on a new connection
+                SOCK_POLL(i).events = POLLIN;
+
+                continue;
+            }
+
             if (CONN_POLL(i).revents & POLLOUT) {
+                CONN_POLL(i).events &= ~POLLOUT;
                 writable |= (1 << i);
                 printf("%i: Writable\n", i);
             }
         }
 
+        // Prepare the header transfer
         struct spi_ioc_transfer ctrl_transfer[3];
         memset(ctrl_transfer, 0, sizeof(ctrl_transfer));
 
@@ -205,7 +232,7 @@ int main(int argc, char** argv) {
             tx_buf[2+i] = channels[i].out_length;
         }
 
-        printf("tx: %2x %2x %2x %2x %2x\n", tx_buf[0], tx_buf[1], tx_buf[2], tx_buf[3], tx_buf[4]);
+        DEBUG("tx: %2x %2x %2x %2x %2x\n", tx_buf[0], tx_buf[1], tx_buf[2], tx_buf[3], tx_buf[4]);
 
         ctrl_transfer[0].delay_usecs = 100;
         ctrl_transfer[1].len = sizeof(tx_buf);
@@ -215,25 +242,27 @@ int main(int argc, char** argv) {
         int status = ioctl(spi_fd, SPI_IOC_MESSAGE(3), ctrl_transfer);
 
         if (status < 0) {
-          perror("SPI_IOC_MESSAGE");
+          perror("SPI_IOC_MESSAGE: header");
           exit(3);
         }
 
-        printf("rx: %2x %2x %2x %2x %2x\n", rx_buf[0], rx_buf[1], rx_buf[2], rx_buf[3], rx_buf[4]);
+        DEBUG("rx: %2x %2x %2x %2x %2x\n", rx_buf[0], rx_buf[1], rx_buf[2], rx_buf[3], rx_buf[4]);
 
         if (rx_buf[0] != 0xCA) {
-            printf("Invalid command reply: %x\n", rx_buf[0]);
+            printf("Invalid command reply: %2x %2x %2x %2x %2x\n", rx_buf[0], rx_buf[1], rx_buf[2], rx_buf[3], rx_buf[4]);
             retries++;
 
-            if (retries > 5) {
+            if (retries > 500) {
                 exit(4);
             } else {
                 continue;
             }
         }
         retries = 0;
+
         write(sync_fd, "1", 1);
 
+        // Prepare the data transfer
         struct spi_ioc_transfer transfer[N_CHANNEL * 2];
         memset(transfer, 0, sizeof(transfer));
         int desc = 0;
@@ -241,9 +270,10 @@ int main(int argc, char** argv) {
         for (int chan=0; chan<N_CHANNEL; chan++) {
             int size = channels[chan].out_length;
             if (rx_buf[1] & (1<<chan) && size > 0) {
+                CONN_POLL(chan).events |= POLLIN;
                 transfer[desc].len = size;
                 transfer[desc].tx_buf = (unsigned long) &channels[chan].out_buf[0];
-                channels[chan].out_length = 0; // TODO: reset poll
+                channels[chan].out_length = 0;
                 desc++;
             }
 
@@ -256,16 +286,29 @@ int main(int argc, char** argv) {
         }
 
         if (desc != 0) {
-            printf("Performing transfer on %i channels\n", desc);
+            DEBUG("Performing transfer on %i channels\n", desc);
 
             int status = ioctl(spi_fd, SPI_IOC_MESSAGE(desc), transfer);
 
             if (status < 0) {
-              perror("SPI_IOC_MESSAGE");
+              perror("SPI_IOC_MESSAGE: data");
               exit(3);
             }
+
+            // Write received data to the appropriate socket
+            for (int chan=0; chan<N_CHANNEL; chan++) {
+                int size = rx_buf[2+chan];
+                if (writable & (1<<chan) && size > 0) {
+                    int r = write(CONN_POLL(chan).fd, &channels[chan].in_buf[0], size);
+                    DEBUG("%i: Write %u %i\n", chan, size, r);
+                    if (r < 0) {
+                        fprintf(stderr, "Error in write %i: %s\n", chan, strerror(errno));
+                    }
+
+                    CONN_POLL(chan).events |= POLLOUT;
+                    writable &= ~(1<<chan);
+                }
+            }
         }
-
-
     }
 }

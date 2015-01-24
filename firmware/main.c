@@ -68,11 +68,13 @@ void SERCOM_HANDLER(SERCOM_BRIDGE) {
 void bridge_completion_out_0(u8 _) {
     bridge_start_out(0, &test_buf0[0]);
 }
-void bridge_completion_out_1(u8 _) {
-    bridge_start_out(1, &test_buf1[0]);
+void bridge_completion_out_1(u8 count) {
+    bridge_start_in(1, &test_buf1[0], count);
 }
 void bridge_completion_out_2(u8 _) {}
 
 void bridge_completion_in_0() {}
-void bridge_completion_in_1() {}
+void bridge_completion_in_1() {
+    bridge_start_out(1, &test_buf1[0]);
+}
 void bridge_completion_in_2() {}
