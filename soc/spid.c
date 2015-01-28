@@ -19,7 +19,7 @@
 #define N_CHANNEL 3
 #define BUFSIZE 255
 
-#define DEBUG printf
+#define DEBUG //printf
 
 typedef struct ChannelData {
     int in_length;
@@ -95,7 +95,7 @@ int main(int argc, char** argv) {
     // set up sync pin
     gpio_export(argv[3]);
     gpio_edge(argv[3], "none");
-    gpio_direction(argv[3], "low");
+    gpio_direction(argv[3], "high");
     int sync_fd = gpio_open(argv[3], "value");
 
     memset(channels, 0, sizeof(channels));
@@ -219,7 +219,7 @@ int main(int argc, char** argv) {
         }
 
         // Prepare the header transfer
-        struct spi_ioc_transfer ctrl_transfer[3];
+        struct spi_ioc_transfer ctrl_transfer[2];
         memset(ctrl_transfer, 0, sizeof(ctrl_transfer));
 
         uint8_t tx_buf[2 + N_CHANNEL];
@@ -234,12 +234,11 @@ int main(int argc, char** argv) {
 
         DEBUG("tx: %2x %2x %2x %2x %2x\n", tx_buf[0], tx_buf[1], tx_buf[2], tx_buf[3], tx_buf[4]);
 
-        ctrl_transfer[0].delay_usecs = 100;
-        ctrl_transfer[1].len = sizeof(tx_buf);
-        ctrl_transfer[1].tx_buf = (unsigned long)tx_buf;
-        ctrl_transfer[2].len = sizeof(rx_buf);
-        ctrl_transfer[2].rx_buf = (unsigned long)rx_buf;
-        int status = ioctl(spi_fd, SPI_IOC_MESSAGE(3), ctrl_transfer);
+        ctrl_transfer[0].len = sizeof(tx_buf);
+        ctrl_transfer[0].tx_buf = (unsigned long)tx_buf;
+        ctrl_transfer[1].len = sizeof(rx_buf);
+        ctrl_transfer[1].rx_buf = (unsigned long)rx_buf;
+        int status = ioctl(spi_fd, SPI_IOC_MESSAGE(2), ctrl_transfer);
 
         if (status < 0) {
           perror("SPI_IOC_MESSAGE: header");
@@ -247,6 +246,7 @@ int main(int argc, char** argv) {
         }
 
         DEBUG("rx: %2x %2x %2x %2x %2x\n", rx_buf[0], rx_buf[1], rx_buf[2], rx_buf[3], rx_buf[4]);
+        write(sync_fd, "1", 1);
 
         if (rx_buf[0] != 0xCA) {
             printf("Invalid command reply: %2x %2x %2x %2x %2x\n", rx_buf[0], rx_buf[1], rx_buf[2], rx_buf[3], rx_buf[4]);
@@ -259,8 +259,6 @@ int main(int argc, char** argv) {
             }
         }
         retries = 0;
-
-        write(sync_fd, "1", 1);
 
         // Prepare the data transfer
         struct spi_ioc_transfer transfer[N_CHANNEL * 2];

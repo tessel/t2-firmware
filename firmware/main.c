@@ -34,6 +34,12 @@ int main(void) {
     dma_init();
     NVIC_EnableIRQ(DMAC_IRQn);
 
+    eic_init();
+    NVIC_EnableIRQ(EIC_IRQn);
+
+    evsys_init();
+    NVIC_EnableIRQ(EVSYS_IRQn);
+
     bridge_init();
     bridge_start_out(0, &test_buf0[0]);
     bridge_start_out(1, &test_buf1[0]);
@@ -61,8 +67,17 @@ void DMAC_Handler() {
     DMAC->INTPEND.reg = intpend;
 }
 
-void SERCOM_HANDLER(SERCOM_BRIDGE) {
-    bridge_handle_sercom();
+void EIC_Handler() {
+    invalid();
+}
+
+void EVSYS_Handler() {
+    if (EVSYS->INTFLAG.reg & EVSYS_EVD(EVSYS_BRIDGE_SYNC)) {
+        EVSYS->INTFLAG.reg = EVSYS_EVD(EVSYS_BRIDGE_SYNC);
+        bridge_handle_sync();
+    } else {
+        invalid();
+    }
 }
 
 void bridge_completion_out_0(u8 _) {

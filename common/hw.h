@@ -50,9 +50,58 @@ inline static bool pin_read(Pin p) {
   return (PORT->Group[p.group].IN.reg & (1<<p.pin)) != 0;
 }
 
-inline static Sercom* sercom(SercomId id) {
-  return (Sercom*) (0x42000800U + id * 1024);
+inline static void pin_mux_eic(Pin p) {
+    if (p.pin & 1) {
+      PORT->Group[p.group].PMUX[p.pin/2].bit.PMUXO = 0;
+    } else {
+      PORT->Group[p.group].PMUX[p.pin/2].bit.PMUXE = 0;
+    }
+
+    PORT->Group[p.group].PINCFG[p.pin].bit.PMUXEN = 1;
 }
+
+inline static void eic_init() {
+    PM->APBAMASK.reg |= PM_APBAMASK_EIC;
+
+    GCLK->CLKCTRL.reg = GCLK_CLKCTRL_CLKEN |
+        GCLK_CLKCTRL_GEN(0) |
+        GCLK_CLKCTRL_ID(EIC_GCLK_ID);
+
+    EIC->CTRL.reg = EIC_CTRL_ENABLE;
+}
+
+inline static u8 pin_extint(Pin p) {
+  return p.pin % 16;
+}
+
+#define   EIC_CONFIG_SENSE_NONE      0x0u   /**< \brief (EIC_CONFIG) No detection */
+#define   EIC_CONFIG_SENSE_RISE      0x1u   /**< \brief (EIC_CONFIG) Rising edge detection */
+#define   EIC_CONFIG_SENSE_FALL      0x2u   /**< \brief (EIC_CONFIG) Falling edge detection */
+#define   EIC_CONFIG_SENSE_BOTH      0x3u   /**< \brief (EIC_CONFIG) Both edges detection */
+#define   EIC_CONFIG_SENSE_HIGH      0x4u   /**< \brief (EIC_CONFIG) High level detection */
+#define   EIC_CONFIG_SENSE_LOW       0x5u   /**< \brief (EIC_CONFIG) Low level detection */
+
+inline static void eic_config(Pin p, u8 config) {
+  u8 i = pin_extint(p);
+  u8 pos = (i % 8) * 4;
+  EIC->CONFIG[i/8].reg = (EIC->CONFIG[i/8].reg & ~(0xf << pos)) | (config << pos);
+}
+
+inline static void evsys_init() {
+    PM->APBCMASK.reg |= PM_APBCMASK_EVSYS;
+}
+
+inline static void evsys_config(u8 channel, u8 source) {
+    GCLK->CLKCTRL.reg = GCLK_CLKCTRL_CLKEN |
+        GCLK_CLKCTRL_GEN(0) |
+        GCLK_CLKCTRL_ID(EVSYS_GCLK_ID_0 + channel);
+
+    EVSYS->CHANNEL.reg = EVSYS_CHANNEL_CHANNEL(channel)
+                       | EVSYS_CHANNEL_EVGEN(source)
+                       | EVSYS_CHANNEL_PATH_SYNCHRONOUS | EVSYS_CHANNEL_EDGSEL_RISING_EDGE;
+}
+
+#define EVSYS_EVD(N) ((N)<=7 ? (1<<((N) + 8)) : (1 << (24 + (N) - 8)))
 
 // clock.c
 void clock_init();
@@ -73,6 +122,11 @@ void dma_start_descriptor(DmaChan chan, DmacDescriptor* chain);
 
 
 // sercom.c
+
+inline static Sercom* sercom(SercomId id) {
+  return (Sercom*) (0x42000800U + id * 1024);
+}
+
 void sercom_spi_slave_init(SercomId id, u32 dipo, u32 dopo, bool cpol, bool cpha);
 void sercom_spi_master_init(SercomId id, u32 dipo, u32 dopo, bool cpol, bool cpha);
 

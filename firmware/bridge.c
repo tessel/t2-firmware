@@ -53,14 +53,15 @@ void bridge_init() {
     dma_link_chain(dma_chain_control_rx, 2);
 
     dma_sercom_configure_tx(DMA_BRIDGE_TX, SERCOM_BRIDGE);
-    dma_fill_sercom_tx(&dma_chain_control_tx[0], SERCOM_BRIDGE, NULL, sizeof(ControlPkt)-1);
+    dma_fill_sercom_tx(&dma_chain_control_tx[0], SERCOM_BRIDGE, NULL, sizeof(ControlPkt));
     dma_fill_sercom_tx(&dma_chain_control_tx[1], SERCOM_BRIDGE, (u8*)&ctrl_tx, sizeof(ControlPkt));
     dma_link_chain(dma_chain_control_tx, 2);
 
-    sercom(SERCOM_BRIDGE)->SPI.INTFLAG.reg = SERCOM_SPI_INTFLAG_SSL;
-    sercom(SERCOM_BRIDGE)->SPI.INTENSET.reg = SERCOM_SPI_INTENSET_SSL;
-    NVIC_EnableIRQ(SERCOM0_IRQn + SERCOM_BRIDGE);
-    sercom(SERCOM_BRIDGE)->SPI.DATA.reg = 0x88;
+    pin_mux_eic(PIN_BRIDGE_SYNC);
+    eic_config(PIN_BRIDGE_SYNC, EIC_CONFIG_SENSE_BOTH);
+    EIC->EVCTRL.reg |= 1 << pin_extint(PIN_BRIDGE_SYNC);
+    evsys_config(EVSYS_BRIDGE_SYNC, EVSYS_ID_GEN_EIC_EXTINT_0 + pin_extint(PIN_BRIDGE_SYNC));
+    EVSYS->INTENSET.reg = EVSYS_EVD(EVSYS_BRIDGE_SYNC);
 
     bridge_state = BRIDGE_STATE_IDLE;
 }
@@ -81,18 +82,16 @@ void bridge_disable() {
     bridge_state = BRIDGE_STATE_DISABLE;
 }
 
-void bridge_handle_sercom() {
-    sercom(SERCOM_BRIDGE)->SPI.INTFLAG.reg = SERCOM_SPI_INTFLAG_SSL;
+void bridge_handle_sync() {
     if (pin_read(PIN_BRIDGE_SYNC) == 0) {
-        // Reset DMA in case we were in the middle of an incorrect data phase
+        pin_high(PIN_PBCS);
+        // Reset SERCOM to clear FIFOs and prepare for header packet
         dma_abort(DMA_BRIDGE_TX);
         dma_abort(DMA_BRIDGE_RX);
 
-        // Flush RX buffer
-        (void) sercom(SERCOM_BRIDGE)->SPI.DATA;
-        (void) sercom(SERCOM_BRIDGE)->SPI.DATA;
-        (void) sercom(SERCOM_BRIDGE)->SPI.DATA;
+        sercom_spi_slave_init(SERCOM_BRIDGE, BRIDGE_DIPO, BRIDGE_DOPO, 1, 1);
 
+        ctrl_rx.cmd = 0x00;
         ctrl_tx.cmd = 0xCA;
         for (u8 chan=0; chan<BRIDGE_NUM_CHAN; chan++) {
             ctrl_tx.tx_size[chan] = in_chan_size[chan];
@@ -102,6 +101,9 @@ void bridge_handle_sercom() {
         dma_start_descriptor(DMA_BRIDGE_TX, &dma_chain_control_tx[0]);
         dma_start_descriptor(DMA_BRIDGE_RX, &dma_chain_control_rx[0]);
         bridge_state = BRIDGE_STATE_CTRL;
+    } else {
+        // Configure DMA for the data phase
+
     }
 }
 
