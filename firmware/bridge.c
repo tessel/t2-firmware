@@ -177,7 +177,7 @@ void bridge_dma_rx_completion() {
 }
 
 void bridge_start_in(u8 channel, u8* data, u8 length) {
-    out_chan_ptr[channel] = data;
+    in_chan_ptr[channel] = data;
     in_chan_size[channel] = length;
     pin_high(PIN_BRIDGE_IRQ);
 }
