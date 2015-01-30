@@ -84,7 +84,6 @@ void bridge_disable() {
 
 void bridge_handle_sync() {
     if (pin_read(PIN_BRIDGE_SYNC) == 0) {
-        pin_high(PIN_PBCS);
         // Reset SERCOM to clear FIFOs and prepare for header packet
         dma_abort(DMA_BRIDGE_TX);
         dma_abort(DMA_BRIDGE_RX);
