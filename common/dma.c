@@ -21,6 +21,7 @@ void dma_init() {
 }
 
 void dma_abort(DmaChan chan) {
+    DMAC->CHID.reg = chan;
     DMAC->CHCTRLA.reg = 0;
 }
 
