@@ -51,3 +51,7 @@ void bridge_completion_out_0(u8 size);
 void bridge_completion_out_1(u8 size);
 void bridge_completion_out_2(u8 size);
 void bridge_completion_out_3(u8 size);
+
+// port.c
+
+void ports_init();

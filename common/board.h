@@ -119,7 +119,7 @@ const static TesselPort PORT_B = {
     .uart_dopo = 1,
 };
 
-static inline void port_init(const TesselPort* port) {
+static inline void port_gpio_init(const TesselPort* port) {
     for (int i = 0; i<8; i++) {
         pin_gpio(port->gpio[i]);
         pin_pull_up(port->gpio[i]);

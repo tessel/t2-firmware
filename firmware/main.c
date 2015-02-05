@@ -1,7 +1,6 @@
 #include "firmware.h"
 
-u8 test_buf0[256];
-u8 test_buf1[256];
+u8 test_buf[256];
 
 int main(void) {
     clock_init();
@@ -27,9 +26,6 @@ int main(void) {
     pin_pull_up(PIN_BRIDGE_CS);
     pin_pull_up(PIN_FLASH_CS);
 
-    port_init(&PORT_A);
-    port_init(&PORT_B);
-
     dma_init();
     NVIC_EnableIRQ(DMAC_IRQn);
     NVIC_SetPriority(DMAC_IRQn, 0xff);
@@ -43,8 +39,9 @@ int main(void) {
     NVIC_SetPriority(EVSYS_IRQn, 0);
 
     bridge_init();
-    bridge_start_out(0, &test_buf0[0]);
-    bridge_start_out(1, &test_buf1[0]);
+    bridge_start_out(0, &test_buf[0]);
+
+    ports_init();
 
     __enable_irq();
     SCB->SCR |= SCB_SCR_SLEEPONEXIT_Msk;
@@ -82,16 +79,11 @@ void EVSYS_Handler() {
     }
 }
 
-void bridge_completion_out_0(u8 _) {
-    bridge_start_out(0, &test_buf0[0]);
+void bridge_completion_out_0(u8 count) {
+    bridge_start_in(0, &test_buf[0], count);
 }
-void bridge_completion_out_1(u8 count) {
-    bridge_start_in(1, &test_buf1[0], count);
-}
-void bridge_completion_out_2(u8 _) {}
 
-void bridge_completion_in_0() {}
-void bridge_completion_in_1() {
-    bridge_start_out(1, &test_buf1[0]);
+
+void bridge_completion_in_0() {
+    bridge_start_out(0, &test_buf[0]);
 }
-void bridge_completion_in_2() {}
