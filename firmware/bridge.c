@@ -99,19 +99,11 @@ void bridge_handle_sync() {
 
         dma_start_descriptor(DMA_BRIDGE_TX, &dma_chain_control_tx[0]);
         dma_start_descriptor(DMA_BRIDGE_RX, &dma_chain_control_rx[0]);
+        DMAC->CHINTENCLR.reg = DMAC_CHINTENSET_TCMPL | DMAC_CHINTENSET_TERR; // note: depends on ID from previous call
         bridge_state = BRIDGE_STATE_CTRL;
     } else {
         // Configure DMA for the data phase
-
-    }
-}
-
-void bridge_dma_rx_completion() {
-    if (bridge_state == BRIDGE_STATE_DISABLE) {
-        return;
-    } else if (bridge_state == BRIDGE_STATE_CTRL) {
         if (ctrl_rx.cmd != 0x53) {
-            invalid();
             bridge_state = BRIDGE_STATE_IDLE;
             return;
         }
@@ -140,6 +132,8 @@ void bridge_dma_rx_completion() {
             dma_link_chain(dma_chain_data_rx, desc);
             dma_start_descriptor(DMA_BRIDGE_TX, &dma_chain_data_tx[0]);
             dma_start_descriptor(DMA_BRIDGE_RX, &dma_chain_data_rx[0]);
+            DMAC->CHINTFLAG.reg = DMAC_CHINTFLAG_TCMPL | DMAC_CHINTFLAG_TERR; // note: depends on ID from previous call
+            DMAC->CHINTENSET.reg = DMAC_CHINTENSET_TCMPL | DMAC_CHINTENSET_TERR;
             bridge_state = BRIDGE_STATE_DATA;
         } else {
             // No data to transfer
@@ -147,8 +141,11 @@ void bridge_dma_rx_completion() {
         }
 
         pin_low(PIN_BRIDGE_IRQ);
+    }
+}
 
-    } else if (bridge_state == BRIDGE_STATE_DATA) {
+void bridge_dma_rx_completion() {
+    if (bridge_state == BRIDGE_STATE_DATA) {
 
         #define CHECK_COMPLETION_OUT(x) \
             if (ctrl_tx.rx_state & (1<<x) && ctrl_rx.tx_size[x] > 0) { \

@@ -260,6 +260,8 @@ int main(int argc, char** argv) {
         }
         retries = 0;
 
+        usleep(20);
+
         // Prepare the data transfer
         struct spi_ioc_transfer transfer[N_CHANNEL * 2];
         memset(transfer, 0, sizeof(transfer));
