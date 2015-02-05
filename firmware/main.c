@@ -1,7 +1,5 @@
 #include "firmware.h"
 
-USB_ENDPOINTS(3);
-
 u8 test_buf0[256];
 u8 test_buf1[256];
 

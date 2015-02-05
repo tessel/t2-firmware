@@ -1,6 +1,8 @@
 #include "usb.h"
 #include "firmware.h"
 
+USB_ENDPOINTS(3);
+
 __attribute__((__aligned__(4))) const USB_DeviceDescriptor device_descriptor = {
 	.bLength = sizeof(USB_DeviceDescriptor),
 	.bDescriptorType = USB_DTYPE_Device,
