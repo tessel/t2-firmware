@@ -117,7 +117,29 @@ void port_exec_async_complete(PortData* p, ExecStatus s) {
     port_step(p);
 }
 
-ExecStatus port_exec(PortData *p) {
+ExecStatus port_begin_cmd(PortData *p) {
+    switch (p->cmd) {
+        case CMD_NOP:
+            return EXEC_DONE;
+        case CMD_ECHO:
+            return EXEC_CONTINUE;
+        case CMD_GPIO_IN:
+            pin_in(port_selected_pin(p));
+            return EXEC_DONE;
+        case CMD_GPIO_HIGH:
+            pin_high(port_selected_pin(p));
+            pin_out(port_selected_pin(p));
+            return EXEC_DONE;
+        case CMD_GPIO_LOW:
+            pin_low(port_selected_pin(p));
+            pin_out(port_selected_pin(p));
+            return EXEC_DONE;
+    }
+    invalid();
+    return EXEC_DONE;
+}
+
+ExecStatus port_continue_cmd(PortData *p) {
     switch (p->cmd) {
         case CMD_NOP:
             return EXEC_DONE;
@@ -130,15 +152,8 @@ ExecStatus port_exec(PortData *p) {
             return p->arg == 0 ? EXEC_DONE : EXEC_CONTINUE;
         }
         case CMD_GPIO_IN:
-            pin_in(port_selected_pin(p));
-            return EXEC_DONE;
         case CMD_GPIO_HIGH:
-            pin_high(port_selected_pin(p));
-            pin_out(port_selected_pin(p));
-            return EXEC_DONE;
-        case CMD_GPIO_LOW: // it's waiting for data before reaching here, even though this doesn't need data
-            pin_low(port_selected_pin(p));
-            pin_out(port_selected_pin(p));
+        case CMD_GPIO_LOW:
             return EXEC_DONE;
     }
     invalid();
@@ -173,13 +188,13 @@ void port_step(PortData* p) {
             if (port_cmd_has_arg(p->cmd)) {
                 p->state = PORT_READ_ARG;
             } else {
-                p->state = PORT_EXEC;
+                p->state = port_begin_cmd(p);
             }
         } else if (p->state == PORT_READ_ARG) {
             p->arg = p->cmd_buf[p->cmd_pos++];
-            p->state = PORT_EXEC;
+            p->state = port_begin_cmd(p);
         } else if (p->state == PORT_EXEC) {
-            p->state = port_exec(p);
+            p->state = port_continue_cmd(p);
         } else if (p->state == PORT_EXEC_ASYNC) {
             break;
         }
