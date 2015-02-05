@@ -105,6 +105,10 @@ u32 port_txrx_len(PortData *p) {
     return size;
 }
 
+Pin port_selected_pin(PortData* p) {
+    return p->port->gpio[p->arg % 8];
+}
+
 void port_exec_async_complete(PortData* p, ExecStatus s) {
     if (p->state != PORT_EXEC_ASYNC) {
         invalid();
@@ -125,10 +129,20 @@ ExecStatus port_exec(PortData *p) {
             p->arg -= size;
             return p->arg == 0 ? EXEC_DONE : EXEC_CONTINUE;
         }
-        default:
-            invalid();
+        case CMD_GPIO_IN:
+            pin_in(port_selected_pin(p));
+            return EXEC_DONE;
+        case CMD_GPIO_HIGH:
+            pin_high(port_selected_pin(p));
+            pin_out(port_selected_pin(p));
+            return EXEC_DONE;
+        case CMD_GPIO_LOW: // it's waiting for data before reaching here, even though this doesn't need data
+            pin_low(port_selected_pin(p));
+            pin_out(port_selected_pin(p));
             return EXEC_DONE;
     }
+    invalid();
+    return EXEC_DONE;
 }
 
 void port_step(PortData* p) {
