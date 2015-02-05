@@ -10,6 +10,7 @@ int main(void) {
     pin_mux(PIN_USB_DP);
     usb_init();
     usb_attach();
+    NVIC_SetPriority(USB_IRQn, 0xff);
 
     pin_high(PIN_SOC_RST);
     pin_out(PIN_SOC_RST);
@@ -31,12 +32,15 @@ int main(void) {
 
     dma_init();
     NVIC_EnableIRQ(DMAC_IRQn);
+    NVIC_SetPriority(DMAC_IRQn, 0xff);
 
     eic_init();
     NVIC_EnableIRQ(EIC_IRQn);
+    NVIC_SetPriority(EIC_IRQn, 0xff);
 
     evsys_init();
     NVIC_EnableIRQ(EVSYS_IRQn);
+    NVIC_SetPriority(EVSYS_IRQn, 0);
 
     bridge_init();
     bridge_start_out(0, &test_buf0[0]);
