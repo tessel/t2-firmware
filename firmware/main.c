@@ -44,8 +44,8 @@ int main(void) {
     bridge_init();
     bridge_start_out(0, &test_buf[0]);
 
-    port_init(&port_a, 1, &PORT_A);
-    port_init(&port_b, 2, &PORT_B);
+    port_init(&port_a, 1, &PORT_A, DMA_PORT_A_TX, DMA_PORT_A_RX);
+    port_init(&port_b, 2, &PORT_B, DMA_PORT_B_TX, DMA_PORT_B_RX);
 
     __enable_irq();
     SCB->SCR |= SCB_SCR_SLEEPONEXIT_Msk;
@@ -57,9 +57,13 @@ void DMAC_Handler() {
     if (intpend & DMAC_INTPEND_TCMPL) {
         u32 id = intpend & DMAC_INTPEND_ID_Msk;
 
-        if (id == DMA_FLASH_RX) {
+        if (id == DMA_BRIDGE_RX) {
             bridge_dma_rx_completion();
             flash_dma_rx_completion();
+        } else if (id == DMA_PORT_A_RX) {
+            port_dma_rx_completion(&port_a);
+        } else if (id == DMA_PORT_B_RX) {
+            port_dma_rx_completion(&port_b);
         }
     }
 

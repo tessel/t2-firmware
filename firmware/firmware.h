@@ -4,12 +4,16 @@
 #include "samd/usb_samd.h"
 
 /// DMA allocation
-#define DMA_FLASH_TX 0
-#define DMA_FLASH_RX 1
-
-// overlaps with flash because they cannot be active at the same time
 #define DMA_BRIDGE_TX 0
 #define DMA_BRIDGE_RX 1
+#define DMA_PORT_A_TX 2
+#define DMA_PORT_A_RX 3
+#define DMA_PORT_B_TX 4
+#define DMA_PORT_B_RX 5
+
+// overlaps with flash because they cannot be active at the same time
+#define DMA_FLASH_TX DMA_BRIDGE_TX
+#define DMA_FLASH_RX DMA_BRIDGE_RX
 
 /// EVSYS allocation
 #define EVSYS_BRIDGE_SYNC 0
@@ -59,6 +63,8 @@ void bridge_completion_out_3(u8 size);
 typedef struct PortData {
     u8 chan;
     const TesselPort* port;
+    DmaChan dma_tx;
+    DmaChan dma_rx;
 
     u8 state;
     u8 cmd_buf[BUF_SIZE];
@@ -73,6 +79,7 @@ typedef struct PortData {
     bool pending_in;
 } PortData;
 
-void port_init(PortData* p, u8 chan, const TesselPort* port);
+void port_init(PortData* p, u8 chan, const TesselPort* port, DmaChan dma_tx, DmaChan dma_rx);
 void port_bridge_out_completion(PortData* p, u8 len);
 void port_bridge_in_completion(PortData* p);
+void port_dma_rx_completion(PortData* p);

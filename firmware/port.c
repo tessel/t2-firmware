@@ -25,10 +25,12 @@ typedef enum ExecStatus {
 
 void port_step(PortData* p);
 
-void port_init(PortData* p, u8 chan, const TesselPort* port) {
+void port_init(PortData* p, u8 chan, const TesselPort* port, DmaChan dma_tx, DmaChan dma_rx) {
     memset(p, 0, sizeof(PortData));
     p->chan = chan;
     p->port = port;
+    p->dma_tx = dma_tx;
+    p->dma_rx = dma_rx;
     port_gpio_init(p->port);
     p->pending_out = true;
     bridge_start_out(p->chan, p->cmd_buf);
@@ -139,6 +141,10 @@ ExecStatus port_continue_cmd(PortData *p) {
     }
     invalid();
     return EXEC_DONE;
+}
+
+void port_dma_rx_completion(PortData* p) {
+
 }
 
 void port_step(PortData* p) {
