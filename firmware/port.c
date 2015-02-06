@@ -8,25 +8,6 @@ typedef enum PortState {
     PORT_EXEC_ASYNC,
 } PortState;
 
-#define BUF_SIZE 256
-
-typedef struct PortData {
-    u8 chan;
-    const TesselPort* port;
-
-    PortState state;
-    u8 cmd_buf[BUF_SIZE];
-    u8 cmd_len;
-    u8 cmd_pos;
-    u8 reply_buf[BUF_SIZE];
-    u8 reply_len;
-    u8 cmd;
-    u8 arg;
-    u8 len;
-    bool pending_out;
-    bool pending_in;
-} PortData;
-
 typedef enum PortCmd {
     CMD_NOP = 0,
     CMD_FLUSH = 1,
@@ -212,25 +193,4 @@ void port_bridge_in_completion(PortData* p) {
     p->pending_in = false;
     p->reply_len = 0;
     port_step(p);
-}
-
-
-PortData ports[2];
-
-void ports_init() {
-    port_init(&ports[0], 1, &PORT_A);
-    port_init(&ports[1], 2, &PORT_B);
-}
-
-void bridge_completion_out_1(u8 count) {
-    port_bridge_out_completion(&ports[0], count);
-}
-void bridge_completion_out_2(u8 count) {
-    port_bridge_out_completion(&ports[1], count);
-}
-void bridge_completion_in_1() {
-    port_bridge_in_completion(&ports[0]);
-}
-void bridge_completion_in_2() {
-    port_bridge_in_completion(&ports[1]);
 }

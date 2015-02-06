@@ -54,4 +54,25 @@ void bridge_completion_out_3(u8 size);
 
 // port.c
 
-void ports_init();
+#define BUF_SIZE 256
+
+typedef struct PortData {
+    u8 chan;
+    const TesselPort* port;
+
+    u8 state;
+    u8 cmd_buf[BUF_SIZE];
+    u8 cmd_len;
+    u8 cmd_pos;
+    u8 reply_buf[BUF_SIZE];
+    u8 reply_len;
+    u8 cmd;
+    u8 arg;
+    u8 len;
+    bool pending_out;
+    bool pending_in;
+} PortData;
+
+void port_init(PortData* p, u8 chan, const TesselPort* port);
+void port_bridge_out_completion(PortData* p, u8 len);
+void port_bridge_in_completion(PortData* p);
