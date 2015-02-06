@@ -15,6 +15,19 @@ typedef enum PortCmd {
     CMD_GPIO_IN = 3,
     CMD_GPIO_HIGH = 4,
     CMD_GPIO_LOW = 5,
+    CMD_GPIO_CFG = 6,
+    CMD_GPIO_WAIT = 7,
+    CMD_GPIO_INT = 8,
+
+    CMD_ENABLE_SPI = 10,
+    CMD_DISABLE_SPI = 11,
+    CMD_ENABLE_I2C = 12,
+    CMD_DISABLE_I2C = 13,
+    CMD_ENABLE_UART = 14,
+    CMD_DISABLE_UART = 15,
+    CMD_TX = 16,
+    CMD_RX = 17,
+    CMD_TXRX = 18,
 } PortCmd;
 
 typedef enum ExecStatus {
@@ -41,16 +54,31 @@ bool port_cmd_has_arg(PortCmd cmd) {
     switch (cmd) {
         case CMD_NOP:
         case CMD_FLUSH:
+        case CMD_DISABLE_SPI:
+        case CMD_DISABLE_I2C:
+        case CMD_DISABLE_UART:
             return false;
 
-        // Commands that take a length argument:
+        // Length argument:
         case CMD_ECHO:
+        case CMD_TX:
+        case CMD_RX:
+        case CMD_TXRX:
             return true;
 
-        // Commands that take a pin argument:
+        // Pin argument:
         case CMD_GPIO_IN:
         case CMD_GPIO_HIGH:
         case CMD_GPIO_LOW:
+        case CMD_GPIO_WAIT:
+        case CMD_GPIO_INT:
+        case CMD_GPIO_CFG:
+            return true;
+
+        // Config argument:
+        case CMD_ENABLE_SPI:
+        case CMD_ENABLE_I2C:
+        case CMD_ENABLE_UART:
             return true;
     }
     invalid();
@@ -104,8 +132,13 @@ ExecStatus port_begin_cmd(PortData *p) {
     switch (p->cmd) {
         case CMD_NOP:
             return EXEC_DONE;
+
         case CMD_ECHO:
+        case CMD_TX:
+        case CMD_RX:
+        case CMD_TXRX:
             return EXEC_CONTINUE;
+
         case CMD_GPIO_IN:
             pin_in(port_selected_pin(p));
             return EXEC_DONE;
@@ -117,6 +150,39 @@ ExecStatus port_begin_cmd(PortData *p) {
             pin_low(port_selected_pin(p));
             pin_out(port_selected_pin(p));
             return EXEC_DONE;
+
+        case CMD_GPIO_WAIT:
+        case CMD_GPIO_INT:
+        case CMD_GPIO_CFG:
+            return EXEC_DONE;
+
+        case CMD_ENABLE_SPI:
+            sercom_spi_master_init(p->port->spi, p->port->spi_dipo, p->port->spi_dopo, 0, 0);
+            dma_sercom_configure_tx(p->dma_tx, p->port->spi);
+            dma_sercom_configure_rx(p->dma_rx, p->port->spi);
+            pin_mux(p->port->mosi);
+            pin_mux(p->port->miso);
+            pin_mux(p->port->sck);
+            return EXEC_DONE;
+
+        case CMD_DISABLE_SPI:
+            // TODO: disable SERCOM
+            pin_gpio(p->port->mosi);
+            pin_gpio(p->port->miso);
+            pin_gpio(p->port->sck);
+            return EXEC_DONE;
+
+        case CMD_ENABLE_I2C:
+            return EXEC_DONE;
+
+        case CMD_DISABLE_I2C:
+            return EXEC_DONE;
+
+        case CMD_ENABLE_UART:
+            return EXEC_DONE;
+
+        case CMD_DISABLE_UART:
+            return EXEC_DONE;
     }
     invalid();
     return EXEC_DONE;
@@ -124,8 +190,6 @@ ExecStatus port_begin_cmd(PortData *p) {
 
 ExecStatus port_continue_cmd(PortData *p) {
     switch (p->cmd) {
-        case CMD_NOP:
-            return EXEC_DONE;
         case CMD_ECHO: {
             u32 size = port_txrx_len(p);
             memcpy(&p->reply_buf[p->reply_len], &p->cmd_buf[p->cmd_pos], size);
@@ -134,17 +198,31 @@ ExecStatus port_continue_cmd(PortData *p) {
             p->arg -= size;
             return p->arg == 0 ? EXEC_DONE : EXEC_CONTINUE;
         }
-        case CMD_GPIO_IN:
-        case CMD_GPIO_HIGH:
-        case CMD_GPIO_LOW:
-            return EXEC_DONE;
+        case CMD_TX: {
+            u32 size = port_tx_len(p);
+            dma_sercom_start_tx(p->dma_tx, p->port->spi, &p->cmd_buf[p->cmd_pos], size);
+            p->cmd_pos += size;
+            p->arg -= size;
+            return EXEC_ASYNC;
+        }
+        case CMD_RX: {
+            u32 size = port_rx_len(p);
+            dma_sercom_start_rx(p->dma_rx, p->port->spi, &p->reply_buf[p->reply_len], size);
+            p->reply_len += size;
+            p->arg -= size;
+            return EXEC_ASYNC;
+        }
+        case CMD_TXRX: {
+            u32 size = port_txrx_len(p);
+            dma_sercom_start_rx(p->dma_rx, p->port->spi, &p->reply_buf[p->reply_len], size);
+            dma_sercom_start_tx(p->dma_tx, p->port->spi, &p->cmd_buf[p->cmd_pos], size);
+            p->reply_len += size;
+            p->cmd_pos += size;
+            p->arg -= size;
+            return EXEC_ASYNC;
+        }
     }
-    invalid();
     return EXEC_DONE;
-}
-
-void port_dma_rx_completion(PortData* p) {
-
 }
 
 void port_step(PortData* p) {
@@ -199,4 +277,13 @@ void port_bridge_in_completion(PortData* p) {
     p->pending_in = false;
     p->reply_len = 0;
     port_step(p);
+}
+
+void port_dma_rx_completion(PortData* p) {
+    if (p->state == PORT_EXEC_ASYNC) {
+        p->state = (p->arg == 0 ? EXEC_DONE : EXEC_CONTINUE);
+        port_step(p);
+    } else {
+        invalid();
+    }
 }

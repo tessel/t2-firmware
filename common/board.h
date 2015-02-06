@@ -97,7 +97,7 @@ const static TesselPort PORT_A = {
     .spi = 5,
     .uart_i2c = 4,
     .spi_dipo = 3,
-    .spi_dopo = 2,
+    .spi_dopo = 0,
     .uart_dipo = 3,
     .uart_dopo = 1,
 };
@@ -114,7 +114,7 @@ const static TesselPort PORT_B = {
     .spi = 0,
     .uart_i2c = 2,
     .spi_dipo = 3,
-    .spi_dopo = 2,
+    .spi_dopo = 0,
     .uart_dipo = 3,
     .uart_dopo = 1,
 };
