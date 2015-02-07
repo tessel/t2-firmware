@@ -30,6 +30,13 @@ typedef enum PortCmd {
     CMD_TXRX = 18,
 } PortCmd;
 
+typedef enum PortMode {
+    MODE_NONE,
+    MODE_SPI,
+    MODE_I2C,
+    MODE_UART,
+} PortMode;
+
 typedef enum ExecStatus {
     EXEC_DONE = PORT_READ_CMD,
     EXEC_CONTINUE = PORT_EXEC,
@@ -48,6 +55,7 @@ void port_init(PortData* p, u8 chan, const TesselPort* port, DmaChan dma_tx, Dma
     p->pending_out = true;
     bridge_start_out(p->chan, p->cmd_buf);
     p->state = PORT_READ_CMD;
+    p->mode = MODE_NONE;
 }
 
 bool port_cmd_has_arg(PortCmd cmd) {
@@ -163,6 +171,7 @@ ExecStatus port_begin_cmd(PortData *p) {
             pin_mux(p->port->mosi);
             pin_mux(p->port->miso);
             pin_mux(p->port->sck);
+            p->mode = MODE_SPI;
             return EXEC_DONE;
 
         case CMD_DISABLE_SPI:
@@ -170,6 +179,7 @@ ExecStatus port_begin_cmd(PortData *p) {
             pin_gpio(p->port->mosi);
             pin_gpio(p->port->miso);
             pin_gpio(p->port->sck);
+            p->mode = MODE_NONE;
             return EXEC_DONE;
 
         case CMD_ENABLE_I2C:
@@ -198,29 +208,33 @@ ExecStatus port_continue_cmd(PortData *p) {
             p->arg -= size;
             return p->arg == 0 ? EXEC_DONE : EXEC_CONTINUE;
         }
-        case CMD_TX: {
-            u32 size = port_tx_len(p);
-            dma_sercom_start_tx(p->dma_tx, p->port->spi, &p->cmd_buf[p->cmd_pos], size);
-            p->cmd_pos += size;
-            p->arg -= size;
+        case CMD_TX:
+            if (p->mode == MODE_SPI) {
+                u32 size = port_tx_len(p);
+                dma_sercom_start_tx(p->dma_tx, p->port->spi, &p->cmd_buf[p->cmd_pos], size);
+                p->cmd_pos += size;
+                p->arg -= size;
+            }
             return EXEC_ASYNC;
-        }
-        case CMD_RX: {
-            u32 size = port_rx_len(p);
-            dma_sercom_start_rx(p->dma_rx, p->port->spi, &p->reply_buf[p->reply_len], size);
-            p->reply_len += size;
-            p->arg -= size;
+        case CMD_RX:
+            if (p->mode == MODE_SPI) {
+                u32 size = port_rx_len(p);
+                dma_sercom_start_rx(p->dma_rx, p->port->spi, &p->reply_buf[p->reply_len], size);
+                dma_sercom_start_tx(p->dma_tx, p->port->spi, NULL, size);
+                p->reply_len += size;
+                p->arg -= size;
+            }
             return EXEC_ASYNC;
-        }
-        case CMD_TXRX: {
-            u32 size = port_txrx_len(p);
-            dma_sercom_start_rx(p->dma_rx, p->port->spi, &p->reply_buf[p->reply_len], size);
-            dma_sercom_start_tx(p->dma_tx, p->port->spi, &p->cmd_buf[p->cmd_pos], size);
-            p->reply_len += size;
-            p->cmd_pos += size;
-            p->arg -= size;
+        case CMD_TXRX:
+            if (p->mode == MODE_SPI) {
+                u32 size = port_txrx_len(p);
+                dma_sercom_start_rx(p->dma_rx, p->port->spi, &p->reply_buf[p->reply_len], size);
+                dma_sercom_start_tx(p->dma_tx, p->port->spi, &p->cmd_buf[p->cmd_pos], size);
+                p->reply_len += size;
+                p->cmd_pos += size;
+                p->arg -= size;
+            }
             return EXEC_ASYNC;
-        }
     }
     return EXEC_DONE;
 }

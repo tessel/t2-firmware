@@ -67,6 +67,7 @@ typedef struct PortData {
     DmaChan dma_rx;
 
     u8 state;
+    u8 mode;
     u8 cmd_buf[BUF_SIZE];
     u8 cmd_len;
     u8 cmd_pos;
