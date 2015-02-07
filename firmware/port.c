@@ -28,6 +28,8 @@ typedef enum PortCmd {
     CMD_TX = 16,
     CMD_RX = 17,
     CMD_TXRX = 18,
+    CMD_START = 19,
+    CMD_STOP = 20,
 } PortCmd;
 
 typedef enum PortMode {
@@ -56,6 +58,7 @@ void port_init(PortData* p, u8 chan, const TesselPort* port, DmaChan dma_tx, Dma
     bridge_start_out(p->chan, p->cmd_buf);
     p->state = PORT_READ_CMD;
     p->mode = MODE_NONE;
+    NVIC_EnableIRQ(SERCOM0_IRQn + p->port->uart_i2c);
 }
 
 bool port_cmd_has_arg(PortCmd cmd) {
@@ -65,6 +68,7 @@ bool port_cmd_has_arg(PortCmd cmd) {
         case CMD_DISABLE_SPI:
         case CMD_DISABLE_I2C:
         case CMD_DISABLE_UART:
+        case CMD_STOP:
             return false;
 
         // Length argument:
@@ -87,6 +91,7 @@ bool port_cmd_has_arg(PortCmd cmd) {
         case CMD_ENABLE_SPI:
         case CMD_ENABLE_I2C:
         case CMD_ENABLE_UART:
+        case CMD_START:
             return true;
     }
     invalid();
@@ -183,9 +188,27 @@ ExecStatus port_begin_cmd(PortData *p) {
             return EXEC_DONE;
 
         case CMD_ENABLE_I2C:
+            sercom_i2c_master_init(p->port->uart_i2c);
+            pin_mux(p->port->sda);
+            pin_mux(p->port->scl);
+            sercom(p->port->uart_i2c)->I2CM.INTENSET.reg = SERCOM_I2CM_INTENSET_SB | SERCOM_I2CM_INTENSET_MB;
+            p->mode = MODE_I2C;
             return EXEC_DONE;
 
         case CMD_DISABLE_I2C:
+            pin_gpio(p->port->sda);
+            pin_gpio(p->port->scl);
+            p->mode = MODE_NONE;
+            return EXEC_DONE;
+
+        case CMD_START:
+            sercom(p->port->uart_i2c)->I2CM.ADDR.reg = p->arg;
+            p->arg = 0;
+            return EXEC_ASYNC;
+
+        case CMD_STOP:
+            sercom(p->port->uart_i2c)->I2CM.CTRLB.bit.ACKACT = 1;
+            sercom(p->port->uart_i2c)->I2CM.CTRLB.bit.CMD = 3;
             return EXEC_DONE;
 
         case CMD_ENABLE_UART:
@@ -214,6 +237,10 @@ ExecStatus port_continue_cmd(PortData *p) {
                 dma_sercom_start_tx(p->dma_tx, p->port->spi, &p->cmd_buf[p->cmd_pos], size);
                 p->cmd_pos += size;
                 p->arg -= size;
+            } else if (p->mode == MODE_I2C) {
+                sercom(p->port->uart_i2c)->I2CM.DATA.reg = p->cmd_buf[p->cmd_pos];
+                p->cmd_pos += 1;
+                p->arg -= 1;
             }
             return EXEC_ASYNC;
         case CMD_RX:
@@ -223,6 +250,12 @@ ExecStatus port_continue_cmd(PortData *p) {
                 dma_sercom_start_tx(p->dma_tx, p->port->spi, NULL, size);
                 p->reply_len += size;
                 p->arg -= size;
+            } if (p->mode == MODE_I2C) {
+                p->reply_buf[p->reply_len] = sercom(p->port->uart_i2c)->I2CM.DATA.reg;
+                sercom(p->port->uart_i2c)->I2CM.CTRLB.bit.ACKACT = 0;
+                sercom(p->port->uart_i2c)->I2CM.CTRLB.bit.CMD = 2;
+                p->reply_len += 1;
+                p->arg -= 1;
             }
             return EXEC_ASYNC;
         case CMD_TXRX:
@@ -294,6 +327,16 @@ void port_bridge_in_completion(PortData* p) {
 }
 
 void port_dma_rx_completion(PortData* p) {
+    if (p->state == PORT_EXEC_ASYNC) {
+        p->state = (p->arg == 0 ? EXEC_DONE : EXEC_CONTINUE);
+        port_step(p);
+    } else {
+        invalid();
+    }
+}
+
+void bridge_handle_sercom_uart_i2c(PortData* p) {
+    sercom(p->port->uart_i2c)->I2CM.INTFLAG.reg = SERCOM_I2CM_INTFLAG_SB | SERCOM_I2CM_INTFLAG_MB;
     if (p->state == PORT_EXEC_ASYNC) {
         p->state = (p->arg == 0 ? EXEC_DONE : EXEC_CONTINUE);
         port_step(p);
