@@ -63,4 +63,9 @@ void clock_init() {
 
   gclk_enable(0, GCLK_SOURCE_DFLL48M, 1);
   while (GCLK->STATUS.bit.SYNCBUSY);
+
+  // SERCOM slow clock (Shared by all SERCOM)
+  GCLK->CLKCTRL.reg = GCLK_CLKCTRL_CLKEN |
+      GCLK_CLKCTRL_GEN(0) |
+      GCLK_CLKCTRL_ID(SERCOM0_GCLK_ID_SLOW);
 }
