@@ -177,7 +177,7 @@ int main(int argc, char** argv) {
         }
 
         // Check which connected sockets are readable / writable or closed
-        for (int i=0; i<N_CHANNEL-1; i++) {
+        for (int i=0; i<N_CHANNEL; i++) {
             bool to_close = false;
             if (CONN_POLL(i).revents & POLLIN) {
                 int length = read(CONN_POLL(i).fd, channels[i].out_buf, BUFSIZE);
