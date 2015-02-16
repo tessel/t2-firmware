@@ -15,6 +15,7 @@ typedef enum PortCmd {
     CMD_GPIO_IN = 3,
     CMD_GPIO_HIGH = 4,
     CMD_GPIO_LOW = 5,
+    CMD_GPIO_TOGGLE = 21,
     CMD_GPIO_CFG = 6,
     CMD_GPIO_WAIT = 7,
     CMD_GPIO_INT = 8,
@@ -82,6 +83,7 @@ bool port_cmd_has_arg(PortCmd cmd) {
         case CMD_GPIO_IN:
         case CMD_GPIO_HIGH:
         case CMD_GPIO_LOW:
+        case CMD_GPIO_TOGGLE:
         case CMD_GPIO_WAIT:
         case CMD_GPIO_INT:
         case CMD_GPIO_CFG:
@@ -161,6 +163,10 @@ ExecStatus port_begin_cmd(PortData *p) {
             return EXEC_DONE;
         case CMD_GPIO_LOW:
             pin_low(port_selected_pin(p));
+            pin_out(port_selected_pin(p));
+            return EXEC_DONE;
+        case CMD_GPIO_TOGGLE:
+            pin_toggle(port_selected_pin(p));
             pin_out(port_selected_pin(p));
             return EXEC_DONE;
 

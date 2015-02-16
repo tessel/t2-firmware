@@ -28,6 +28,10 @@ inline static void pin_low(Pin p) {
   PORT->Group[p.group].OUTCLR.reg = (1<<p.pin);
 }
 
+inline static void pin_toggle(Pin p) {
+  PORT->Group[p.group].OUTTGL.reg = (1<<p.pin);
+}
+
 inline static void pin_in(Pin p) {
   pin_gpio(p);
   PORT->Group[p.group].PINCFG[p.pin].bit.INEN = 1;
