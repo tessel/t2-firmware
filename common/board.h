@@ -33,14 +33,16 @@ const static Pin PIN_SOC_PWR = {.group = 0, .pin = 27};
 const static Pin PIN_PORT_A_PWR = {.group = 0, .pin = 14};
 const static Pin PIN_PORT_B_PWR = {.group = 0, .pin = 15};
 
+const static Pin PIN_LED = {.group = 1, .pin = 6};
+
 // Bridge - SPI to SoC and Flash
 
-#define SERCOM_BRIDGE 1
+#define SERCOM_BRIDGE 4
 
-const static Pin PIN_BRIDGE_MOSI = {.group = 0, .pin = 16, .mux = MUX_PA16C_SERCOM1_PAD0 };
-const static Pin PIN_BRIDGE_SCK = {.group = 0, .pin = 17, .mux = MUX_PA17C_SERCOM1_PAD1 };
-const static Pin PIN_BRIDGE_CS = {.group = 0, .pin = 18, .mux = MUX_PA18C_SERCOM1_PAD2 };
-const static Pin PIN_BRIDGE_MISO = {.group = 0, .pin = 19, .mux = MUX_PA19C_SERCOM1_PAD3 };
+const static Pin PIN_BRIDGE_MOSI = {.group = 0, .pin = 12, .mux = MUX_PA12D_SERCOM4_PAD0 };
+const static Pin PIN_BRIDGE_SCK = {.group = 0, .pin = 13, .mux = MUX_PA13D_SERCOM4_PAD1 };
+const static Pin PIN_BRIDGE_CS = {.group = 1, .pin = 10, .mux = MUX_PB10D_SERCOM4_PAD2 };
+const static Pin PIN_BRIDGE_MISO = {.group = 1, .pin = 11, .mux = MUX_PB11D_SERCOM4_PAD3 };
 
 const static Pin PIN_FLASH_CS = { .group = 0, .pin = 28 };
 
@@ -86,23 +88,23 @@ typedef struct TesselPort {
 } TesselPort;
 
 #define SERCOM_PORT_A_SPI 5
-#define SERCOM_PORT_A_UART_I2C 4
+#define SERCOM_PORT_A_UART_I2C 1
 #define SERCOM_PORT_B_SPI 0
 #define SERCOM_PORT_B_UART_I2C 2
 
 const static TesselPort PORT_A = {
-    .scl =  {.group = 0, .pin = 13, .mux = MUX_PA13D_SERCOM4_PAD1 },
-    .sda =  {.group = 0, .pin = 12, .mux = MUX_PA12D_SERCOM4_PAD0 },
-    .sck =  {.group = 1, .pin = 3,  .mux = MUX_PB03D_SERCOM5_PAD1 },
-    .miso = {.group = 1, .pin = 23, .mux = MUX_PB23D_SERCOM5_PAD3 },
+    .scl =  {.group = 0, .pin = 17, .mux = MUX_PA17C_SERCOM1_PAD1 },
+    .sda =  {.group = 0, .pin = 16, .mux = MUX_PA16C_SERCOM1_PAD0 },
+    .sck =  {.group = 1, .pin = 23, .mux = MUX_PB23D_SERCOM5_PAD3 },
+    .miso = {.group = 1, .pin = 22, .mux = MUX_PB22D_SERCOM5_PAD2 },
     .mosi = {.group = 1, .pin = 2,  .mux = MUX_PB02D_SERCOM5_PAD0 },
-    .tx =   {.group = 1, .pin = 10, .mux = MUX_PB10D_SERCOM4_PAD2 },
-    .rx =   {.group = 1, .pin = 11, .mux = MUX_PB11D_SERCOM4_PAD3 },
+    .tx =   {.group = 0, .pin = 18, .mux = MUX_PA18C_SERCOM1_PAD2 },
+    .rx =   {.group = 0, .pin = 19, .mux = MUX_PA19C_SERCOM1_PAD3 },
     .g3 =   {.group = 1, .pin = 8 },
     .spi = SERCOM_PORT_A_SPI,
     .uart_i2c = SERCOM_PORT_A_UART_I2C,
-    .spi_dipo = 3,
-    .spi_dopo = 0,
+    .spi_dipo = 2,
+    .spi_dopo = 3,
     .uart_dipo = 3,
     .uart_dopo = 1,
 };
