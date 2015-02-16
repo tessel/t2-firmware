@@ -139,7 +139,7 @@ int main(int argc, char** argv) {
             fds[i].revents = 0;
         }
 
-        int nfds = poll(fds, N_POLLFDS, 100);
+        int nfds = poll(fds, N_POLLFDS, 5000);
         if (nfds < 0) {
             fprintf(stderr, "Error in poll: %s", strerror(errno));
             exit(2);
@@ -147,12 +147,22 @@ int main(int argc, char** argv) {
 
         DEBUG("poll returned: %i\n", nfds);
 
+        for (int i=0; i<N_POLLFDS; i++) {
+            DEBUG("%x ", fds[i].events);
+        }
+        DEBUG("- %x %x %x \n", POLLIN, POLLOUT, POLLERR);
+
+        for (int i=0; i<N_POLLFDS; i++) {
+            DEBUG("%x ", fds[i].revents);
+        }
+        DEBUG("\n");
+
         // If it was a GPIO interrupt on the IRQ pin, acknowlege it
         if (GPIO_POLL.revents & POLLPRI) {
             char buf[2];
             lseek(irq_fd, SEEK_SET, 0);
             read(irq_fd, buf, 2);
-            printf("GPIO interrupt %c\n", buf[0]);
+            DEBUG("GPIO interrupt %c\n", buf[0]);
         }
 
         // Sync pin low
