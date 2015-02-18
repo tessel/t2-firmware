@@ -14,6 +14,9 @@ int main(void) {
     usb_attach();
     NVIC_SetPriority(USB_IRQn, 0xff);
 
+    pin_high(PIN_LED);
+    pin_out(PIN_LED);
+
     pin_high(PIN_SOC_RST);
     pin_out(PIN_SOC_RST);
 
