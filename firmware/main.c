@@ -6,7 +6,7 @@ PortData port_a;
 PortData port_b;
 
 int main(void) {
-    clock_init();
+    clock_init_crystal();
 
     pin_mux(PIN_USB_DM);
     pin_mux(PIN_USB_DP);

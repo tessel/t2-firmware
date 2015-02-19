@@ -108,7 +108,8 @@ inline static void evsys_config(u8 channel, u8 source) {
 #define EVSYS_EVD(N) ((N)<=7 ? (1<<((N) + 8)) : (1 << (24 + (N) - 8)))
 
 // clock.c
-void clock_init();
+void clock_init_usb();
+void clock_init_crystal();
 
 // dma.c
 #define DMA_DESC_ALIGN __attribute__((aligned(16)))
