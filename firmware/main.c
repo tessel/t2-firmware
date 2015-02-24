@@ -32,6 +32,9 @@ int main(void) {
     pin_pull_up(PIN_BRIDGE_CS);
     pin_pull_up(PIN_FLASH_CS);
 
+    pin_pull_up(PIN_SERIAL_TX);
+    pin_pull_up(PIN_SERIAL_RX);
+
     dma_init();
     NVIC_EnableIRQ(DMAC_IRQn);
     NVIC_SetPriority(DMAC_IRQn, 0xff);
