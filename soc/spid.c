@@ -19,7 +19,11 @@
 #define N_CHANNEL 3
 #define BUFSIZE 255
 
-#define DEBUG //printf
+#ifdef DEBUG
+#define DEBUG(args...) printf(args...)
+#else
+#define DEBUG(args...)
+#endif
 
 typedef struct ChannelData {
     int in_length;
@@ -32,12 +36,22 @@ ChannelData channels[N_CHANNEL];
 
 /// Use sysfs to export the specified GPIO
 void gpio_export(const char* gpio) {
+    char path[512];
+    snprintf(path, sizeof(path), "/sys/class/gpio/gpio%s", gpio);
+    if (access(path, F_OK) == 0) {
+        // Already exported;
+        return;
+    }
+
     int fd = open("/sys/class/gpio/export", O_WRONLY);
     if (fd < 0) {
       fprintf(stderr, "Error opening /sys/class/gpio/export: %s\n", strerror(errno));
       exit(1);
     }
-    write(fd, gpio, strlen(gpio));
+    if (write(fd, gpio, strlen(gpio)) < 0) {
+        perror("GPIO export write");
+        exit(1);
+    };
     close(fd);
 }
 
@@ -56,14 +70,20 @@ int gpio_open(const char* gpio, const char* file) {
 /// Set the direction of the specified GPIO pin
 void gpio_direction(const char* gpio, const char* mode) {
     int fd = gpio_open(gpio, "direction");
-    write(fd, mode, strlen(mode));
+    if (write(fd, mode, strlen(mode)) < 0) {
+        perror("GPIO direction write");
+        exit(1);
+    }
     close(fd);
 }
 
 /// Set the edge trigger mode of the specified GPIO pin
 void gpio_edge(const char* gpio, const char* mode) {
     int fd = gpio_open(gpio, "edge");
-    write(fd, mode, strlen(mode));
+    if (write(fd, mode, strlen(mode)) < 0){
+        perror("GPIO edge write");
+        exit(1);
+    }
     close(fd);
 }
 
@@ -162,12 +182,17 @@ int main(int argc, char** argv) {
         if (GPIO_POLL.revents & POLLPRI) {
             char buf[2];
             lseek(irq_fd, SEEK_SET, 0);
-            read(irq_fd, buf, 2);
+            if (read(irq_fd, buf, 2) < 0) {
+                perror("GPIO read");
+            }
             DEBUG("GPIO interrupt %c\n", buf[0]);
         }
 
         // Sync pin low
-        write(sync_fd, "0", 1);
+        if (write(sync_fd, "0", 1) < 0) {
+            perror("GPIO write");
+            exit(2);
+        }
 
         // Check for new connections on unconnected sockets
         for (int i=0; i<N_CHANNEL; i++) {
@@ -227,7 +252,7 @@ int main(int argc, char** argv) {
             if (CONN_POLL(i).revents & POLLOUT) {
                 CONN_POLL(i).events &= ~POLLOUT;
                 writable |= (1 << i);
-                printf("%i: Writable\n", i);
+                DEBUG("%i: Writable\n", i);
             }
         }
 
@@ -259,7 +284,10 @@ int main(int argc, char** argv) {
         }
 
         DEBUG("rx: %2x %2x %2x %2x %2x\n", rx_buf[0], rx_buf[1], rx_buf[2], rx_buf[3], rx_buf[4]);
-        write(sync_fd, "1", 1);
+        if (write(sync_fd, "1", 1) < 0) {
+            perror("GPIO write");
+            exit(2);
+        }
 
         if (rx_buf[0] != 0xCA) {
             printf("Invalid command reply: %2x %2x %2x %2x %2x\n", rx_buf[0], rx_buf[1], rx_buf[2], rx_buf[3], rx_buf[4]);
