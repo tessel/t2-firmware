@@ -30,8 +30,6 @@ const static Pin PIN_USB_DP = {.group = 0, .pin = 25, .mux = MUX_PA25G_USB_DP };
 
 const static Pin PIN_SOC_RST = {.group = 0, .pin = 2};
 const static Pin PIN_SOC_PWR = {.group = 0, .pin = 27};
-const static Pin PIN_PORT_A_PWR = {.group = 0, .pin = 14};
-const static Pin PIN_PORT_B_PWR = {.group = 0, .pin = 15};
 
 const static Pin PIN_LED = {.group = 0, .pin = 6};
 
@@ -79,6 +77,7 @@ typedef struct TesselPort {
         };
         Pin gpio[8];
     };
+    Pin power;
     SercomId spi;
     SercomId uart_i2c;
     u32 spi_dopo;
@@ -101,6 +100,7 @@ const static TesselPort PORT_A = {
     .tx =   {.group = 0, .pin = 18, .mux = MUX_PA18C_SERCOM1_PAD2 },
     .rx =   {.group = 0, .pin = 19, .mux = MUX_PA19C_SERCOM1_PAD3 },
     .g3 =   {.group = 1, .pin = 8 },
+    .power = {.group = 0, .pin = 14},
     .spi = SERCOM_PORT_A_SPI,
     .uart_i2c = SERCOM_PORT_A_UART_I2C,
     .spi_dipo = 2,
@@ -118,6 +118,7 @@ const static TesselPort PORT_B = {
     .tx =   {.group = 0, .pin = 10, .mux = MUX_PA10D_SERCOM2_PAD2 },
     .rx =   {.group = 0, .pin = 11, .mux = MUX_PA11D_SERCOM2_PAD3 },
     .g3 =   {.group = 1, .pin = 9 },
+    .power = {.group = 0, .pin = 15},
     .spi = SERCOM_PORT_B_SPI,
     .uart_i2c = SERCOM_PORT_B_UART_I2C,
     .spi_dipo = 3,

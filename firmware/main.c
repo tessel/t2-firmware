@@ -23,11 +23,11 @@ int main(void) {
     pin_high(PIN_SOC_PWR);
     pin_out(PIN_SOC_PWR);
 
-    pin_high(PIN_PORT_A_PWR);
-    pin_out(PIN_PORT_A_PWR);
+    pin_low(PORT_A.power);
+    pin_out(PORT_A.power);
 
-    pin_high(PIN_PORT_B_PWR);
-    pin_out(PIN_PORT_B_PWR);
+    pin_low(PORT_B.power);
+    pin_out(PORT_B.power);
 
     pin_pull_up(PIN_BRIDGE_CS);
     pin_pull_up(PIN_FLASH_CS);

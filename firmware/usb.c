@@ -189,10 +189,10 @@ void req_gpio(uint16_t wIndex, uint16_t wValue) {
 			pin = PIN_SOC_PWR;
 			break;
 		case REQ_PWR_PORT_A:
-			pin = PIN_PORT_A_PWR;
+			pin = PORT_A.power;
 			break;
 		case REQ_PWR_PORT_B:
-			pin = PIN_PORT_B_PWR;
+			pin = PORT_B.power;
 			break;
 		case REQ_PWR_LED:
 			pin = PIN_LED;
