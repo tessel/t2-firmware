@@ -11,8 +11,8 @@ BridgeState bridge_state = BRIDGE_STATE_DISABLE;
 
 typedef struct ControlPkt {
     u8 cmd;
-    u8 rx_state;
-    u8 tx_size[BRIDGE_NUM_CHAN];
+    u8 status;
+    u8 size[BRIDGE_NUM_CHAN];
 } __attribute__((packed)) ControlPkt;
 
 ControlPkt ctrl_rx;
@@ -93,9 +93,9 @@ void bridge_handle_sync() {
         ctrl_rx.cmd = 0x00;
         ctrl_tx.cmd = 0xCA;
         for (u8 chan=0; chan<BRIDGE_NUM_CHAN; chan++) {
-            ctrl_tx.tx_size[chan] = in_chan_size[chan];
+            ctrl_tx.size[chan] = in_chan_size[chan];
         }
-        ctrl_tx.rx_state = out_chan_ready;
+        ctrl_tx.status = out_chan_ready;
 
         dma_start_descriptor(DMA_BRIDGE_TX, &dma_chain_control_tx[0]);
         dma_start_descriptor(DMA_BRIDGE_RX, &dma_chain_control_rx[0]);
@@ -112,15 +112,15 @@ void bridge_handle_sync() {
 
         // Create DMA chain
         for (u8 chan=0; chan<BRIDGE_NUM_CHAN; chan++) {
-            u8 size = ctrl_rx.tx_size[chan];
-            if (ctrl_tx.rx_state & (1<<chan) && size > 0) {
+            u8 size = ctrl_rx.size[chan];
+            if (ctrl_tx.status & (1<<chan) && size > 0) {
                 dma_fill_sercom_tx(&dma_chain_data_tx[desc], SERCOM_BRIDGE, NULL, size);
                 dma_fill_sercom_rx(&dma_chain_data_rx[desc], SERCOM_BRIDGE, out_chan_ptr[chan], size);
                 desc++;
             }
 
-            size = ctrl_tx.tx_size[chan];
-            if (ctrl_rx.rx_state & (1<<chan) && size > 0) {
+            size = ctrl_tx.size[chan];
+            if (ctrl_rx.status & (1<<chan) && size > 0) {
                 dma_fill_sercom_tx(&dma_chain_data_tx[desc], SERCOM_BRIDGE, in_chan_ptr[chan], size);
                 dma_fill_sercom_rx(&dma_chain_data_rx[desc], SERCOM_BRIDGE, NULL, size);
                 desc++;
@@ -148,13 +148,13 @@ void bridge_dma_rx_completion() {
     if (bridge_state == BRIDGE_STATE_DATA) {
 
         #define CHECK_COMPLETION_OUT(x) \
-            if (ctrl_tx.rx_state & (1<<x) && ctrl_rx.tx_size[x] > 0) { \
+            if (ctrl_tx.status & (1<<x) && ctrl_rx.size[x] > 0) { \
                 out_chan_ready &= ~ (1<<x); \
-                bridge_completion_out_##x(ctrl_rx.tx_size[x]); \
+                bridge_completion_out_##x(ctrl_rx.size[x]); \
             }
 
         #define CHECK_COMPLETION_IN(x) \
-            if (ctrl_rx.rx_state & (1<<x) && ctrl_tx.tx_size[x] > 0) { \
+            if (ctrl_rx.status & (1<<x) && ctrl_tx.size[x] > 0) { \
                 in_chan_size[x] = 0; \
                 bridge_completion_in_##x(); \
             }
