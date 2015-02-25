@@ -1,6 +1,6 @@
 #include "board.h"
 
-inline static void sercom_reset(SercomId id) {
+inline void sercom_reset(SercomId id) {
     PM->APBCMASK.reg |= 1 << (PM_APBCMASK_SERCOM0_Pos + id);
 
     GCLK->CLKCTRL.reg = GCLK_CLKCTRL_CLKEN |

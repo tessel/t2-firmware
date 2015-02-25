@@ -49,17 +49,40 @@ typedef enum ExecStatus {
 void port_step(PortData* p);
 
 void port_init(PortData* p, u8 chan, const TesselPort* port, DmaChan dma_tx, DmaChan dma_rx) {
-    memset(p, 0, sizeof(PortData));
     p->chan = chan;
     p->port = port;
     p->dma_tx = dma_tx;
     p->dma_rx = dma_rx;
-    port_gpio_init(p->port);
-    p->pending_out = true;
+}
+
+void port_enable(PortData* p) {
     bridge_start_out(p->chan, p->cmd_buf);
+    p->pending_in = false;
+    p->pending_out = true;
+    p->cmd_len = 0;
+    p->cmd_pos = 0;
+    p->reply_len = 0;
     p->state = PORT_READ_CMD;
     p->mode = MODE_NONE;
     NVIC_EnableIRQ(SERCOM0_IRQn + p->port->uart_i2c);
+
+    pin_high(p->port->power);
+    for (int i = 0; i<8; i++) {
+        pin_pull_up(p->port->gpio[i]);
+    }
+}
+
+void port_disable(PortData* p) {
+    p->state = PORT_DISABLE;
+    sercom_reset(p->port->spi);
+    sercom_reset(p->port->uart_i2c);
+    dma_abort(p->dma_tx);
+    dma_abort(p->dma_rx);
+
+    for (int i = 0; i<8; i++) {
+        pin_float(p->port->gpio[i]);
+    }
+    pin_low(p->port->power);
 }
 
 bool port_cmd_has_arg(PortCmd cmd) {

@@ -50,6 +50,11 @@ inline static void pin_pull_down(Pin p) {
   pin_low(p);
 }
 
+inline static void pin_float(Pin p) {
+  pin_in(p);
+  PORT->Group[p.group].PINCFG[p.pin].bit.PULLEN = 0;
+}
+
 inline static bool pin_read(Pin p) {
   return (PORT->Group[p.group].IN.reg & (1<<p.pin)) != 0;
 }
@@ -132,6 +137,7 @@ inline static Sercom* sercom(SercomId id) {
   return (Sercom*) (0x42000800U + id * 1024);
 }
 
+void sercom_reset(SercomId id);
 void sercom_spi_slave_init(SercomId id, u32 dipo, u32 dopo, bool cpol, bool cpha);
 void sercom_spi_master_init(SercomId id, u32 dipo, u32 dopo, bool cpol, bool cpha);
 void sercom_i2c_master_init(SercomId id);

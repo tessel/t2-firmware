@@ -91,7 +91,9 @@ typedef struct PortData {
 } PortData;
 
 void port_init(PortData* p, u8 chan, const TesselPort* port, DmaChan dma_tx, DmaChan dma_rx);
+void port_enable(PortData *p);
 void port_bridge_out_completion(PortData* p, u8 len);
 void port_bridge_in_completion(PortData* p);
 void port_dma_rx_completion(PortData* p);
 void bridge_handle_sercom_uart_i2c(PortData* p);
+void port_disable(PortData *p);

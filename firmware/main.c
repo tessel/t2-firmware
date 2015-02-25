@@ -111,6 +111,7 @@ void bridge_completion_in_0() {
 void bridge_close_0() {}
 
 void bridge_open_1() {
+    port_enable(&port_a);
 }
 void bridge_completion_out_1(u8 count) {
     port_bridge_out_completion(&port_a, count);
@@ -119,9 +120,11 @@ void bridge_completion_in_1() {
     port_bridge_in_completion(&port_a);
 }
 void bridge_close_1() {
+    port_disable(&port_a);
 }
 
 void bridge_open_2() {
+    port_enable(&port_b);
 }
 void bridge_completion_out_2(u8 count) {
     port_bridge_out_completion(&port_b, count);
@@ -130,4 +133,5 @@ void bridge_completion_in_2() {
     port_bridge_in_completion(&port_b);
 }
 void bridge_close_2() {
+    port_disable(&port_b);
 }
