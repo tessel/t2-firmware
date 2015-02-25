@@ -1,0 +1,14 @@
+{
+  "name": "tessel",
+  "version": "0.0.0",
+  "description": "",
+  "main": "tessel.js",
+  "dependencies": {
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Technical Machine <team@technical.io>",
+  "license": "MIT"
+}
