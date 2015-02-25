@@ -132,6 +132,7 @@ int main(int argc, char** argv) {
     }
 
     uint8_t writable = 0;
+    uint8_t channels_open = 0;
     int retries = 0;
 
     while (1) {
@@ -183,6 +184,7 @@ int main(int argc, char** argv) {
 
                 // disable further events on listening socket
                 SOCK_POLL(i).events = 0;
+                channels_open |= (1<<i);
             }
         }
 
@@ -217,6 +219,7 @@ int main(int argc, char** argv) {
 
                 // Re-enable events on a new connection
                 SOCK_POLL(i).events = POLLIN;
+                channels_open &= ~(1<<i);
 
                 continue;
             }
@@ -236,7 +239,7 @@ int main(int argc, char** argv) {
         uint8_t rx_buf[2 + N_CHANNEL];
 
         tx_buf[0] = 0x53;
-        tx_buf[1] = writable;
+        tx_buf[1] = writable | (channels_open << 4);
 
         for (int i=0; i<N_CHANNEL; i++) {
             tx_buf[2+i] = channels[i].out_length;

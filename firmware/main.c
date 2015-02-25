@@ -101,11 +101,16 @@ void SERCOM_HANDLER(SERCOM_PORT_B_UART_I2C) {
     bridge_handle_sercom_uart_i2c(&port_b);
 }
 
+void bridge_open_0() {}
 void bridge_completion_out_0(u8 count) {
     bridge_start_in(0, &test_buf[0], count);
 }
 void bridge_completion_in_0() {
     bridge_start_out(0, &test_buf[0]);
+}
+void bridge_close_0() {}
+
+void bridge_open_1() {
 }
 void bridge_completion_out_1(u8 count) {
     port_bridge_out_completion(&port_a, count);
@@ -113,9 +118,16 @@ void bridge_completion_out_1(u8 count) {
 void bridge_completion_in_1() {
     port_bridge_in_completion(&port_a);
 }
+void bridge_close_1() {
+}
+
+void bridge_open_2() {
+}
 void bridge_completion_out_2(u8 count) {
     port_bridge_out_completion(&port_b, count);
 }
 void bridge_completion_in_2() {
     port_bridge_in_completion(&port_b);
+}
+void bridge_close_2() {
 }

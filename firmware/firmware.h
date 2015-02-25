@@ -56,6 +56,16 @@ void bridge_completion_out_1(u8 size);
 void bridge_completion_out_2(u8 size);
 void bridge_completion_out_3(u8 size);
 
+void bridge_open_0();
+void bridge_open_1();
+void bridge_open_2();
+void bridge_open_3();
+
+void bridge_close_0();
+void bridge_close_1();
+void bridge_close_2();
+void bridge_close_3();
+
 // port.c
 
 #define BUF_SIZE 256

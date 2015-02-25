@@ -15,6 +15,7 @@ typedef struct ControlPkt {
     u8 size[BRIDGE_NUM_CHAN];
 } __attribute__((packed)) ControlPkt;
 
+u8 was_open = 0;
 ControlPkt ctrl_rx;
 ControlPkt ctrl_tx;
 
@@ -135,6 +136,14 @@ void bridge_handle_sync() {
             DMAC->CHINTFLAG.reg = DMAC_CHINTFLAG_TCMPL | DMAC_CHINTFLAG_TERR; // note: depends on ID from previous call
             DMAC->CHINTENSET.reg = DMAC_CHINTENSET_TCMPL | DMAC_CHINTENSET_TERR;
             bridge_state = BRIDGE_STATE_DATA;
+        } else if ((ctrl_rx.status & 0xF0) != (was_open & 0xF0)) {
+            // No data to transfer, but we need to process an open/close, so trigger a DMA
+            // completion interrupt (which runs at a lower priority). The interrupt is already
+            // pending because of the control packet completion, and just needs to be unmasked
+            // to trigger the interrupt.
+            bridge_state = BRIDGE_STATE_DATA;
+            DMAC->CHID.reg = DMA_BRIDGE_RX;
+            DMAC->CHINTENSET.reg = DMAC_CHINTENSET_TCMPL | DMAC_CHINTENSET_TERR;
         } else {
             // No data to transfer
             bridge_state = BRIDGE_STATE_IDLE;
@@ -146,6 +155,11 @@ void bridge_handle_sync() {
 
 void bridge_dma_rx_completion() {
     if (bridge_state == BRIDGE_STATE_DATA) {
+
+        #define CHECK_OPEN(x) \
+            if ((ctrl_rx.status & (0x10<<x)) && !(was_open & (0x10<<x))) { \
+                bridge_open_##x(ctrl_rx.size[x]); \
+            }
 
         #define CHECK_COMPLETION_OUT(x) \
             if (ctrl_tx.status & (1<<x) && ctrl_rx.size[x] > 0) { \
@@ -159,6 +173,17 @@ void bridge_dma_rx_completion() {
                 bridge_completion_in_##x(); \
             }
 
+        #define CHECK_CLOSE(x) \
+            if (!(ctrl_rx.status & (0x10<<x)) && (was_open & (0x10<<x))) { \
+                bridge_close_##x(ctrl_rx.size[x]); \
+                out_chan_ready &= ~ (1<<x); \
+                in_chan_size[x] = 0; \
+            }
+
+        CHECK_OPEN(0)
+        CHECK_OPEN(1)
+        CHECK_OPEN(2)
+
         CHECK_COMPLETION_OUT(0);
         CHECK_COMPLETION_OUT(1);
         CHECK_COMPLETION_OUT(2);
@@ -167,9 +192,17 @@ void bridge_dma_rx_completion() {
         CHECK_COMPLETION_IN(1);
         CHECK_COMPLETION_IN(2);
 
+        CHECK_CLOSE(0)
+        CHECK_CLOSE(1)
+        CHECK_CLOSE(2)
+
+
+        #undef CHECK_OPEN
         #undef CHECK_COMPLETION_OUT
         #undef CHECK_COMPLETION_IN
+        #undef CHECK_CLOSE
 
+        was_open = ctrl_rx.status & 0xF0;
         bridge_state = BRIDGE_STATE_IDLE;
     }
 }
