@@ -55,14 +55,12 @@ void dma_fill_sercom_rx(DmacDescriptor* desc, SercomId id, u8 *dst, unsigned siz
 void dma_sercom_configure_tx(DmaChan chan, SercomId id) {
     DMAC->CHID.reg = chan;
     DMAC->CHCTRLA.reg = DMAC_CHCTRLA_SWRST;
-    DMAC->CHINTENSET.reg = DMAC_CHINTENSET_TCMPL | DMAC_CHINTENSET_TERR;
     DMAC->CHCTRLB.reg = DMAC_CHCTRLB_TRIGACT_BEAT | DMAC_CHCTRLB_TRIGSRC(id*2 + 2);
 }
 
 void dma_sercom_configure_rx(DmaChan chan, SercomId id) {
     DMAC->CHID.reg = chan;
     DMAC->CHCTRLA.reg = DMAC_CHCTRLA_SWRST;
-    DMAC->CHINTENSET.reg = DMAC_CHINTENSET_TCMPL | DMAC_CHINTENSET_TERR;
     DMAC->CHCTRLB.reg = DMAC_CHCTRLB_TRIGACT_BEAT | DMAC_CHCTRLB_TRIGSRC(id*2 + 1);
 }
 

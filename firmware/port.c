@@ -202,6 +202,7 @@ ExecStatus port_begin_cmd(PortData *p) {
             sercom_spi_master_init(p->port->spi, p->port->spi_dipo, p->port->spi_dopo, 0, 0);
             dma_sercom_configure_tx(p->dma_tx, p->port->spi);
             dma_sercom_configure_rx(p->dma_rx, p->port->spi);
+            DMAC->CHINTENSET.reg = DMAC_CHINTENSET_TCMPL | DMAC_CHINTENSET_TERR; // ID depends on prev call
             pin_mux(p->port->mosi);
             pin_mux(p->port->miso);
             pin_mux(p->port->sck);

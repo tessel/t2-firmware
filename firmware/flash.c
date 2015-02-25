@@ -12,8 +12,6 @@ typedef enum FlashState {
     FLASH_STATE_IDLE,   // Waiting for a USB packet OUT
     FLASH_STATE_ACTIVE, // DMA to and from SPI
     FLASH_STATE_REPLY,  // Waiting to send reply IN
-
-
 } FlashState;
 
 FlashState flash_state = FLASH_STATE_DISABLE;
@@ -25,6 +23,7 @@ void flash_init() {
     sercom_spi_master_init(SERCOM_BRIDGE, FLASH_DIPO, FLASH_DOPO, 0, 0);
     dma_sercom_configure_tx(DMA_FLASH_TX, SERCOM_BRIDGE);
     dma_sercom_configure_rx(DMA_FLASH_RX, SERCOM_BRIDGE);
+    DMAC->CHINTENSET.reg = DMAC_CHINTENSET_TCMPL | DMAC_CHINTENSET_TERR; // ID depends on prev call
 
     pin_low(PIN_SOC_RST);
 
