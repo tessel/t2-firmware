@@ -93,6 +93,11 @@ void gpio_edge(const char* gpio, const char* mode) {
 #define N_POLLFDS (N_CHANNEL * 2 + 1)
 struct pollfd fds[N_POLLFDS];
 
+void delay() {
+    volatile int i = 1000;
+    while(i--);
+}
+
 int main(int argc, char** argv) {
     if (argc != 5) {
       fprintf(stderr, "usage: spid /dev/spidev0.1 irq_gpio sync_gpio /var/run/tessel\n");
@@ -193,6 +198,8 @@ int main(int argc, char** argv) {
             perror("GPIO write");
             exit(2);
         }
+
+        delay();
 
         // Check for new connections on unconnected sockets
         for (int i=0; i<N_CHANNEL; i++) {
@@ -301,7 +308,7 @@ int main(int argc, char** argv) {
         }
         retries = 0;
 
-        usleep(20);
+        delay();
 
         // Prepare the data transfer
         struct spi_ioc_transfer transfer[N_CHANNEL * 2];
