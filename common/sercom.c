@@ -1,12 +1,14 @@
 #include "board.h"
 
-inline void sercom_reset(SercomId id) {
+void sercom_clock_enable(SercomId id) {
     PM->APBCMASK.reg |= 1 << (PM_APBCMASK_SERCOM0_Pos + id);
 
     GCLK->CLKCTRL.reg = GCLK_CLKCTRL_CLKEN |
         GCLK_CLKCTRL_GEN(0) |
         GCLK_CLKCTRL_ID(SERCOM0_GCLK_ID_CORE + id);
+}
 
+inline void sercom_reset(SercomId id) {
     sercom(id)->SPI.CTRLA.reg = SERCOM_SPI_CTRLA_SWRST;
     while(sercom(id)->SPI.CTRLA.reg & SERCOM_SPI_CTRLA_SWRST);
 }

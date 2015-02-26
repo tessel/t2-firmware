@@ -137,6 +137,7 @@ inline static Sercom* sercom(SercomId id) {
   return (Sercom*) (0x42000800U + id * 1024);
 }
 
+void sercom_clock_enable(SercomId id);
 void sercom_reset(SercomId id);
 void sercom_spi_slave_init(SercomId id, u32 dipo, u32 dopo, bool cpol, bool cpha);
 void sercom_spi_master_init(SercomId id, u32 dipo, u32 dopo, bool cpol, bool cpha);

@@ -53,6 +53,8 @@ void port_init(PortData* p, u8 chan, const TesselPort* port, DmaChan dma_tx, Dma
     p->port = port;
     p->dma_tx = dma_tx;
     p->dma_rx = dma_rx;
+    sercom_clock_enable(p->port->spi);
+    sercom_clock_enable(p->port->uart_i2c);
 }
 
 void port_enable(PortData* p) {
