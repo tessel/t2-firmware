@@ -15,15 +15,18 @@
 #include <sys/ioctl.h>
 #include <linux/types.h>
 #include <linux/spi/spidev.h>
+#include <syslog.h>
 
 #define N_CHANNEL 3
 #define BUFSIZE 255
 
-#ifdef DEBUG
-#define DEBUG(args...) printf(args...)
-#else
-#define DEBUG(args...)
-#endif
+#define debug(args...)
+#define info(args...)   syslog(LOG_INFO, args)
+#define error(args...)  syslog(LOG_ERR, args)
+#define fatal(args...) ({ \
+    syslog (LOG_CRIT, args); \
+    exit(1); \
+})
 
 typedef struct ChannelData {
     int in_length;
@@ -45,12 +48,11 @@ void gpio_export(const char* gpio) {
 
     int fd = open("/sys/class/gpio/export", O_WRONLY);
     if (fd < 0) {
-      fprintf(stderr, "Error opening /sys/class/gpio/export: %s\n", strerror(errno));
+      fatal("Error opening /sys/class/gpio/export: %s\n", strerror(errno));
       exit(1);
     }
     if (write(fd, gpio, strlen(gpio)) < 0) {
-        perror("GPIO export write");
-        exit(1);
+        fatal("GPIO export write: %s", strerror(errno));
     };
     close(fd);
 }
@@ -61,8 +63,7 @@ int gpio_open(const char* gpio, const char* file) {
     snprintf(path, sizeof(path), "/sys/class/gpio/gpio%s/%s", gpio, file);
     int fd = open(path, O_RDWR);
     if (fd < 0) {
-      fprintf(stderr, "Error opening %s: %s\n", path, strerror(errno));
-      exit(1);
+      fatal("Error opening %s: %s\n", path, strerror(errno));
     }
     return fd;
 }
@@ -71,8 +72,7 @@ int gpio_open(const char* gpio, const char* file) {
 void gpio_direction(const char* gpio, const char* mode) {
     int fd = gpio_open(gpio, "direction");
     if (write(fd, mode, strlen(mode)) < 0) {
-        perror("GPIO direction write");
-        exit(1);
+        fatal("GPIO direction write: %s", strerror(errno));
     }
     close(fd);
 }
@@ -81,8 +81,7 @@ void gpio_direction(const char* gpio, const char* mode) {
 void gpio_edge(const char* gpio, const char* mode) {
     int fd = gpio_open(gpio, "edge");
     if (write(fd, mode, strlen(mode)) < 0){
-        perror("GPIO edge write");
-        exit(1);
+        fatal("GPIO edge write: %s", strerror(errno));
     }
     close(fd);
 }
@@ -99,16 +98,17 @@ void delay() {
 }
 
 int main(int argc, char** argv) {
+    openlog("spid", LOG_PERROR | LOG_PID | LOG_NDELAY, LOG_LOCAL1);
+    info("Starting");
+
     if (argc != 5) {
-      fprintf(stderr, "usage: spid /dev/spidev0.1 irq_gpio sync_gpio /var/run/tessel\n");
-      exit(1);
+      fatal("usage: spid /dev/spidev0.1 irq_gpio sync_gpio /var/run/tessel\n");
     }
 
     // Open SPI
     int spi_fd = open(argv[1], O_RDWR);
     if (spi_fd < 0) {
-      fprintf(stderr, "Error opening SPI device %s: %s\n", argv[1], strerror(errno));
-      exit(1);
+      fatal("Error opening SPI device %s: %s\n", argv[1], strerror(errno));
     }
 
     // set up IRQ pin
@@ -137,18 +137,15 @@ int main(int argc, char** argv) {
         unlink(addr.sun_path);
         int fd = socket(AF_UNIX, SOCK_STREAM, 0);
         if (fd < 0) {
-            fprintf(stderr, "Error creating socket %s: %s\n", addr.sun_path, strerror(errno));
-            exit(1);
+            fatal("Error creating socket %s: %s\n", addr.sun_path, strerror(errno));
         }
 
         if (bind(fd, (struct sockaddr *) &addr, sizeof(addr)) == -1) {
-            fprintf(stderr, "Error binding socket %s: %s\n", addr.sun_path, strerror(errno));
-            exit(1);
+            fatal("Error binding socket %s: %s\n", addr.sun_path, strerror(errno));
         }
 
         if (listen(fd, 1) == -1) {
-            fprintf(stderr, "Error listening on socket %s: %s\n", addr.sun_path, strerror(errno));
-            exit(1);
+            fatal("Error listening on socket %s: %s\n", addr.sun_path, strerror(errno));
         }
 
         SOCK_POLL(i).fd = fd;
@@ -167,36 +164,34 @@ int main(int argc, char** argv) {
 
         int nfds = poll(fds, N_POLLFDS, 5000);
         if (nfds < 0) {
-            fprintf(stderr, "Error in poll: %s", strerror(errno));
-            exit(2);
+            fatal("Error in poll: %s", strerror(errno));
         }
 
-        DEBUG("poll returned: %i\n", nfds);
-
-        for (int i=0; i<N_POLLFDS; i++) {
-            DEBUG("%x ", fds[i].events);
-        }
-        DEBUG("- %x %x %x \n", POLLIN, POLLOUT, POLLERR);
+        debug("poll returned: %i\n", nfds);
 
         for (int i=0; i<N_POLLFDS; i++) {
-            DEBUG("%x ", fds[i].revents);
+            debug("%x ", fds[i].events);
         }
-        DEBUG("\n");
+        debug("- %x %x %x \n", POLLIN, POLLOUT, POLLERR);
+
+        for (int i=0; i<N_POLLFDS; i++) {
+            debug("%x ", fds[i].revents);
+        }
+        debug("\n");
 
         // If it was a GPIO interrupt on the IRQ pin, acknowlege it
         if (GPIO_POLL.revents & POLLPRI) {
             char buf[2];
             lseek(irq_fd, SEEK_SET, 0);
             if (read(irq_fd, buf, 2) < 0) {
-                perror("GPIO read");
+                fatal("GPIO read: %s", strerror(errno));
             }
-            DEBUG("GPIO interrupt %c\n", buf[0]);
+            debug("GPIO interrupt %c\n", buf[0]);
         }
 
         // Sync pin low
         if (write(sync_fd, "0", 1) < 0) {
-            perror("GPIO write");
-            exit(2);
+            fatal("GPIO write: %s", strerror(errno));
         }
 
         delay();
@@ -206,11 +201,10 @@ int main(int argc, char** argv) {
             if (SOCK_POLL(i).revents & POLLIN) {
                 int fd = accept(SOCK_POLL(i).fd, NULL, 0);
                 if (fd == -1) {
-                    fprintf(stderr, "Error in accept: %s", strerror(errno));
-                    exit(2);
+                    fatal("Error in accept: %s", strerror(errno));
                 }
 
-                printf("Accepted connection on %i\n", i);
+                info("Accepted connection on %i\n", i);
                 CONN_POLL(i).fd = fd;
                 CONN_POLL(i).events = POLLIN | POLLOUT;
 
@@ -227,13 +221,13 @@ int main(int argc, char** argv) {
                 int length = read(CONN_POLL(i).fd, channels[i].out_buf, BUFSIZE);
                 CONN_POLL(i).events &= ~POLLIN;
 
-                DEBUG("%i: Read %u\n", i, length);
+                debug("%i: Read %u\n", i, length);
 
                 if (length > 0) {
                     channels[i].out_length = length;
                 } else {
                     if (length < 0) {
-                        fprintf(stderr, "Error in read %i: %s\n", i, strerror(errno));
+                        error("Error in read %i: %s\n", i, strerror(errno));
                     }
                     to_close = true;
                 }
@@ -242,7 +236,7 @@ int main(int argc, char** argv) {
             if (to_close || CONN_POLL(i).revents & POLLHUP
                          || CONN_POLL(i).revents & POLLERR
                          || CONN_POLL(i).revents & POLLRDHUP) {
-                printf("Closing connection %d\n", i);
+                info("Closing connection %d\n", i);
                 close(CONN_POLL(i).fd);
                 CONN_POLL(i).fd = -1;
 
@@ -259,7 +253,7 @@ int main(int argc, char** argv) {
             if (CONN_POLL(i).revents & POLLOUT) {
                 CONN_POLL(i).events &= ~POLLOUT;
                 writable |= (1 << i);
-                DEBUG("%i: Writable\n", i);
+                debug("%i: Writable\n", i);
             }
         }
 
@@ -277,7 +271,7 @@ int main(int argc, char** argv) {
             tx_buf[2+i] = channels[i].out_length;
         }
 
-        DEBUG("tx: %2x %2x %2x %2x %2x\n", tx_buf[0], tx_buf[1], tx_buf[2], tx_buf[3], tx_buf[4]);
+        debug("tx: %2x %2x %2x %2x %2x\n", tx_buf[0], tx_buf[1], tx_buf[2], tx_buf[3], tx_buf[4]);
 
         ctrl_transfer[0].len = sizeof(tx_buf);
         ctrl_transfer[0].tx_buf = (unsigned long)tx_buf;
@@ -286,22 +280,20 @@ int main(int argc, char** argv) {
         int status = ioctl(spi_fd, SPI_IOC_MESSAGE(2), ctrl_transfer);
 
         if (status < 0) {
-          perror("SPI_IOC_MESSAGE: header");
-          exit(3);
+          fatal("SPI_IOC_MESSAGE: header: %s", strerror(errno));
         }
 
-        DEBUG("rx: %2x %2x %2x %2x %2x\n", rx_buf[0], rx_buf[1], rx_buf[2], rx_buf[3], rx_buf[4]);
+        debug("rx: %2x %2x %2x %2x %2x\n", rx_buf[0], rx_buf[1], rx_buf[2], rx_buf[3], rx_buf[4]);
         if (write(sync_fd, "1", 1) < 0) {
-            perror("GPIO write");
-            exit(2);
+            fatal("GPIO write: %s", strerror(errno));
         }
 
         if (rx_buf[0] != 0xCA) {
-            printf("Invalid command reply: %2x %2x %2x %2x %2x\n", rx_buf[0], rx_buf[1], rx_buf[2], rx_buf[3], rx_buf[4]);
+            error("Invalid command reply: %2x %2x %2x %2x %2x\n", rx_buf[0], rx_buf[1], rx_buf[2], rx_buf[3], rx_buf[4]);
             retries++;
 
-            if (retries > 500) {
-                exit(4);
+            if (retries > 15) {
+                fatal("Too many retries, exiting");
             } else {
                 continue;
             }
@@ -334,13 +326,12 @@ int main(int argc, char** argv) {
         }
 
         if (desc != 0) {
-            DEBUG("Performing transfer on %i channels\n", desc);
+            debug("Performing transfer on %i channels\n", desc);
 
             int status = ioctl(spi_fd, SPI_IOC_MESSAGE(desc), transfer);
 
             if (status < 0) {
-              perror("SPI_IOC_MESSAGE: data");
-              exit(3);
+              fatal("SPI_IOC_MESSAGE: data: %s", strerror(errno));
             }
 
             // Write received data to the appropriate socket
@@ -348,9 +339,9 @@ int main(int argc, char** argv) {
                 int size = rx_buf[2+chan];
                 if (writable & (1<<chan) && size > 0) {
                     int r = write(CONN_POLL(chan).fd, &channels[chan].in_buf[0], size);
-                    DEBUG("%i: Write %u %i\n", chan, size, r);
+                    debug("%i: Write %u %i\n", chan, size, r);
                     if (r < 0) {
-                        fprintf(stderr, "Error in write %i: %s\n", chan, strerror(errno));
+                        error("Error in write %i: %s\n", chan, strerror(errno));
                     }
 
                     CONN_POLL(chan).events |= POLLOUT;
