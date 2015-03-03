@@ -91,7 +91,9 @@ Port.prototype._status_cmd = function(buf, cb) {
 }
 
 Port.prototype._tx = function(buf, cb) {
-    if (buf.length > 255) {
+    if (buf.length == 0) {
+        throw new Error("Length must be non-zero");
+    } else if (buf.length > 255) {
         // TODO: split into sequence of commands
         throw new Error("Buffer size must be less than 255");
     }
@@ -108,7 +110,9 @@ Port.prototype._tx = function(buf, cb) {
 }
 
 Port.prototype._rx = function(len, cb) {
-    if (len > 255) {
+    if (len == 0) {
+        throw new Error("Length must be non-zero");
+    } else if (len > 255) {
         // TODO: split into sequence of commands
         throw new Error("Buffer size must be less than 255");
     }
@@ -121,7 +125,9 @@ Port.prototype._rx = function(len, cb) {
 }
 
 Port.prototype._txrx = function(buf, cb) {
-    if (buf.length > 255) {
+    if (buf.length == 0) {
+        throw new Error("Length must be non-zero");
+    } else if (buf.length > 255) {
         // TODO: split into sequence of commands
         throw new Error("Buffer size must be less than 255");
     }
@@ -205,8 +211,10 @@ I2C.prototype.read = function(length, callback) {
 
 I2C.prototype.transfer = function(txbuf, rxlen, callback) {
     this._port.cork();
-    this._port._simple_cmd([CMD.START, this.addr << 1]);
-    this._port._tx(txbuf);
+    if (txbuf.length > 0) {
+        this._port._simple_cmd([CMD.START, this.addr << 1]);
+        this._port._tx(txbuf);
+    }
     this._port._simple_cmd([CMD.START, this.addr << 1 | 1]);
     this._port._rx(rxlen, callback);
     this._port._simple_cmd([CMD.STOP]);
