@@ -82,6 +82,7 @@ void dma_sercom_start_tx(DmaChan chan, SercomId id, u8* src, unsigned size) {
     DMAC->CHID.reg = chan;
     DMAC->CHCTRLA.reg = 0;
     dma_fill_sercom_tx(&dma_descriptors[chan], id, src, size);
+    dma_descriptors[chan].DESCADDR.reg = 0;
     DMAC->CHCTRLA.reg = DMAC_CHCTRLA_ENABLE;
 }
 
@@ -89,5 +90,6 @@ void dma_sercom_start_rx(DmaChan chan, SercomId id, u8* dst, unsigned size) {
     DMAC->CHID.reg = chan;
     DMAC->CHCTRLA.reg = 0;
     dma_fill_sercom_rx(&dma_descriptors[chan], id, dst, size);
+    dma_descriptors[chan].DESCADDR.reg = 0;
     DMAC->CHCTRLA.reg = DMAC_CHCTRLA_ENABLE;
 }
