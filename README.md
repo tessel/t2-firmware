@@ -18,8 +18,8 @@ The Atmel SAM D21 microcontroller on Tessel 2 serves several purposes:
 
 ## Bridge
 
-The SPI bridge between the MT7620n ("SoC") and SAMD21 ("MCU") is modelled loosely on USB, and provides three
- bidirectional channels between Unix domain sockets on the Linux environemnt of the SoC and various functions
+The SPI bridge between the MT7620n ("SoC") and SAMD21 ("MCU") is modeled loosely on USB, and provides three
+ bidirectional channels between Unix domain sockets on the Linux environment of the SoC and various functions
 in the MCU firmware. Pipe 0 is connected to a pair of USB endpoints and used for Tessel CLI communication with the
 Linux system. Pipes 1 and 2 are used for control of the two Tessel module ports.
 
@@ -28,13 +28,13 @@ Linux system. Pipes 1 and 2 are used for control of the two Tessel module ports.
 * **MOSI**, **MISO**, **SCK**, **CS1** -- SPI lines. SoC is SPI master, MCU is SPI slave
 * **SYNC** -- driven low by the SoC during setup transfers, driven high by the SoC during data transfers
 * **IRQ** -- driven high by the MCU when it wants to be polled by the SoC because it has data to send or has
- become ready to receive.
+ become ready to receive
 
 Note that the MT7620 SPI controller is designed only to talk to SPI flash and is not full duplex, and the protocol
 designs around this limitation.
 
 A transaction has a setup phase and an optional data phase. To begin the setup phase, the SoC brings SYNC low.
-On this pin change, the MCU prepares a DMA transfer for the setup transfer. In the setup transfer, each side provides:
+On this pin change, the MCU prepares a DMA chain for the setup transfer. In the setup transfer, each side provides:
 
   * A magic number, to verify correct operation
   * Bits specifying which channels are connected
@@ -69,7 +69,7 @@ Building the firmware requires [gcc-arm-embedded](https://launchpad.net/gcc-arm-
 
 #### OS X
 
-To install quickly on a Mac with Brew:
+To install quickly on a Mac with Homebrew:
 
 ```
 brew tap tessel/tools
@@ -92,4 +92,3 @@ git clone https://github.com/tessel/v2-firmware
 cd v2-firmware
 make
 ```
-
