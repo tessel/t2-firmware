@@ -8,7 +8,7 @@ __attribute__((__aligned__(4))) const USB_DeviceDescriptor device_descriptor = {
 	.bDescriptorType = USB_DTYPE_Device,
 
 	.bcdUSB                 = 0x0200,
-	.bDeviceClass           = USB_CSCP_VendorSpecificClass,
+	.bDeviceClass           = 0,
 	.bDeviceSubClass        = USB_CSCP_NoDeviceSubclass,
 	.bDeviceProtocol        = USB_CSCP_NoDeviceProtocol,
 
@@ -24,13 +24,22 @@ __attribute__((__aligned__(4))) const USB_DeviceDescriptor device_descriptor = {
 	.bNumConfigurations     = 1
 };
 
+uint16_t altsetting = 0;
+
+#define ALTSETTING_FLASH 1
+#define ALTSETTING_PIPE 2
+
 typedef struct ConfigDesc {
 	USB_ConfigurationDescriptor Config;
 	USB_InterfaceDescriptor OffInterface;
-	USB_InterfaceDescriptor FlashInterface;
-	USB_EndpointDescriptor DataInEndpoint;
-	USB_EndpointDescriptor DataOutEndpoint;
 
+	USB_InterfaceDescriptor FlashInterface;
+	USB_EndpointDescriptor FlashInEndpoint;
+	USB_EndpointDescriptor FlashOutEndpoint;
+
+	USB_InterfaceDescriptor PipeInterface;
+	USB_EndpointDescriptor PipeInEndpoint;
+	USB_EndpointDescriptor PipeOutEndpoint;
 } ConfigDesc;
 
 __attribute__((__aligned__(4))) const ConfigDesc configuration_descriptor = {
@@ -59,27 +68,54 @@ __attribute__((__aligned__(4))) const ConfigDesc configuration_descriptor = {
 		.bLength = sizeof(USB_InterfaceDescriptor),
 		.bDescriptorType = USB_DTYPE_Interface,
 		.bInterfaceNumber = 0,
-		.bAlternateSetting = 1,
+		.bAlternateSetting = ALTSETTING_FLASH,
 		.bNumEndpoints = 2,
 		.bInterfaceClass = USB_CSCP_VendorSpecificClass,
 		.bInterfaceSubClass = 0x00,
 		.bInterfaceProtocol = 0x00,
 		.iInterface = 0,
 	},
-	.DataInEndpoint = {
+	.FlashInEndpoint = {
 		.bLength = sizeof(USB_EndpointDescriptor),
 		.bDescriptorType = USB_DTYPE_Endpoint,
 		.bEndpointAddress = USB_EP_FLASH_IN,
 		.bmAttributes = (USB_EP_TYPE_BULK | ENDPOINT_ATTR_NO_SYNC | ENDPOINT_USAGE_DATA),
-		.wMaxPacketSize = 512,
+		.wMaxPacketSize = 64,
 		.bInterval = 0x00
 	},
-	.DataOutEndpoint = {
+	.FlashOutEndpoint = {
 		.bLength = sizeof(USB_EndpointDescriptor),
 		.bDescriptorType = USB_DTYPE_Endpoint,
 		.bEndpointAddress = USB_EP_FLASH_OUT,
 		.bmAttributes = (USB_EP_TYPE_BULK | ENDPOINT_ATTR_NO_SYNC | ENDPOINT_USAGE_DATA),
-		.wMaxPacketSize = 512,
+		.wMaxPacketSize = 64,
+		.bInterval = 0x00
+	},
+	.PipeInterface = {
+		.bLength = sizeof(USB_InterfaceDescriptor),
+		.bDescriptorType = USB_DTYPE_Interface,
+		.bInterfaceNumber = 0,
+		.bAlternateSetting = ALTSETTING_PIPE,
+		.bNumEndpoints = 2,
+		.bInterfaceClass = USB_CSCP_VendorSpecificClass,
+		.bInterfaceSubClass = 0x00,
+		.bInterfaceProtocol = 0x00,
+		.iInterface = 0,
+	},
+	.PipeInEndpoint = {
+		.bLength = sizeof(USB_EndpointDescriptor),
+		.bDescriptorType = USB_DTYPE_Endpoint,
+		.bEndpointAddress = USB_EP_PIPE_IN,
+		.bmAttributes = (USB_EP_TYPE_BULK | ENDPOINT_ATTR_NO_SYNC | ENDPOINT_USAGE_DATA),
+		.wMaxPacketSize = 64,
+		.bInterval = 0x00
+	},
+	.PipeOutEndpoint = {
+		.bLength = sizeof(USB_EndpointDescriptor),
+		.bDescriptorType = USB_DTYPE_Endpoint,
+		.bEndpointAddress = USB_EP_PIPE_OUT,
+		.bmAttributes = (USB_EP_TYPE_BULK | ENDPOINT_ATTR_NO_SYNC | ENDPOINT_USAGE_DATA),
+		.wMaxPacketSize = 64,
 		.bInterval = 0x00
 	},
 };
@@ -99,7 +135,7 @@ __attribute__((__aligned__(4))) const USB_StringDescriptor manufacturer_string =
 __attribute__((__aligned__(4))) const USB_StringDescriptor product_string = {
 	.bLength = USB_STRING_LEN(14),
 	.bDescriptorType = USB_DTYPE_String,
-	.bString = u"Tessel V2"
+	.bString = u"Tessel 2"
 };
 
 __attribute__((__aligned__(4))) const USB_StringDescriptor msft_os = {
@@ -231,28 +267,55 @@ void usb_cb_control_out_completion(void) {
 }
 
 void usb_cb_completion(void) {
-	if (usb_ep_pending(USB_EP_FLASH_OUT)) {
-		flash_usb_out_completion();
-		usb_ep_handled(USB_EP_FLASH_OUT);
-	}
+	if (altsetting == ALTSETTING_FLASH) {
+		if (usb_ep_pending(USB_EP_FLASH_OUT)) {
+			flash_usb_out_completion();
+			usb_ep_handled(USB_EP_FLASH_OUT);
+		}
 
-	if (usb_ep_pending(USB_EP_FLASH_IN)) {
-		flash_usb_in_completion();
-		usb_ep_handled(USB_EP_FLASH_IN);
+		if (usb_ep_pending(USB_EP_FLASH_IN)) {
+			flash_usb_in_completion();
+			usb_ep_handled(USB_EP_FLASH_IN);
+		}
+	} else if (altsetting == ALTSETTING_PIPE) {
+		if (usb_ep_pending(USB_EP_PIPE_OUT)) {
+			pipe_usb_out_completion();
+			usb_ep_handled(USB_EP_PIPE_OUT);
+		}
+
+		if (usb_ep_pending(USB_EP_PIPE_IN)) {
+			pipe_usb_in_completion();
+			usb_ep_handled(USB_EP_PIPE_IN);
+		}
 	}
 }
 
-bool usb_cb_set_interface(uint16_t interface, uint16_t altsetting) {
+bool usb_cb_set_interface(uint16_t interface, uint16_t new_altsetting) {
 	if (interface == 0) {
-		if (altsetting == 0) {
-			flash_disable();
-			bridge_init();
-			return true;
-		} else if (altsetting == 1){
-			bridge_disable();
-			flash_init();
-			return true;
+		if (new_altsetting > 2) {
+			return false;
 		}
+
+		if (altsetting == ALTSETTING_FLASH) {
+			flash_disable();
+		} else if (altsetting == ALTSETTING_PIPE) {
+			usbpipe_disable();
+		}
+
+		if (altsetting != ALTSETTING_FLASH && new_altsetting == ALTSETTING_FLASH) {
+			bridge_disable();
+		} else if (altsetting == ALTSETTING_FLASH && new_altsetting != ALTSETTING_FLASH) {
+			bridge_init();
+		}
+
+		if (new_altsetting == ALTSETTING_FLASH){
+			flash_init();
+		} else if (new_altsetting == ALTSETTING_PIPE) {
+			usbpipe_init();
+		}
+
+		altsetting = new_altsetting;
+		return true;
 	}
 	return false;
 }

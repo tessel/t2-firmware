@@ -1,7 +1,5 @@
 #include "firmware.h"
 
-u8 test_buf[256];
-
 PortData port_a;
 PortData port_b;
 
@@ -48,7 +46,7 @@ int main(void) {
     NVIC_SetPriority(EVSYS_IRQn, 0);
 
     bridge_init();
-    bridge_start_out(0, &test_buf[0]);
+    usbpipe_init();
 
     port_init(&port_a, 1, &PORT_A, DMA_PORT_A_TX, DMA_PORT_A_RX);
     port_init(&port_b, 2, &PORT_B, DMA_PORT_B_TX, DMA_PORT_B_RX);
@@ -103,10 +101,10 @@ void SERCOM_HANDLER(SERCOM_PORT_B_UART_I2C) {
 
 void bridge_open_0() {}
 void bridge_completion_out_0(u8 count) {
-    bridge_start_in(0, &test_buf[0], count);
+    pipe_bridge_out_completion(count);
 }
 void bridge_completion_in_0() {
-    bridge_start_out(0, &test_buf[0]);
+    pipe_bridge_in_completion();
 }
 void bridge_close_0() {}
 

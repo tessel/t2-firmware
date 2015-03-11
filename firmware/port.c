@@ -136,7 +136,7 @@ u32 port_tx_len(PortData* p) {
 
 u32 port_rx_len(PortData* p) {
     u32 size = p->arg;
-    u32 reply_remaining = BUF_SIZE - p->reply_len;
+    u32 reply_remaining = BRIDGE_BUF_SIZE - p->reply_len;
     if (reply_remaining < size) {
         size = reply_remaining;
     }
@@ -149,7 +149,7 @@ u32 port_txrx_len(PortData *p) {
     if (cmd_remaining < size) {
         size = cmd_remaining;
     }
-    u32 reply_remaining = BUF_SIZE - p->reply_len;
+    u32 reply_remaining = BRIDGE_BUF_SIZE - p->reply_len;
     if (reply_remaining < size) {
         size = reply_remaining;
     }
@@ -318,7 +318,7 @@ void port_step(PortData* p) {
         }
         // If the reply buffer is full, flush it.
         // Or, if there is any data and no commands, might as well flush.
-        if ((p->reply_len >= BUF_SIZE || (p->pending_out && p->reply_len > 0)) && !p->pending_in) {
+        if ((p->reply_len >= BRIDGE_BUF_SIZE || (p->pending_out && p->reply_len > 0)) && !p->pending_in) {
             p->pending_in = true;
             bridge_start_in(p->chan, p->reply_buf, p->reply_len);
         }

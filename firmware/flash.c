@@ -46,6 +46,9 @@ void flash_disable() {
     pin_in(PIN_BRIDGE_SCK);
     pin_in(PIN_FLASH_CS);
 
+    usb_disable_ep(USB_EP_FLASH_IN);
+    usb_disable_ep(USB_EP_FLASH_OUT);
+
     // Leave RST low until manually enabled
 
     flash_state = FLASH_STATE_DISABLE;

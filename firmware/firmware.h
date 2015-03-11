@@ -22,6 +22,8 @@
 #define USB_EP_FLASH_OUT 0x02
 #define USB_EP_FLASH_IN 0x81
 
+#define USB_EP_PIPE_OUT USB_EP_FLASH_OUT
+#define USB_EP_PIPE_IN USB_EP_FLASH_IN
 
 // flash.c
 
@@ -37,6 +39,7 @@ void flash_disable();
 #define BRIDGE_USB 0
 #define BRIDGE_PORT_A 1
 #define BRIDGE_PORT_B 2
+#define BRIDGE_BUF_SIZE 256
 
 void bridge_init();
 void bridge_disable();
@@ -68,8 +71,6 @@ void bridge_close_3();
 
 // port.c
 
-#define BUF_SIZE 256
-
 typedef struct PortData {
     u8 chan;
     const TesselPort* port;
@@ -78,10 +79,10 @@ typedef struct PortData {
 
     u8 state;
     u8 mode;
-    u8 cmd_buf[BUF_SIZE];
+    u8 cmd_buf[BRIDGE_BUF_SIZE];
     u8 cmd_len;
     u8 cmd_pos;
-    u8 reply_buf[BUF_SIZE];
+    u8 reply_buf[BRIDGE_BUF_SIZE];
     u8 reply_len;
     u8 cmd;
     u8 arg;
@@ -97,3 +98,12 @@ void port_bridge_in_completion(PortData* p);
 void port_dma_rx_completion(PortData* p);
 void bridge_handle_sercom_uart_i2c(PortData* p);
 void port_disable(PortData *p);
+
+// usbpipe.c
+
+void usbpipe_init();
+void usbpipe_disable();
+void pipe_usb_out_completion();
+void pipe_bridge_in_completion();
+void pipe_bridge_out_completion(u8 count);
+void pipe_usb_in_completion();
