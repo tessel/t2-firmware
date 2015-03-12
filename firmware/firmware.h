@@ -25,6 +25,10 @@
 #define USB_EP_PIPE_OUT USB_EP_FLASH_OUT
 #define USB_EP_PIPE_IN USB_EP_FLASH_IN
 
+#define USB_EP_CDC_NOTIFICATION 0x83
+#define USB_EP_CDC_IN           0x84
+#define USB_EP_CDC_OUT          0x04
+
 // flash.c
 
 void flash_init();
@@ -107,3 +111,9 @@ void pipe_usb_out_completion();
 void pipe_bridge_in_completion();
 void pipe_bridge_out_completion(u8 count);
 void pipe_usb_in_completion();
+
+// terminal.c
+
+void usbserial_init();
+void usbserial_out_completion();
+void usbserial_in_completion();

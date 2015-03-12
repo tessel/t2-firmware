@@ -1,7 +1,8 @@
 #include "usb.h"
 #include "firmware.h"
+#include "class/cdc/cdc_standard.h"
 
-USB_ENDPOINTS(3);
+USB_ENDPOINTS(5);
 
 __attribute__((__aligned__(4))) const USB_DeviceDescriptor device_descriptor = {
 	.bLength = sizeof(USB_DeviceDescriptor),
@@ -26,8 +27,11 @@ __attribute__((__aligned__(4))) const USB_DeviceDescriptor device_descriptor = {
 
 uint16_t altsetting = 0;
 
-#define ALTSETTING_FLASH 1
-#define ALTSETTING_PIPE 2
+#define INTERFACE_VENDOR 0
+	#define ALTSETTING_FLASH 1
+	#define ALTSETTING_PIPE 2
+#define INTERFACE_CDC_CONTROL 1
+#define INTERFACE_CDC_DATA 2
 
 typedef struct ConfigDesc {
 	USB_ConfigurationDescriptor Config;
@@ -40,14 +44,25 @@ typedef struct ConfigDesc {
 	USB_InterfaceDescriptor PipeInterface;
 	USB_EndpointDescriptor PipeInEndpoint;
 	USB_EndpointDescriptor PipeOutEndpoint;
-} ConfigDesc;
+
+	USB_InterfaceDescriptor CDC_control_interface;
+
+	CDC_FunctionalHeaderDescriptor CDC_functional_header;
+	CDC_FunctionalACMDescriptor CDC_functional_ACM;
+	CDC_FunctionalUnionDescriptor CDC_functional_union;
+	USB_EndpointDescriptor CDC_notification_endpoint;
+
+	USB_InterfaceDescriptor CDC_data_interface;
+	USB_EndpointDescriptor CDC_out_endpoint;
+	USB_EndpointDescriptor CDC_in_endpoint;
+}  __attribute__((packed)) ConfigDesc;
 
 __attribute__((__aligned__(4))) const ConfigDesc configuration_descriptor = {
 	.Config = {
 		.bLength = sizeof(USB_ConfigurationDescriptor),
 		.bDescriptorType = USB_DTYPE_Configuration,
 		.wTotalLength  = sizeof(ConfigDesc),
-		.bNumInterfaces = 1,
+		.bNumInterfaces = 3,
 		.bConfigurationValue = 1,
 		.iConfiguration = 0,
 		.bmAttributes = USB_CONFIG_ATTR_BUSPOWERED,
@@ -117,6 +132,71 @@ __attribute__((__aligned__(4))) const ConfigDesc configuration_descriptor = {
 		.bmAttributes = (USB_EP_TYPE_BULK | ENDPOINT_ATTR_NO_SYNC | ENDPOINT_USAGE_DATA),
 		.wMaxPacketSize = 64,
 		.bInterval = 0x00
+	},
+	.CDC_control_interface = {
+		.bLength = sizeof(USB_InterfaceDescriptor),
+		.bDescriptorType = USB_DTYPE_Interface,
+		.bInterfaceNumber = INTERFACE_CDC_CONTROL,
+		.bAlternateSetting = 0,
+		.bNumEndpoints = 1,
+		.bInterfaceClass = CDC_INTERFACE_CLASS,
+		.bInterfaceSubClass = CDC_INTERFACE_SUBCLASS_ACM,
+		.bInterfaceProtocol = 0,
+		.iInterface = 0,
+	},
+	.CDC_functional_header = {
+		.bLength = sizeof(CDC_FunctionalHeaderDescriptor),
+		.bDescriptorType = USB_DTYPE_CSInterface,
+		.bDescriptorSubtype = CDC_SUBTYPE_HEADER,
+		.bcdCDC = 0x0110,
+	},
+	.CDC_functional_ACM = {
+		.bLength = sizeof(CDC_FunctionalACMDescriptor),
+		.bDescriptorType = USB_DTYPE_CSInterface,
+		.bDescriptorSubtype = CDC_SUBTYPE_ACM,
+		.bmCapabilities = 0x00,
+	},
+	.CDC_functional_union = {
+		.bLength = sizeof(CDC_FunctionalUnionDescriptor),
+		.bDescriptorType = USB_DTYPE_CSInterface,
+		.bDescriptorSubtype = CDC_SUBTYPE_UNION,
+		.bMasterInterface = INTERFACE_CDC_CONTROL,
+		.bSlaveInterface = INTERFACE_CDC_DATA,
+	},
+	.CDC_notification_endpoint = {
+		.bLength = sizeof(USB_EndpointDescriptor),
+		.bDescriptorType = USB_DTYPE_Endpoint,
+		.bEndpointAddress = USB_EP_CDC_NOTIFICATION,
+		.bmAttributes = (USB_EP_TYPE_INTERRUPT | ENDPOINT_ATTR_NO_SYNC | ENDPOINT_USAGE_DATA),
+		.wMaxPacketSize = 8,
+		.bInterval = 0xFF
+	},
+	.CDC_data_interface = {
+		.bLength = sizeof(USB_InterfaceDescriptor),
+		.bDescriptorType = USB_DTYPE_Interface,
+		.bInterfaceNumber = INTERFACE_CDC_DATA,
+		.bAlternateSetting = 0,
+		.bNumEndpoints = 2,
+		.bInterfaceClass = CDC_INTERFACE_CLASS_DATA,
+		.bInterfaceSubClass = 0,
+		.bInterfaceProtocol = 0,
+		.iInterface = 0,
+	},
+	.CDC_out_endpoint = {
+		.bLength = sizeof(USB_EndpointDescriptor),
+		.bDescriptorType = USB_DTYPE_Endpoint,
+		.bEndpointAddress = USB_EP_CDC_OUT,
+		.bmAttributes = (USB_EP_TYPE_BULK | ENDPOINT_ATTR_NO_SYNC | ENDPOINT_USAGE_DATA),
+		.wMaxPacketSize = 64,
+		.bInterval = 0x05
+	},
+	.CDC_in_endpoint = {
+		.bLength = sizeof(USB_EndpointDescriptor),
+		.bDescriptorType = USB_DTYPE_Endpoint,
+		.bEndpointAddress = USB_EP_CDC_IN,
+		.bmAttributes = (USB_EP_TYPE_BULK | ENDPOINT_ATTR_NO_SYNC | ENDPOINT_USAGE_DATA),
+		.wMaxPacketSize = 64,
+		.bInterval = 0x05
 	},
 };
 
@@ -202,7 +282,7 @@ void usb_cb_reset(void) {
 
 bool usb_cb_set_configuration(uint8_t config) {
 	if (config <= 1) {
-		//flash_init();
+		usbserial_init();
 		return true;
 	}
 	return false;
@@ -287,6 +367,16 @@ void usb_cb_completion(void) {
 			pipe_usb_in_completion();
 			usb_ep_handled(USB_EP_PIPE_IN);
 		}
+	}
+
+	if (usb_ep_pending(USB_EP_CDC_OUT)) {
+		usbserial_out_completion();
+		usb_ep_handled(USB_EP_CDC_OUT);
+	}
+
+	if (usb_ep_pending(USB_EP_CDC_IN)) {
+		usbserial_in_completion();
+		usb_ep_handled(USB_EP_CDC_IN);
 	}
 }
 
