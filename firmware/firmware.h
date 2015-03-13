@@ -3,13 +3,17 @@
 #include "common/hw.h"
 #include "samd/usb_samd.h"
 
-/// DMA allocation
-#define DMA_BRIDGE_TX 0
-#define DMA_BRIDGE_RX 1
-#define DMA_PORT_A_TX 2
-#define DMA_PORT_A_RX 3
-#define DMA_PORT_B_TX 4
-#define DMA_PORT_B_RX 5
+/// DMA allocation. Channels 0-3 support EVSYS and are reserved for
+/// functions that need it
+#define DMA_TERMINAL_RX 0
+#define DMA_BRIDGE_TX 4
+#define DMA_BRIDGE_RX 5
+#define DMA_PORT_A_TX 6
+#define DMA_PORT_A_RX 7
+#define DMA_PORT_B_TX 8
+#define DMA_PORT_B_RX 9
+#define DMA_TERMINAL_TX 10
+
 
 // overlaps with flash because they cannot be active at the same time
 #define DMA_FLASH_TX DMA_BRIDGE_TX
@@ -17,6 +21,7 @@
 
 /// EVSYS allocation
 #define EVSYS_BRIDGE_SYNC 0
+#define EVSYS_TERMINAL_TIMEOUT 1
 
 /// USB Endpoint allocation
 #define USB_EP_FLASH_OUT 0x02
@@ -28,6 +33,9 @@
 #define USB_EP_CDC_NOTIFICATION 0x83
 #define USB_EP_CDC_IN           0x84
 #define USB_EP_CDC_OUT          0x04
+
+/// Timer allocation
+#define TC_TERMINAL_TIMEOUT 3
 
 // flash.c
 
@@ -112,8 +120,11 @@ void pipe_bridge_in_completion();
 void pipe_bridge_out_completion(u8 count);
 void pipe_usb_in_completion();
 
-// terminal.c
+// usbserial.c
 
 void usbserial_init();
 void usbserial_out_completion();
 void usbserial_in_completion();
+void usbserial_dma_rx_completion();
+void usbserial_dma_tx_completion();
+void usbserial_handle_tc();

@@ -100,7 +100,9 @@ inline static void evsys_init() {
     PM->APBCMASK.reg |= PM_APBCMASK_EVSYS;
 }
 
-inline static void evsys_config(u8 channel, u8 source) {
+#define EVSYS_USER_NONE -1
+
+inline static void evsys_config(u8 channel, u8 source, u8 user) {
     GCLK->CLKCTRL.reg = GCLK_CLKCTRL_CLKEN |
         GCLK_CLKCTRL_GEN(0) |
         GCLK_CLKCTRL_ID(EVSYS_GCLK_ID_0 + channel);
@@ -108,6 +110,10 @@ inline static void evsys_config(u8 channel, u8 source) {
     EVSYS->CHANNEL.reg = EVSYS_CHANNEL_CHANNEL(channel)
                        | EVSYS_CHANNEL_EVGEN(source)
                        | EVSYS_CHANNEL_PATH_SYNCHRONOUS | EVSYS_CHANNEL_EDGSEL_RISING_EDGE;
+
+    if (user != EVSYS_USER_NONE) {
+      EVSYS->USER.reg = EVSYS_USER_CHANNEL(channel + 1) | EVSYS_USER_USER(user);
+    }
 }
 
 #define EVSYS_EVD(N) ((N)<=7 ? (1<<((N) + 8)) : (1 << (24 + (N) - 8)))
@@ -129,6 +135,7 @@ void dma_sercom_configure_tx(DmaChan chan, SercomId id);
 void dma_sercom_configure_rx(DmaChan chan, SercomId id);
 void dma_link_chain(DmacDescriptor* chain, u32 count);
 void dma_start_descriptor(DmaChan chan, DmacDescriptor* chain);
+u32 dma_remaining(DmaChan chan);
 
 
 // sercom.c
@@ -142,6 +149,7 @@ void sercom_reset(SercomId id);
 void sercom_spi_slave_init(SercomId id, u32 dipo, u32 dopo, bool cpol, bool cpha);
 void sercom_spi_master_init(SercomId id, u32 dipo, u32 dopo, bool cpol, bool cpha);
 void sercom_i2c_master_init(SercomId id);
+void sercom_uart_init(SercomId id, u32 rxpo, u32 txpo);
 
 inline static void jump_to_flash(uint32_t addr_p, uint32_t r0_val) {
   uint32_t *addr = (void*) addr_p;
@@ -162,3 +170,11 @@ inline static void jump_to_flash(uint32_t addr_p, uint32_t r0_val) {
   __asm__ volatile("mov sp, %0; bx %1" :: "r" (sp), "r" (pc), "r" (r0));
   (void) r0_val;
 }
+
+// timer
+
+inline static Tc* tc(TimerId id) {
+  return (Tc*) (0x42002C00U + (id - 3) * 1024);
+}
+
+void timer_clock_enable(TimerId id);

@@ -60,3 +60,18 @@ void sercom_i2c_master_init(SercomId id) {
         | SERCOM_I2CM_CTRLA_MODE_I2C_MASTER;
     sercom(id)->I2CM.STATUS.reg = SERCOM_I2CM_STATUS_BUSSTATE(1);
 }
+
+void sercom_uart_init(SercomId id, u32 rxpo, u32 txpo) {
+    sercom_reset(id);
+    sercom(id)->USART.CTRLA.reg = SERCOM_USART_CTRLA_MODE_USART_INT_CLK;
+    sercom(id)->USART.BAUD.reg = 63019; // 115200 baud -- TODO: adjustable
+    sercom(id)->USART.CTRLB.reg
+        = SERCOM_USART_CTRLB_RXEN
+        | SERCOM_USART_CTRLB_TXEN;
+    sercom(id)->USART.CTRLA.reg
+        = SERCOM_USART_CTRLA_ENABLE
+        | SERCOM_USART_CTRLA_MODE_USART_INT_CLK
+        | SERCOM_SPI_CTRLA_DORD
+        | SERCOM_USART_CTRLA_TXPO(txpo)
+        | SERCOM_USART_CTRLA_RXPO(rxpo);
+}

@@ -25,6 +25,10 @@ void dma_abort(DmaChan chan) {
     DMAC->CHCTRLA.reg = 0;
 }
 
+u32 dma_remaining(DmaChan chan) {
+    return dma_descriptors_wb[chan].BTCNT.reg;
+}
+
 const u8 dummy_tx = 0x99;
 void dma_fill_sercom_tx(DmacDescriptor* desc, SercomId id, u8 *src, unsigned size) {
     desc->DSTADDR.reg = (unsigned) &sercom(id)->SPI.DATA;
@@ -45,7 +49,7 @@ void dma_fill_sercom_rx(DmacDescriptor* desc, SercomId id, u8 *dst, unsigned siz
     desc->BTCNT.reg = size;
     if (dst != NULL) {
         desc->DSTADDR.reg = (unsigned) dst + size;
-        desc->BTCTRL.reg = DMAC_BTCTRL_VALID | DMAC_BTCTRL_DSTINC;
+        desc->BTCTRL.reg = DMAC_BTCTRL_VALID | DMAC_BTCTRL_DSTINC | DMAC_BTCTRL_EVOSEL_BEAT;
     } else {
         desc->DSTADDR.reg = (unsigned) &dummy_rx;
         desc->BTCTRL.reg = DMAC_BTCTRL_VALID;

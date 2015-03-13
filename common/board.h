@@ -61,8 +61,8 @@ const static Pin PIN_BRIDGE_SYNC = { .group = 0, .pin = 23 };
 const static Pin PIN_SERIAL_TX = {.group = 0, .pin = 20, .mux = MUX_PA20D_SERCOM3_PAD2 };
 const static Pin PIN_SERIAL_RX = {.group = 0, .pin = 21, .mux = MUX_PA21D_SERCOM3_PAD3 };
 
-#define TERMINAL_DOPO 0
-#define TERMINAL_DIPO 0
+#define TERMINAL_TXPO 1
+#define TERMINAL_RXPO 3
 
 typedef struct TesselPort {
     union {

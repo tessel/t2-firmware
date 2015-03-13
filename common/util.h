@@ -7,6 +7,7 @@ typedef uint32_t u32;
 
 typedef uint8_t DmaChan;
 typedef uint8_t SercomId;
+typedef uint8_t TimerId;
 typedef struct Pin {
   u8 mux;
   u8 group;
@@ -15,6 +16,9 @@ typedef struct Pin {
 
 #define SERCOM_HANDLER_(ID) SERCOM ## ID ## _Handler()
 #define SERCOM_HANDLER(ID) SERCOM_HANDLER_(ID)
+
+#define TC_HANDLER_(ID) TC ## ID ## _Handler()
+#define TC_HANDLER(ID) TC_HANDLER_(ID)
 
 inline static void invalid() {
     __asm__("bkpt");

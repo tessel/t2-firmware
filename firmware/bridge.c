@@ -61,7 +61,9 @@ void bridge_init() {
     pin_mux_eic(PIN_BRIDGE_SYNC);
     eic_config(PIN_BRIDGE_SYNC, EIC_CONFIG_SENSE_BOTH);
     EIC->EVCTRL.reg |= 1 << pin_extint(PIN_BRIDGE_SYNC);
-    evsys_config(EVSYS_BRIDGE_SYNC, EVSYS_ID_GEN_EIC_EXTINT_0 + pin_extint(PIN_BRIDGE_SYNC));
+    evsys_config(EVSYS_BRIDGE_SYNC,
+        EVSYS_ID_GEN_EIC_EXTINT_0 + pin_extint(PIN_BRIDGE_SYNC),
+        EVSYS_USER_NONE);
     EVSYS->INTENSET.reg = EVSYS_EVD(EVSYS_BRIDGE_SYNC);
 
     bridge_state = BRIDGE_STATE_IDLE;

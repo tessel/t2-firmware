@@ -68,6 +68,10 @@ void DMAC_Handler() {
             port_dma_rx_completion(&port_a);
         } else if (id == DMA_PORT_B_RX) {
             port_dma_rx_completion(&port_b);
+        } else if (id == DMA_TERMINAL_RX) {
+            usbserial_dma_rx_completion();
+        } else if (id == DMA_TERMINAL_TX) {
+            usbserial_dma_tx_completion();
         }
     }
 
@@ -132,4 +136,8 @@ void bridge_completion_in_2() {
 }
 void bridge_close_2() {
     port_disable(&port_b);
+}
+
+void TC_HANDLER(TC_TERMINAL_TIMEOUT) {
+    usbserial_handle_tc();
 }
