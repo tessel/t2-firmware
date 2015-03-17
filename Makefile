@@ -2,7 +2,7 @@ TARGETS = firmware boot
 BUILD = build
 
 all: $(TARGETS)
-.PHONY: all clean
+.PHONY: all clean update
 
 ATMEL_PATH = deps/sam0
 CMSIS_PATH = $(ATMEL_PATH)/cmsis/samd21
@@ -34,5 +34,8 @@ $(foreach t,$(TARGETS),$(eval $(call each_target,$(t))))
 
 clean:
 	@-rm -rf $(BUILD)
+
+update:
+	git submodule update --init --recursive
 
 print-%	: ; @echo $* = $($*)
