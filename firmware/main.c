@@ -15,8 +15,7 @@ int main(void) {
     pin_high(PIN_LED);
     pin_out(PIN_LED);
 
-    pin_high(PIN_SOC_RST);
-    pin_out(PIN_SOC_RST);
+    pin_in(PIN_SOC_RST);
 
     pin_high(PIN_SOC_PWR);
     pin_out(PIN_SOC_PWR);

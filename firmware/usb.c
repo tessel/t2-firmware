@@ -299,31 +299,25 @@ void req_gpio(uint16_t wIndex, uint16_t wValue) {
 	Pin pin;
 	switch (wIndex) {
 		case REQ_PWR_RST:
-			pin = PIN_SOC_RST;
+			pin_low(PIN_SOC_RST);
+			pin_dir(PIN_SOC_RST, !wValue);
 			break;
 		case REQ_PWR_SOC:
-			pin = PIN_SOC_PWR;
+			pin_set(PIN_SOC_PWR, wValue);
 			break;
 		case REQ_PWR_PORT_A:
-			pin = PORT_A.power;
+			pin_set(PORT_A.power, wValue);
 			break;
 		case REQ_PWR_PORT_B:
-			pin = PORT_B.power;
+			pin_set(PORT_B.power, wValue);
 			break;
 		case REQ_PWR_LED:
-			pin = PIN_LED;
+			pin_set(PIN_LED, wValue);
 			break;
 		default:
 			return usb_ep0_stall();
 	}
 
-	if (wValue == 0) {
-		pin_low(pin);
-	} else if (wValue == 1) {
-		pin_high(pin);
-	} else {
-		return usb_ep0_stall();
-	}
 	usb_ep0_out();
 	return usb_ep0_in(0);
 }

@@ -20,6 +20,14 @@ inline static void pin_out(Pin p) {
   PORT->Group[p.group].DIRSET.reg = (1<<p.pin);
 }
 
+inline static void pin_dir(Pin p, bool out) {
+  if (out) {
+    PORT->Group[p.group].DIRSET.reg = (1<<p.pin);
+  } else {
+    PORT->Group[p.group].DIRCLR.reg = (1<<p.pin);
+  }
+}
+
 inline static void pin_high(Pin p) {
   PORT->Group[p.group].OUTSET.reg = (1<<p.pin);
 }
@@ -30,6 +38,14 @@ inline static void pin_low(Pin p) {
 
 inline static void pin_toggle(Pin p) {
   PORT->Group[p.group].OUTTGL.reg = (1<<p.pin);
+}
+
+inline static void pin_set(Pin p, bool high) {
+  if (high) {
+    PORT->Group[p.group].OUTSET.reg = (1<<p.pin);
+  } else {
+    PORT->Group[p.group].OUTCLR.reg = (1<<p.pin);
+  }
 }
 
 inline static void pin_in(Pin p) {
