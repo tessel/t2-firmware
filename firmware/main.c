@@ -4,6 +4,12 @@ PortData port_a;
 PortData port_b;
 
 int main(void) {
+    if (PM->RCAUSE.reg & PM_RCAUSE_POR) {
+        // On powerup, force a clean reset of the MT7620
+        pin_low(PIN_SOC_RST);
+        pin_out(PIN_SOC_RST);
+    }
+
     clock_init_crystal();
 
     pin_mux(PIN_USB_DM);
