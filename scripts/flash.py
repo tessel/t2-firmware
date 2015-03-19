@@ -81,7 +81,7 @@ def write(addr, data):
         addr += PAGE
 
 def randbyte():
-    return random.randint(0, 256)
+    return random.randint(0, 255)
 
 def factory():
     header = [0x20, 0x76, 0x03, 0x01]
