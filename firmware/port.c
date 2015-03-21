@@ -266,6 +266,7 @@ ExecStatus port_continue_cmd(PortData *p) {
         case CMD_TX:
             if (p->mode == MODE_SPI) {
                 u32 size = port_tx_len(p);
+                dma_sercom_start_rx(p->dma_rx, p->port->spi, NULL, size);
                 dma_sercom_start_tx(p->dma_tx, p->port->spi, &p->cmd_buf[p->cmd_pos], size);
                 p->cmd_pos += size;
                 p->arg -= size;
