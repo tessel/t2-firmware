@@ -1,0 +1,10 @@
+Basic usage
+< ECHO 3 1 2 3
+> DATA 1 2 3
+
+Split into multiple packets
+< ECHO
+< 2
+< 9
+< 8
+> DATA 9 8
