@@ -33,6 +33,16 @@ typedef enum PortCmd {
     CMD_STOP = 20,
 } PortCmd;
 
+typedef enum {
+    REPLY_ACK = 0x80,
+    REPLY_NACK = 0x81,
+    REPLY_HIGH = 0x82,
+    REPLY_LOW  = 0x83,
+    REPLY_DATA = 0x84,
+
+    REPLY_ASYNC_PIN_CHANGE_N = 0xC0, // 0xC0 + n
+} PortReply;
+
 typedef enum PortMode {
     MODE_NONE,
     MODE_SPI,
@@ -85,6 +95,14 @@ void port_disable(PortData* p) {
         pin_float(p->port->gpio[i]);
     }
     pin_low(p->port->power);
+}
+
+void port_send_status(PortData* p, u8 d) {
+    if (p->reply_len >= BRIDGE_BUF_SIZE) {
+        invalid();
+        return;
+    }
+    p->reply_buf[p->reply_len++] = d;
 }
 
 bool port_cmd_has_arg(PortCmd cmd) {
@@ -174,22 +192,30 @@ ExecStatus port_begin_cmd(PortData *p) {
             return EXEC_DONE;
 
         case CMD_ECHO:
-        case CMD_TX:
         case CMD_RX:
         case CMD_TXRX:
+            port_send_status(p, REPLY_DATA);
+            return EXEC_CONTINUE;
+
+        case CMD_TX:
             return EXEC_CONTINUE;
 
         case CMD_GPIO_IN:
             pin_in(port_selected_pin(p));
+            u8 state = pin_read(port_selected_pin(p));
+            port_send_status(p, state ? REPLY_HIGH : REPLY_LOW);
             return EXEC_DONE;
+
         case CMD_GPIO_HIGH:
             pin_high(port_selected_pin(p));
             pin_out(port_selected_pin(p));
             return EXEC_DONE;
+
         case CMD_GPIO_LOW:
             pin_low(port_selected_pin(p));
             pin_out(port_selected_pin(p));
             return EXEC_DONE;
+
         case CMD_GPIO_TOGGLE:
             pin_toggle(port_selected_pin(p));
             pin_out(port_selected_pin(p));

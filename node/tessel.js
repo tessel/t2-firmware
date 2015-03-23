@@ -30,17 +30,36 @@ function Port(name, socketPath) {
         throw new Error("Port socket closed");
     })
 
-    var read_buffer = new Buffer(0);
-    this.sock.on('data', function(d) {
-        read_buffer = Buffer.concat([read_buffer, d]);
-        while (this.replyQueue.length > 0 && read_buffer.length >= this.replyQueue[0].size) {
+    this.sock.on('readable', function() {
+        while (this.replyQueue.length > 0) {
+            var d = this.sock.read(1);
+
+            if (!d) break;
+            var byte = d[0];
+            var data = null;
+            var data_size = this.replyQueue[0].size;
+
+            if (byte == REPLY.DATA) {
+                if (!data_size) {
+                    throw new Error("Received unexpected data packet");
+                }
+                data = this.sock.read(data_size);
+                if (!data) {
+                    this.sock.unshift(data);
+                    this.sock.unshift(d);
+                    break;
+                }
+            } else if (byte >= REPLY.MIN_ASYNC) {
+                this.emit('async-event', byte);
+                continue;
+            }
+
             var q = this.replyQueue.shift();
             if (q.callback) {
-                q.callback.call(this, null, read_buffer.slice(0, q.size));
+                q.callback.call(this, null, q.size ? data : byte);
             }
-            read_buffer = read_buffer.slice(q.size);
         }
-    }.bind(this))
+    }.bind(this));
 
     // Active peripheral: 'none', 'i2c', 'spi', 'uart'
     this.mode = 'none';
@@ -52,7 +71,6 @@ function Port(name, socketPath) {
     for (var i=0; i<8; i++) {
         this.digital.push(new Pin(i, this));
     }
-
 }
 
 Port.prototype.cork = function() {
@@ -102,10 +120,6 @@ Port.prototype._tx = function(buf, cb) {
     this.sock.write(new Buffer([CMD.TX, buf.length]))
     this.sock.write(buf);
     this.sync(cb);
-    //this.replyQueue.push({
-    //    size: 0,
-    //    callback: cb,
-    //});
     this.uncork();
 }
 
@@ -251,6 +265,17 @@ var CMD = {
     TXRX: 18,
     START: 19,
     STOP: 20,
+};
+
+var REPLY = {
+    ACK:  0x80,
+    NACK: 0x81,
+    HIGH: 0x82,
+    LOW:  0x83,
+    DATA: 0x84,
+
+    MIN_ASYNC: 0xA0,
+    ASYNC_PIN_CHANGE_N: 0xC0,
 };
 
 module.exports = new Tessel();
