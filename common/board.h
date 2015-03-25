@@ -81,6 +81,7 @@ typedef struct TesselPort {
     Pin power;
     SercomId spi;
     SercomId uart_i2c;
+    u16 pin_interrupts;
     u32 spi_dopo;
     u32 spi_dipo;
     u32 uart_dopo;
@@ -101,6 +102,11 @@ const static TesselPort PORT_A = {
     .tx =   {.group = 0, .pin = 14, .mux = MUX_PA14D_SERCOM4_PAD2 },
     .rx =   {.group = 0, .pin = 15, .mux = MUX_PA15D_SERCOM4_PAD3 },
     .g3 =   {.group = 1, .pin = 8 },
+    .pin_interrupts
+        = (1 << (23 & 0xf)) // GPIO 2
+        | (1 << (14 & 0xf)) // GPIO 5
+        | (1 << (15 & 0xf)) // GPIO 6
+        | (1 << (8  & 0xf)), // GPIO 7
     .power = {.group = 1, .pin = 10},
     .spi = SERCOM_PORT_A_SPI,
     .uart_i2c = SERCOM_PORT_A_UART_I2C,
@@ -119,6 +125,11 @@ const static TesselPort PORT_B = {
     .tx =   {.group = 0, .pin = 10, .mux = MUX_PA10D_SERCOM2_PAD2 },
     .rx =   {.group = 0, .pin = 11, .mux = MUX_PA11D_SERCOM2_PAD3 },
     .g3 =   {.group = 0, .pin = 2 },
+    .pin_interrupts
+        = (1 << (5  & 0xf)) // GPIO 2
+        | (1 << (10 & 0xf)) // GPIO 5
+        | (1 << (11 & 0xf)) // GPIO 6
+        | (1 << (2  & 0xf)), // GPIO 7
     .power = {.group = 1, .pin = 11},
     .spi = SERCOM_PORT_B_SPI,
     .uart_i2c = SERCOM_PORT_B_UART_I2C,

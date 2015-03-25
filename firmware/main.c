@@ -88,7 +88,12 @@ void DMAC_Handler() {
 }
 
 void EIC_Handler() {
-    invalid();
+    u32 flags = EIC->INTFLAG.reg;
+    if (flags & PORT_A.pin_interrupts) {
+        port_handle_extint(&port_a, flags);
+    } else if (flags & PORT_B.pin_interrupts) {
+        port_handle_extint(&port_b, flags);
+    }
 }
 
 void EVSYS_Handler() {

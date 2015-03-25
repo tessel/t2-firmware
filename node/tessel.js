@@ -31,11 +31,33 @@ function Port(name, socketPath) {
     })
 
     this.sock.on('readable', function() {
-        while (this.replyQueue.length > 0) {
+        while (true) {
             var d = this.sock.read(1);
 
             if (!d) break;
             var byte = d[0];
+
+            if (byte >= REPLY.MIN_ASYNC) {
+                if (byte >= REPLY.ASYNC_PIN_CHANGE_N && byte < REPLY.ASYNC_PIN_CHANGE_N+8) {
+                    var pin = this.digital[byte - REPLY.ASYNC_PIN_CHANGE_N];
+
+                    var mode = pin.interruptMode;
+                    if (mode == 'low' || mode == 'high') {
+                        pin.interruptMode = null;
+                    }
+
+                    pin.emit(mode);
+                } else {
+                    this.emit('async-event', byte);
+                }
+
+                continue;
+            }
+
+            if (this.replyQueue.length == 0) {
+                throw new Error("Received an unexpected response with no commands pending: " + byte);
+            }
+
             var data = null;
             var data_size = this.replyQueue[0].size;
 
@@ -49,9 +71,6 @@ function Port(name, socketPath) {
                     this.sock.unshift(d);
                     break;
                 }
-            } else if (byte >= REPLY.MIN_ASYNC) {
-                this.emit('async-event', byte);
-                continue;
             }
 
             var q = this.replyQueue.shift();
@@ -69,7 +88,7 @@ function Port(name, socketPath) {
 
     this.digital = [];
     for (var i=0; i<8; i++) {
-        this.digital.push(new Pin(i, this));
+        this.digital.push(new Pin(i, this, [2,5,6,7].indexOf(i) != -1));
     }
 }
 
@@ -169,14 +188,72 @@ Port.prototype.UART = function (format) {
     return new UART(this);
 };
 
-function Pin (pin, port) {
+function Pin (pin, port, interruptSupported) {
     this.pin = pin;
     this._port = port;
-    this.interrupts = {};
+    this.interruptSupported = interruptSupported;
+    this.interruptMode = null;
     this.isPWM = false;
 }
 
 util.inherits(Pin, EventEmitter);
+
+Pin.interruptModes = {
+  "rise" : 1,
+  "fall" : 2,
+  "change" : 3,
+  "high" : 4,
+  "low" : 5,
+};
+
+Pin.prototype.removeListener = function(event, listener) {
+    // If it's an interrupt event, remove as necessary
+    var emitter = Pin.super_.prototype.removeListener.apply(this, arguments);
+
+    if (event == this.interruptMode && EventEmitter.listenerCount(this, event)) {
+        this._setInterruptMode(null);
+    }
+
+    return emitter;
+};
+
+Pin.prototype.removeAllListeners = function(event) {
+    if (!event || event == this.interruptMode) {
+        this._setInterruptMode(null);
+    }
+
+    return Pin.super_.prototype.removeAllListeners.apply(this, arguments);
+};
+
+Pin.prototype.addListener = function(mode, callback) {
+    if (mode in Pin.interruptModes) {
+        if (!this.interruptSupported) {
+            throw new Error("Interrupts are not supported on pin " + this.pin)
+        }
+
+        if ((mode == 'high' || mode == 'low') && !callback.listener) {
+            throw new Error("Cannot use 'on' with level interrupts. You can only use 'once'.");
+        }
+
+        if (this.interruptMode != mode) {
+            if (this.interruptMode) {
+                throw new Error("Can't set pin interrupt mode to " + mode
+                                + "; already listening for " + this.interruptMode);
+            }
+            this._setInterruptMode(mode);
+        }
+    }
+
+    // Add the event listener
+    Pin.super_.prototype.on.call(this, mode, callback);
+};
+Pin.prototype.on = Pin.prototype.addListener;
+
+Pin.prototype._setInterruptMode = function(mode) {
+    this.interruptMode = mode;
+    var bits = mode ? Pin.interruptModes[mode] << 4 : 0;
+    this._port._simple_cmd([CMD.GPIO_INT, this.pin | bits]);
+};
 
 Pin.prototype.high = function(cb) {
     this._port._simple_cmd([CMD.GPIO_HIGH, this.pin], cb);
