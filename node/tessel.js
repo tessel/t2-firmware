@@ -189,7 +189,7 @@ Port.prototype.I2C = function (addr, mode) {
 };
 
 Port.prototype.SPI = function (format) {
-    return new SPI(format, this);
+    return new SPI(format == null ? {} : format, this);
 };
 
 Port.prototype.UART = function (format) {
@@ -327,10 +327,21 @@ function SPI(params, port) {
 
     this.chipSelectActive = params.chipSelectActive == 'high' || params.chipSelectActive == 1 ? 1 : 0;
 
+    if (this.chipSelectActive) {
+        // active high, pull low for now
+        this.chipSelect.low();
+    } else {
+        // active low, pull high for now
+        this.chipSelect.high();
+    }
+
     /* spi baud rate is set by the following equation:
     *  f_baud = f_ref/(2*(baud_reg+1))
     *  max baud rate is 24MHz for the SAMD21
     */
+    // default is 2MHz
+    params.clockSpeed = params.clockSpeed ? params.clockSpeed : 2e6;
+
     if (params.clockSpeed > 24e6 || params.clockSpeed < 93750) {
         throw new Error('SPI Clock needs to be between 24e6 and 93750Hz.');
     }
@@ -345,29 +356,20 @@ function SPI(params, port) {
     this.cpol = params.cpol == 'high' || params.cpol == 1 ? 1 : 0;
     this.cpha = params.cpha == 'second' || params.cpha == 1 ? 1 : 0;
 
-    this.isMaster = params.role == 'slave' ? 0 : 1;
-
-    this._port._simple_cmd([CMD.ENABLE_SPI, this.cpol + (this.cpha << 1), this.clockReg, this.isMaster]);
-    // throw new Error("Unimplemented")
-}
-
-SPI.prototype._pullCS = function(){
-     if (!this.chipSelectActive) {
-        this.chipSelect.low();
-    } else {
-        this.chipSelect.high();
-    }
+    this._port._simple_cmd([CMD.ENABLE_SPI, this.cpol + (this.cpha << 1), this.clockReg]);
 }
 
 SPI.prototype.send = function(data, callback) {
     // cork/uncork?
     // pull cs low
-    this._pullCS();
+    console.log("pulling pin 5 low");
+    this.chipSelect.toggle();
 
-    // console.log("pulling pin 5 low");
     this._port._tx(data);
     
-    this._pullCS();
+    console.log("transmitted data");
+    
+    this.chipSelect.toggle();
 }
 
 SPI.prototype.deinit = function(){
@@ -375,17 +377,19 @@ SPI.prototype.deinit = function(){
 }
 
 SPI.prototype.receive = function(data_len, callback) {
-    this._pullCS();
+    this.chipSelect.toggle();
     // console.log("pulling pin 5 low");
     this._port._rx(data_len, callback);
-    this._pullCS();
+    
+    this.chipSelect.toggle();
 }
 
 SPI.prototype.transfer = function(data, callback) {
-    this._pullCS();
+    this.chipSelect.toggle();
+    
     // console.log("pulling pin 5 low");
     this._port._txrx(data, callback);
-    this._pullCS();
+    this.chipSelect.toggle();
 }
 
 function UART(port) {

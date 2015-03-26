@@ -47,12 +47,6 @@ typedef enum SPISettings {
     SPI_CPHA = 2
 } SPISettings;
 
-typedef enum ArgLen {
-    SPI = 3,// 1 byte for mode, 1 bytes for freq, 1 byte for master/slave
-    I2C = 3,
-    UART = 3, // 1 byte for baud, 1 byte for mode
-} ArgLen;
-
 typedef enum PortMode {
     MODE_NONE,
     MODE_SPI,
@@ -137,10 +131,6 @@ u8 get_spi_freq(PortData *p) {
     return p->arg[1];
 }
 
-u8 get_spi_master(PortData *p) {
-    return p->arg[2];
-}
-
 // returns number of arguments
 int port_cmd_args(PortCmd cmd) {
     int cmd_args = 0;
@@ -175,7 +165,7 @@ int port_cmd_args(PortCmd cmd) {
         // Config argument:
         case CMD_ENABLE_SPI:
             // 1 byte for mode, 1 byte for freq, 1 byte for master/slave
-            cmd_args = 3;
+            cmd_args = 2;
             break;
         case CMD_ENABLE_I2C:
             // 1 byte for freq, 1 byte for master/slave
@@ -296,14 +286,9 @@ ExecStatus port_begin_cmd(PortData *p) {
             return EXEC_DONE;
 
         case CMD_ENABLE_SPI:
-            // todo: pull in arg data and set up spi
-            if (get_spi_master(p)) {
-                sercom_spi_master_init(p->port->spi, p->port->spi_dipo, p->port->spi_dopo, 
-                    get_spi_mode(p) & (SPI_CPOL), (get_spi_mode(p) & SPI_CPHA) >> 1, get_spi_freq(p));
-            } else {
-                // todo: slave config
-                invalid();
-            }
+            // can only do spi master
+            sercom_spi_master_init(p->port->spi, p->port->spi_dipo, p->port->spi_dopo, 
+                get_spi_mode(p) & (SPI_CPOL), (get_spi_mode(p) & SPI_CPHA) >> 1, get_spi_freq(p));
             dma_sercom_configure_tx(p->dma_tx, p->port->spi);
             dma_sercom_configure_rx(p->dma_rx, p->port->spi);
             DMAC->CHINTENSET.reg = DMAC_CHINTENSET_TCMPL | DMAC_CHINTENSET_TERR; // ID depends on prev call
@@ -468,7 +453,7 @@ void port_step(PortData* p) {
         //     p->state = port_begin_cmd(p);
         } else if (p->state == PORT_EXEC) {
             p->state = port_continue_cmd(p);
-        } else if (p->state == PORT_EXEC_ASYNC) {
+        } (p->state == PORT_EXEC_ASYNC) {
             break;
         }
     }
