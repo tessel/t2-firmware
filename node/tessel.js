@@ -39,7 +39,7 @@ function Port(name, socketPath) {
 
             if (byte >= REPLY.MIN_ASYNC) {
                 if (byte >= REPLY.ASYNC_PIN_CHANGE_N && byte < REPLY.ASYNC_PIN_CHANGE_N+8) {
-                    var pin = this.digital[byte - REPLY.ASYNC_PIN_CHANGE_N];
+                    var pin = this.pin[byte - REPLY.ASYNC_PIN_CHANGE_N];
 
                     var mode = pin.interruptMode;
                     if (mode == 'low' || mode == 'high') {
@@ -86,10 +86,18 @@ function Port(name, socketPath) {
     // Array of {size, callback} used to dispatch replies
     this.replyQueue = [];
 
-    this.digital = [];
+    this.pin = [];
     for (var i=0; i<8; i++) {
-        this.digital.push(new Pin(i, this, [2,5,6,7].indexOf(i) != -1));
+        this.pin.push(new Pin(i, this, [2,5,6,7].indexOf(i) != -1));
     }
+
+    // Deprecated properties for Tessel 1 backwards compatibility:
+    this.pin.G1 = this.pin.g1 = this.pin[5];
+    this.pin.G2 = this.pin.g2 = this.pin[6];
+    this.pin.G3 = this.pin.g3 = this.pin[7];
+    this.digital = [ this.pin[5], this.pin[6], this.pin[7] ];
+    this.analog = [];
+    this.pwm = [];
 }
 
 Port.prototype.cork = function() {
