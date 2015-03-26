@@ -19,7 +19,7 @@ function Tessel() {
 function Port(name, socketPath) {
     // Connection to the SPI daemon
     this.sock = net.createConnection({path: socketPath}, function(e) {
-        console.log('connect', e)
+        if (e) { throw e; }
     });
 
     this.sock.on('error', function(e) {
