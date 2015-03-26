@@ -33,6 +33,16 @@ typedef enum PortCmd {
     CMD_STOP = 20,
 } PortCmd;
 
+typedef enum {
+    REPLY_ACK = 0x80,
+    REPLY_NACK = 0x81,
+    REPLY_HIGH = 0x82,
+    REPLY_LOW  = 0x83,
+    REPLY_DATA = 0x84,
+
+    REPLY_ASYNC_PIN_CHANGE_N = 0xC0, // 0xC0 + n
+} PortReply;
+
 typedef enum PortMode {
     MODE_NONE,
     MODE_SPI,
@@ -47,6 +57,13 @@ typedef enum ExecStatus {
 } ExecStatus;
 
 void port_step(PortData* p);
+void port_enable_async_events(PortData *p);
+void port_disable_async_events(PortData *p);
+
+inline static bool port_pin_supports_interrupt(PortData* p, u8 i) {
+    u8 extint = pin_extint(p->port->gpio[i]);
+    return !!((1 << extint) & p->port->pin_interrupts);
+}
 
 void port_init(PortData* p, u8 chan, const TesselPort* port, DmaChan dma_tx, DmaChan dma_rx) {
     p->chan = chan;
@@ -81,10 +98,25 @@ void port_disable(PortData* p) {
     dma_abort(p->dma_tx);
     dma_abort(p->dma_rx);
 
+    port_disable_async_events(p);
+
     for (int i = 0; i<8; i++) {
+        if (port_pin_supports_interrupt(p, i)) {
+            eic_config(p->port->gpio[i], EIC_CONFIG_SENSE_NONE);
+        }
         pin_float(p->port->gpio[i]);
     }
+    EIC->INTFLAG.reg = p->port->pin_interrupts;
+
     pin_low(p->port->power);
+}
+
+void port_send_status(PortData* p, u8 d) {
+    if (p->reply_len >= BRIDGE_BUF_SIZE) {
+        invalid();
+        return;
+    }
+    p->reply_buf[p->reply_len++] = d;
 }
 
 bool port_cmd_has_arg(PortCmd cmd) {
@@ -174,29 +206,52 @@ ExecStatus port_begin_cmd(PortData *p) {
             return EXEC_DONE;
 
         case CMD_ECHO:
-        case CMD_TX:
         case CMD_RX:
         case CMD_TXRX:
+            port_send_status(p, REPLY_DATA);
+            return EXEC_CONTINUE;
+
+        case CMD_TX:
             return EXEC_CONTINUE;
 
         case CMD_GPIO_IN:
             pin_in(port_selected_pin(p));
+            u8 state = pin_read(port_selected_pin(p));
+            port_send_status(p, state ? REPLY_HIGH : REPLY_LOW);
             return EXEC_DONE;
+
         case CMD_GPIO_HIGH:
             pin_high(port_selected_pin(p));
             pin_out(port_selected_pin(p));
             return EXEC_DONE;
+
         case CMD_GPIO_LOW:
             pin_low(port_selected_pin(p));
             pin_out(port_selected_pin(p));
             return EXEC_DONE;
+
         case CMD_GPIO_TOGGLE:
             pin_toggle(port_selected_pin(p));
             pin_out(port_selected_pin(p));
             return EXEC_DONE;
 
+        case CMD_GPIO_INT: {
+            u8 pin = p->arg & 0x7;
+            u8 mode = (p->arg >> 4) & 0x07;
+
+            if (port_pin_supports_interrupt(p, pin)) {
+                eic_config(p->port->gpio[pin], mode);
+                if (mode != 0) {
+                    pin_mux_eic(p->port->gpio[pin]);
+                } else {
+                    pin_gpio(p->port->gpio[pin]);
+                }
+            }
+
+            return EXEC_DONE;
+        }
+
         case CMD_GPIO_WAIT:
-        case CMD_GPIO_INT:
         case CMD_GPIO_CFG:
             return EXEC_DONE;
 
@@ -266,6 +321,7 @@ ExecStatus port_continue_cmd(PortData *p) {
         case CMD_TX:
             if (p->mode == MODE_SPI) {
                 u32 size = port_tx_len(p);
+                dma_sercom_start_rx(p->dma_rx, p->port->spi, NULL, size);
                 dma_sercom_start_tx(p->dma_tx, p->port->spi, &p->cmd_buf[p->cmd_pos], size);
                 p->cmd_pos += size;
                 p->arg -= size;
@@ -304,11 +360,21 @@ ExecStatus port_continue_cmd(PortData *p) {
     return EXEC_DONE;
 }
 
+void port_enable_async_events(PortData *p) {
+    EIC->INTENSET.reg = p->port->pin_interrupts;
+}
+
+void port_disable_async_events(PortData *p) {
+    EIC->INTENCLR.reg = p->port->pin_interrupts;
+}
+
 void port_step(PortData* p) {
     if (p->state == PORT_DISABLE || p->state == PORT_EXEC_ASYNC) {
         invalid();
         return;
     }
+
+    port_disable_async_events(p);
 
     while (1) {
         // If the command buffer has been processed, request a new one
@@ -325,7 +391,14 @@ void port_step(PortData* p) {
 
         // Wait for bridge transfers to complete;
         // TODO: multiple-buffer FIFO
-        if (p->pending_in || p->pending_out) break;
+        if (p->pending_in || p->pending_out) {
+            if (!p->pending_in && p->state == PORT_READ_CMD) {
+                // If we're waiting for further commands, also
+                // wait for async events.
+                port_enable_async_events(p);
+            }
+            break;
+        };
 
         if (p->state == PORT_READ_CMD) {
             p->cmd = p->cmd_buf[p->cmd_pos++];
@@ -375,4 +448,27 @@ void bridge_handle_sercom_uart_i2c(PortData* p) {
     } else {
         invalid();
     }
+}
+
+void port_handle_extint(PortData *p, u32 flags) {
+    if (p->state == PORT_READ_CMD) {
+        // Async event
+        for (int pin = 0; pin<8; pin++) {
+            if (port_pin_supports_interrupt(p, pin)) {
+                Pin sys_pin = p->port->gpio[pin];
+                if (flags & (1 << pin_extint(sys_pin))) {
+                    port_send_status(p, REPLY_ASYNC_PIN_CHANGE_N + pin);
+                    if (eic_read_config(sys_pin) & EIC_CONFIG_SENSE_LEVEL) {
+                        // Async level interrupts only trigger once
+                        eic_config(sys_pin, EIC_CONFIG_SENSE_NONE);
+                    }
+                }
+            }
+        }
+        EIC->INTFLAG.reg = p->port->pin_interrupts & flags;
+    } else {
+        invalid();
+    }
+
+    port_step(p);
 }

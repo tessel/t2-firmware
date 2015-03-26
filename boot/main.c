@@ -16,8 +16,6 @@
 #include "boot.h"
 #include "common/nvm.h"
 
-#define RAM_DEST_SIZE 0
-
 volatile bool exit_and_jump = 0;
 
 /*** SysTick ***/
@@ -79,16 +77,28 @@ unsigned led_next_time = 0;
 void led_task() {
 	if (g_msTicks > led_next_time) {
 		led_next_time += 400;
-		PORT->Group[0].OUTTGL.reg = (1<<14);
+		pin_toggle(PIN_LED);
 	}
 }
 
 void bootloader_main() {
+	if (PM->RCAUSE.reg & PM_RCAUSE_POR) {
+		// On powerup, force a clean reset of the MT7620
+		pin_low(PIN_SOC_RST);
+		pin_out(PIN_SOC_RST);
+	}
+
 	clock_init_usb();
 	init_systick();
 	nvm_init();
 
-	PORT->Group[0].DIRSET.reg = (1<<14);
+	pin_low(PORT_A.power);
+	pin_out(PORT_A.power);
+
+	pin_low(PORT_B.power);
+	pin_out(PORT_B.power);
+
+	pin_out(PIN_LED);
 
 	__enable_irq();
 
@@ -122,11 +132,12 @@ bool flash_valid() {
 }
 
 bool button_pressed() {
-	return true;
+	pin_in(PIN_BTN);
+	return !pin_read(PIN_BTN);
 }
 
-int main(unsigned r0) {
-	if (r0 == BOOT_MAGIC || !flash_valid() || button_pressed()) {
+int main() {
+	if (!flash_valid() || button_pressed()) {
 		bootloader_main();
 	}
 

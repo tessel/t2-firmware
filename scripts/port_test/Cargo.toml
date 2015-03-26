@@ -1,0 +1,10 @@
+[package]
+name = "test_port"
+version = "0.0.1"
+
+[dependencies]
+unix_socket = "0.2.1"
+
+[[bin]]
+name = "port_test"
+path = "port_test.rs"

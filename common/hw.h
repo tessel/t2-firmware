@@ -103,6 +103,7 @@ inline static u8 pin_extint(Pin p) {
 #define   EIC_CONFIG_SENSE_RISE      0x1u   /**< \brief (EIC_CONFIG) Rising edge detection */
 #define   EIC_CONFIG_SENSE_FALL      0x2u   /**< \brief (EIC_CONFIG) Falling edge detection */
 #define   EIC_CONFIG_SENSE_BOTH      0x3u   /**< \brief (EIC_CONFIG) Both edges detection */
+#define   EIC_CONFIG_SENSE_LEVEL     0x4u   /**< \brief (EIC_CONFIG) High level detection */
 #define   EIC_CONFIG_SENSE_HIGH      0x4u   /**< \brief (EIC_CONFIG) High level detection */
 #define   EIC_CONFIG_SENSE_LOW       0x5u   /**< \brief (EIC_CONFIG) Low level detection */
 
@@ -110,6 +111,12 @@ inline static void eic_config(Pin p, u8 config) {
   u8 i = pin_extint(p);
   u8 pos = (i % 8) * 4;
   EIC->CONFIG[i/8].reg = (EIC->CONFIG[i/8].reg & ~(0xf << pos)) | (config << pos);
+}
+
+inline static u8 eic_read_config(Pin p) {
+  u8 i = pin_extint(p);
+  u8 pos = (i % 8) * 4;
+  return (EIC->CONFIG[i/8].reg >> pos) & 0xf;
 }
 
 inline static void evsys_init() {

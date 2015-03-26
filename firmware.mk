@@ -11,5 +11,3 @@ $(TARGET)_SRC += \
   firmware/port.c \
   firmware/usbpipe.c \
   firmware/usbserial.c \
-
-$(TARGET)_LDSCRIPT = deps/sam0/linker_scripts/samd21/gcc/samd21g15a_flash.ld

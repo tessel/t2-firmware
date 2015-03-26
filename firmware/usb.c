@@ -296,7 +296,6 @@ bool usb_cb_set_configuration(uint8_t config) {
 #define REQ_PWR_LED 0x20
 
 void req_gpio(uint16_t wIndex, uint16_t wValue) {
-	Pin pin;
 	switch (wIndex) {
 		case REQ_PWR_RST:
 			pin_low(PIN_SOC_RST);

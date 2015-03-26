@@ -19,7 +19,7 @@ function Tessel() {
 function Port(name, socketPath) {
     // Connection to the SPI daemon
     this.sock = net.createConnection({path: socketPath}, function(e) {
-        console.log('connect', e)
+        if (e) { throw e; }
     });
 
     this.sock.on('error', function(e) {
@@ -30,17 +30,55 @@ function Port(name, socketPath) {
         throw new Error("Port socket closed");
     })
 
-    var read_buffer = new Buffer(0);
-    this.sock.on('data', function(d) {
-        read_buffer = Buffer.concat([read_buffer, d]);
-        while (this.replyQueue.length > 0 && read_buffer.length >= this.replyQueue[0].size) {
+    this.sock.on('readable', function() {
+        while (true) {
+            var d = this.sock.read(1);
+
+            if (!d) break;
+            var byte = d[0];
+
+            if (byte >= REPLY.MIN_ASYNC) {
+                if (byte >= REPLY.ASYNC_PIN_CHANGE_N && byte < REPLY.ASYNC_PIN_CHANGE_N+8) {
+                    var pin = this.pin[byte - REPLY.ASYNC_PIN_CHANGE_N];
+
+                    var mode = pin.interruptMode;
+                    if (mode == 'low' || mode == 'high') {
+                        pin.interruptMode = null;
+                    }
+
+                    pin.emit(mode);
+                } else {
+                    this.emit('async-event', byte);
+                }
+
+                continue;
+            }
+
+            if (this.replyQueue.length == 0) {
+                throw new Error("Received an unexpected response with no commands pending: " + byte);
+            }
+
+            var data = null;
+            var data_size = this.replyQueue[0].size;
+
+            if (byte == REPLY.DATA) {
+                if (!data_size) {
+                    throw new Error("Received unexpected data packet");
+                }
+                data = this.sock.read(data_size);
+                if (!data) {
+                    this.sock.unshift(data);
+                    this.sock.unshift(d);
+                    break;
+                }
+            }
+
             var q = this.replyQueue.shift();
             if (q.callback) {
-                q.callback.call(this, null, read_buffer.slice(0, q.size));
+                q.callback.call(this, null, q.size ? data : byte);
             }
-            read_buffer = read_buffer.slice(q.size);
         }
-    }.bind(this))
+    }.bind(this));
 
     // Active peripheral: 'none', 'i2c', 'spi', 'uart'
     this.mode = 'none';
@@ -48,11 +86,18 @@ function Port(name, socketPath) {
     // Array of {size, callback} used to dispatch replies
     this.replyQueue = [];
 
-    this.digital = [];
+    this.pin = [];
     for (var i=0; i<8; i++) {
-        this.digital.push(new Pin(i, this));
+        this.pin.push(new Pin(i, this, [2,5,6,7].indexOf(i) != -1));
     }
 
+    // Deprecated properties for Tessel 1 backwards compatibility:
+    this.pin.G1 = this.pin.g1 = this.pin[5];
+    this.pin.G2 = this.pin.g2 = this.pin[6];
+    this.pin.G3 = this.pin.g3 = this.pin[7];
+    this.digital = [ this.pin[5], this.pin[6], this.pin[7] ];
+    this.analog = [];
+    this.pwm = [];
 }
 
 Port.prototype.cork = function() {
@@ -102,10 +147,6 @@ Port.prototype._tx = function(buf, cb) {
     this.sock.write(new Buffer([CMD.TX, buf.length]))
     this.sock.write(buf);
     this.sync(cb);
-    //this.replyQueue.push({
-    //    size: 0,
-    //    callback: cb,
-    //});
     this.uncork();
 }
 
@@ -155,14 +196,72 @@ Port.prototype.UART = function (format) {
     return new UART(this);
 };
 
-function Pin (pin, port) {
+function Pin (pin, port, interruptSupported) {
     this.pin = pin;
     this._port = port;
-    this.interrupts = {};
+    this.interruptSupported = interruptSupported;
+    this.interruptMode = null;
     this.isPWM = false;
 }
 
 util.inherits(Pin, EventEmitter);
+
+Pin.interruptModes = {
+  "rise" : 1,
+  "fall" : 2,
+  "change" : 3,
+  "high" : 4,
+  "low" : 5,
+};
+
+Pin.prototype.removeListener = function(event, listener) {
+    // If it's an interrupt event, remove as necessary
+    var emitter = Pin.super_.prototype.removeListener.apply(this, arguments);
+
+    if (event == this.interruptMode && EventEmitter.listenerCount(this, event)) {
+        this._setInterruptMode(null);
+    }
+
+    return emitter;
+};
+
+Pin.prototype.removeAllListeners = function(event) {
+    if (!event || event == this.interruptMode) {
+        this._setInterruptMode(null);
+    }
+
+    return Pin.super_.prototype.removeAllListeners.apply(this, arguments);
+};
+
+Pin.prototype.addListener = function(mode, callback) {
+    if (mode in Pin.interruptModes) {
+        if (!this.interruptSupported) {
+            throw new Error("Interrupts are not supported on pin " + this.pin)
+        }
+
+        if ((mode == 'high' || mode == 'low') && !callback.listener) {
+            throw new Error("Cannot use 'on' with level interrupts. You can only use 'once'.");
+        }
+
+        if (this.interruptMode != mode) {
+            if (this.interruptMode) {
+                throw new Error("Can't set pin interrupt mode to " + mode
+                                + "; already listening for " + this.interruptMode);
+            }
+            this._setInterruptMode(mode);
+        }
+    }
+
+    // Add the event listener
+    Pin.super_.prototype.on.call(this, mode, callback);
+};
+Pin.prototype.on = Pin.prototype.addListener;
+
+Pin.prototype._setInterruptMode = function(mode) {
+    this.interruptMode = mode;
+    var bits = mode ? Pin.interruptModes[mode] << 4 : 0;
+    this._port._simple_cmd([CMD.GPIO_INT, this.pin | bits]);
+};
 
 Pin.prototype.high = function(cb) {
     this._port._simple_cmd([CMD.GPIO_HIGH, this.pin], cb);
@@ -251,6 +350,17 @@ var CMD = {
     TXRX: 18,
     START: 19,
     STOP: 20,
+};
+
+var REPLY = {
+    ACK:  0x80,
+    NACK: 0x81,
+    HIGH: 0x82,
+    LOW:  0x83,
+    DATA: 0x84,
+
+    MIN_ASYNC: 0xA0,
+    ASYNC_PIN_CHANGE_N: 0xC0,
 };
 
 module.exports = new Tessel();

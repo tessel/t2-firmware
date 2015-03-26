@@ -26,6 +26,7 @@ void flash_init() {
     DMAC->CHINTENSET.reg = DMAC_CHINTENSET_TCMPL | DMAC_CHINTENSET_TERR; // ID depends on prev call
 
     pin_low(PIN_SOC_RST);
+    pin_out(PIN_SOC_RST);
 
     pin_mux(PIN_BRIDGE_MOSI);
     pin_mux(PIN_BRIDGE_MISO);
