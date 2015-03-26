@@ -52,6 +52,7 @@ void flash_disable();
 #define BRIDGE_PORT_A 1
 #define BRIDGE_PORT_B 2
 #define BRIDGE_BUF_SIZE 256
+#define BRIDGE_ARG_SIZE 5
 
 void bridge_init();
 void bridge_disable();
@@ -97,7 +98,7 @@ typedef struct PortData {
     u8 reply_buf[BRIDGE_BUF_SIZE];
     u8 reply_len;
     u8 cmd;
-    u8 arg;
+    u8 arg[BRIDGE_ARG_SIZE];
     u8 len;
     bool pending_out;
     bool pending_in;

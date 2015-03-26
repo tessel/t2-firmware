@@ -170,7 +170,7 @@ inline static Sercom* sercom(SercomId id) {
 void sercom_clock_enable(SercomId id);
 void sercom_reset(SercomId id);
 void sercom_spi_slave_init(SercomId id, u32 dipo, u32 dopo, bool cpol, bool cpha);
-void sercom_spi_master_init(SercomId id, u32 dipo, u32 dopo, bool cpol, bool cpha);
+void sercom_spi_master_init(SercomId id, u32 dipo, u32 dopo, bool cpol, bool cpha, u8 baud);
 void sercom_i2c_master_init(SercomId id);
 void sercom_uart_init(SercomId id, u32 rxpo, u32 txpo);
 

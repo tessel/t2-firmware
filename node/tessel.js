@@ -320,8 +320,72 @@ I2C.prototype.transfer = function(txbuf, rxlen, callback) {
     this._port.uncork();
 }
 
-function SPI(port) {
-    throw new Error("Unimplemented")
+function SPI(params, port) {
+    this._port = port;
+    // default to pin 3 of the module port as cs
+    this.chipSelect = params.chipSelect || this._port.digital[5];
+
+    this.chipSelectActive = params.chipSelectActive == 'high' || params.chipSelectActive == 1 ? 1 : 0;
+
+    /* spi baud rate is set by the following equation:
+    *  f_baud = f_ref/(2*(baud_reg+1))
+    *  max baud rate is 24MHz for the SAMD21
+    */
+    if (params.clockSpeed > 24e6 || params.clockSpeed < 93750) {
+        throw new Error('SPI Clock needs to be between 24e6 and 93750Hz.');
+    }
+
+    this.clockReg = parseInt(48e6/(2*params.clockSpeed) - 1);
+    
+    if (typeof params.dataMode == 'number') {
+        params.cpol = params.dataMode & 0x1;
+        params.cpha = params.dataMode & 0x2;
+    }
+
+    this.cpol = params.cpol == 'high' || params.cpol == 1 ? 1 : 0;
+    this.cpha = params.cpha == 'second' || params.cpha == 1 ? 1 : 0;
+
+    this.isMaster = params.role == 'slave' ? 0 : 1;
+
+    this._port._simple_cmd([CMD.ENABLE_SPI, this.cpol + (this.cpha << 1), this.clockReg, this.isMaster]);
+    // throw new Error("Unimplemented")
+}
+
+SPI.prototype._pullCS = function(){
+     if (!this.chipSelectActive) {
+        this.chipSelect.low();
+    } else {
+        this.chipSelect.high();
+    }
+}
+
+SPI.prototype.send = function(data, callback) {
+    // cork/uncork?
+    // pull cs low
+    this._pullCS();
+
+    // console.log("pulling pin 5 low");
+    this._port._tx(data);
+    
+    this._pullCS();
+}
+
+SPI.prototype.deinit = function(){
+    this._port._simple_cmd([CMD.CMD_DISABLE_SPI]);
+}
+
+SPI.prototype.receive = function(data_len, callback) {
+    this._pullCS();
+    // console.log("pulling pin 5 low");
+    this._port._rx(data_len, callback);
+    this._pullCS();
+}
+
+SPI.prototype.transfer = function(data, callback) {
+    this._pullCS();
+    // console.log("pulling pin 5 low");
+    this._port._txrx(data, callback);
+    this._pullCS();
 }
 
 function UART(port) {
@@ -361,6 +425,11 @@ var REPLY = {
 
     MIN_ASYNC: 0xA0,
     ASYNC_PIN_CHANGE_N: 0xC0,
+};
+
+var SPISettings = {
+    CPOL: 1,
+    CPHA: 2
 };
 
 module.exports = new Tessel();

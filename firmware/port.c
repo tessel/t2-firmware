@@ -3,7 +3,7 @@
 typedef enum PortState {
     PORT_DISABLE,
     PORT_READ_CMD,
-    PORT_READ_ARG,
+    // PORT_READ_ARG,
     PORT_EXEC,
     PORT_EXEC_ASYNC,
 } PortState;
@@ -19,7 +19,6 @@ typedef enum PortCmd {
     CMD_GPIO_CFG = 6,
     CMD_GPIO_WAIT = 7,
     CMD_GPIO_INT = 8,
-
     CMD_ENABLE_SPI = 10,
     CMD_DISABLE_SPI = 11,
     CMD_ENABLE_I2C = 12,
@@ -42,6 +41,17 @@ typedef enum {
 
     REPLY_ASYNC_PIN_CHANGE_N = 0xC0, // 0xC0 + n
 } PortReply;
+
+typedef enum SPISettings {
+    SPI_CPOL = 1,
+    SPI_CPHA = 2
+} SPISettings;
+
+typedef enum ArgLen {
+    SPI = 3,// 1 byte for mode, 1 bytes for freq, 1 byte for master/slave
+    I2C = 3,
+    UART = 3, // 1 byte for baud, 1 byte for mode
+} ArgLen;
 
 typedef enum PortMode {
     MODE_NONE,
@@ -119,7 +129,21 @@ void port_send_status(PortData* p, u8 d) {
     p->reply_buf[p->reply_len++] = d;
 }
 
-bool port_cmd_has_arg(PortCmd cmd) {
+u8 get_spi_mode(PortData *p) {
+    return p->arg[0];
+}
+
+u8 get_spi_freq(PortData *p) {
+    return p->arg[1];
+}
+
+u8 get_spi_master(PortData *p) {
+    return p->arg[2];
+}
+
+// returns number of arguments
+int port_cmd_args(PortCmd cmd) {
+    int cmd_args = 0;
     switch (cmd) {
         case CMD_NOP:
         case CMD_FLUSH:
@@ -127,14 +151,15 @@ bool port_cmd_has_arg(PortCmd cmd) {
         case CMD_DISABLE_I2C:
         case CMD_DISABLE_UART:
         case CMD_STOP:
-            return false;
+            return cmd_args;
 
         // Length argument:
         case CMD_ECHO:
         case CMD_TX:
         case CMD_RX:
         case CMD_TXRX:
-            return true;
+            cmd_args = 1;
+            break;
 
         // Pin argument:
         case CMD_GPIO_IN:
@@ -144,21 +169,36 @@ bool port_cmd_has_arg(PortCmd cmd) {
         case CMD_GPIO_WAIT:
         case CMD_GPIO_INT:
         case CMD_GPIO_CFG:
-            return true;
+            cmd_args = 1;
+            break;
 
         // Config argument:
         case CMD_ENABLE_SPI:
+            // 1 byte for mode, 1 byte for freq, 1 byte for master/slave
+            cmd_args = 3;
+            break;
         case CMD_ENABLE_I2C:
+            // 1 byte for freq, 1 byte for master/slave
+            cmd_args = 2;
+            break;
         case CMD_ENABLE_UART:
+            cmd_args = 2; // 1 byte for baud, 1 byte for mode
+            break;
         case CMD_START:
-            return true;
+            cmd_args = 1; // 1 byte for addr
+            break;
+        default:
+            invalid();
     }
-    invalid();
-    return false;
+    
+    if (cmd_args > BRIDGE_ARG_SIZE){
+        invalid();
+    }
+    return cmd_args;
 }
 
 u32 port_tx_len(PortData* p) {
-    u32 size = p->arg;
+    u32 size = p->arg[0];
     u32 cmd_remaining = p->cmd_len - p->cmd_pos;
     if (cmd_remaining < size) {
         size = cmd_remaining;
@@ -167,7 +207,7 @@ u32 port_tx_len(PortData* p) {
 }
 
 u32 port_rx_len(PortData* p) {
-    u32 size = p->arg;
+    u32 size = p->arg[0];
     u32 reply_remaining = BRIDGE_BUF_SIZE - p->reply_len;
     if (reply_remaining < size) {
         size = reply_remaining;
@@ -176,7 +216,7 @@ u32 port_rx_len(PortData* p) {
 }
 
 u32 port_txrx_len(PortData *p) {
-    u32 size = p->arg;
+    u32 size = p->arg[0];
     u32 cmd_remaining = p->cmd_len - p->cmd_pos;
     if (cmd_remaining < size) {
         size = cmd_remaining;
@@ -189,7 +229,7 @@ u32 port_txrx_len(PortData *p) {
 }
 
 Pin port_selected_pin(PortData* p) {
-    return p->port->gpio[p->arg % 8];
+    return p->port->gpio[p->arg[0] % 8];
 }
 
 void port_exec_async_complete(PortData* p, ExecStatus s) {
@@ -236,8 +276,8 @@ ExecStatus port_begin_cmd(PortData *p) {
             return EXEC_DONE;
 
         case CMD_GPIO_INT: {
-            u8 pin = p->arg & 0x7;
-            u8 mode = (p->arg >> 4) & 0x07;
+            u8 pin = p->arg[0] & 0x7;
+            u8 mode = (p->arg[0] >> 4) & 0x07;
 
             if (port_pin_supports_interrupt(p, pin)) {
                 eic_config(p->port->gpio[pin], mode);
@@ -256,7 +296,14 @@ ExecStatus port_begin_cmd(PortData *p) {
             return EXEC_DONE;
 
         case CMD_ENABLE_SPI:
-            sercom_spi_master_init(p->port->spi, p->port->spi_dipo, p->port->spi_dopo, 0, 0);
+            // todo: pull in arg data and set up spi
+            if (get_spi_master(p)) {
+                sercom_spi_master_init(p->port->spi, p->port->spi_dipo, p->port->spi_dopo, 
+                    get_spi_mode(p) & (SPI_CPOL), (get_spi_mode(p) & SPI_CPHA) >> 1, get_spi_freq(p));
+            } else {
+                // todo: slave config
+                invalid();
+            }
             dma_sercom_configure_tx(p->dma_tx, p->port->spi);
             dma_sercom_configure_rx(p->dma_rx, p->port->spi);
             DMAC->CHINTENSET.reg = DMAC_CHINTENSET_TCMPL | DMAC_CHINTENSET_TERR; // ID depends on prev call
@@ -289,8 +336,8 @@ ExecStatus port_begin_cmd(PortData *p) {
             return EXEC_DONE;
 
         case CMD_START:
-            sercom(p->port->uart_i2c)->I2CM.ADDR.reg = p->arg;
-            p->arg = 0;
+            sercom(p->port->uart_i2c)->I2CM.ADDR.reg = p->arg[0];
+            p->arg[0] = 0;
             return EXEC_ASYNC;
 
         case CMD_STOP:
@@ -315,7 +362,7 @@ ExecStatus port_continue_cmd(PortData *p) {
             memcpy(&p->reply_buf[p->reply_len], &p->cmd_buf[p->cmd_pos], size);
             p->reply_len += size;
             p->cmd_pos += size;
-            p->arg -= size;
+            p->arg[0] -= size;
             return p->arg == 0 ? EXEC_DONE : EXEC_CONTINUE;
         }
         case CMD_TX:
@@ -324,11 +371,11 @@ ExecStatus port_continue_cmd(PortData *p) {
                 dma_sercom_start_rx(p->dma_rx, p->port->spi, NULL, size);
                 dma_sercom_start_tx(p->dma_tx, p->port->spi, &p->cmd_buf[p->cmd_pos], size);
                 p->cmd_pos += size;
-                p->arg -= size;
+                p->arg[0] -= size;
             } else if (p->mode == MODE_I2C) {
                 sercom(p->port->uart_i2c)->I2CM.DATA.reg = p->cmd_buf[p->cmd_pos];
                 p->cmd_pos += 1;
-                p->arg -= 1;
+                p->arg[0] -= 1;
             }
             return EXEC_ASYNC;
         case CMD_RX:
@@ -337,13 +384,13 @@ ExecStatus port_continue_cmd(PortData *p) {
                 dma_sercom_start_rx(p->dma_rx, p->port->spi, &p->reply_buf[p->reply_len], size);
                 dma_sercom_start_tx(p->dma_tx, p->port->spi, NULL, size);
                 p->reply_len += size;
-                p->arg -= size;
+                p->arg[0] -= size;
             } if (p->mode == MODE_I2C) {
                 p->reply_buf[p->reply_len] = sercom(p->port->uart_i2c)->I2CM.DATA.reg;
                 sercom(p->port->uart_i2c)->I2CM.CTRLB.bit.ACKACT = 0;
                 sercom(p->port->uart_i2c)->I2CM.CTRLB.bit.CMD = 2;
                 p->reply_len += 1;
-                p->arg -= 1;
+                p->arg[0] -= 1;
             }
             return EXEC_ASYNC;
         case CMD_TXRX:
@@ -353,7 +400,7 @@ ExecStatus port_continue_cmd(PortData *p) {
                 dma_sercom_start_tx(p->dma_tx, p->port->spi, &p->cmd_buf[p->cmd_pos], size);
                 p->reply_len += size;
                 p->cmd_pos += size;
-                p->arg -= size;
+                p->arg[0] -= size;
             }
             return EXEC_ASYNC;
     }
@@ -402,14 +449,23 @@ void port_step(PortData* p) {
 
         if (p->state == PORT_READ_CMD) {
             p->cmd = p->cmd_buf[p->cmd_pos++];
-            if (port_cmd_has_arg(p->cmd)) {
-                p->state = PORT_READ_ARG;
-            } else {
-                p->state = port_begin_cmd(p);
-            }
-        } else if (p->state == PORT_READ_ARG) {
-            p->arg = p->cmd_buf[p->cmd_pos++];
+            int cmd_args = port_cmd_args(p->cmd);
+            if (cmd_args > 0) {
+                for (u8 i = 0; i < cmd_args; i++) {
+                    p->arg[i] = p->cmd_buf[p->cmd_pos++];
+                }
+            } 
+
             p->state = port_begin_cmd(p);
+
+            // if (port_cmd_has_arg(p->cmd)) {
+            //     p->state = PORT_READ_ARG;
+            // } else {
+            //     p->state = port_begin_cmd(p);
+            // }
+        // } else if (p->state == PORT_READ_ARG) {
+        //     p->arg = p->cmd_buf[p->cmd_pos++];
+        //     p->state = port_begin_cmd(p);
         } else if (p->state == PORT_EXEC) {
             p->state = port_continue_cmd(p);
         } else if (p->state == PORT_EXEC_ASYNC) {
