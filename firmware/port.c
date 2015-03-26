@@ -453,7 +453,7 @@ void port_step(PortData* p) {
         //     p->state = port_begin_cmd(p);
         } else if (p->state == PORT_EXEC) {
             p->state = port_continue_cmd(p);
-        } (p->state == PORT_EXEC_ASYNC) {
+        } else if (p->state == PORT_EXEC_ASYNC) {
             break;
         }
     }
