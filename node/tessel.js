@@ -273,6 +273,16 @@ Pin.prototype.low = function(cb) {
     return this;
 }
 
+// Deprecated. Added for tessel 1 lib compat
+Pin.prototype.rawWrite = function(value){
+    if (value) {
+        this.high();
+    } else {
+        this.low();
+    }
+    return this;
+}
+
 Pin.prototype.toggle = function(cb) {
     this._port._simple_cmd([CMD.GPIO_TOGGLE, this.pin], cb);
     return this;
