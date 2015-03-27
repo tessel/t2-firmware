@@ -99,7 +99,8 @@ typedef struct PortData {
     u8 reply_len;
     u8 cmd;
     u8 arg[BRIDGE_ARG_SIZE];
-    u8 arg_count;
+    u8 arg_len;
+    u8 arg_pos;
     u8 len;
     bool pending_out;
     bool pending_in;

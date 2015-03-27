@@ -401,7 +401,6 @@ void port_step(PortData* p) {
 
     port_disable_async_events(p);
 
-    int arg_pos = 0;
     while (1) {
         // If the command buffer has been processed, request a new one
         if (p->cmd_pos >= p->cmd_len && !p->pending_out) {
@@ -428,22 +427,18 @@ void port_step(PortData* p) {
 
         if (p->state == PORT_READ_CMD) {
             p->cmd = p->cmd_buf[p->cmd_pos++];
-            p->arg_count = port_cmd_args(p->cmd);
+            p->arg_len = port_cmd_args(p->cmd);
 
-            if (p->arg_count > 0) {
-                // zero out existing args
-                for (u8 i = 0; i<p->arg_count; i++){
-                    p->arg[i] = 0;
-                }
-                arg_pos = 0;
+            if (p->arg_len > 0) {
+                p->arg_pos = 0;
                 p->state = PORT_READ_ARG;
             } else {
                  p->state = port_begin_cmd(p);
             }
         } else if (p->state == PORT_READ_ARG) {
-            if (p->arg_count > 0) {
-                p->arg[arg_pos++] = p->cmd_buf[p->cmd_pos++];
-                p->arg_count--;
+            if (p->arg_len > 0) {
+                p->arg[p->arg_pos++] = p->cmd_buf[p->cmd_pos++];
+                p->arg_len--;
             } else {
                 p->state = port_begin_cmd(p);
             }
