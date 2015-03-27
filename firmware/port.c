@@ -436,10 +436,11 @@ void port_step(PortData* p) {
                  p->state = port_begin_cmd(p);
             }
         } else if (p->state == PORT_READ_ARG) {
-            if (p->arg_len > 0) {
-                p->arg[p->arg_pos++] = p->cmd_buf[p->cmd_pos++];
-                p->arg_len--;
-            } else {
+            if (p->arg_len == 0) invalid();
+            p->arg[p->arg_pos++] = p->cmd_buf[p->cmd_pos++];
+            p->arg_len--;
+            
+            if (p->arg_len == 0) {
                 p->state = port_begin_cmd(p);
             }
         } else if (p->state == PORT_EXEC) {
