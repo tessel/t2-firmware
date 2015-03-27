@@ -177,7 +177,7 @@ Port.prototype._txrx = function(buf, cb) {
     this.sock.write(new Buffer([CMD.TXRX, buf.length]))
     this.sock.write(buf);
     this.replyQueue.push({
-        size: buf.length(),
+        size: buf.length,
         callback: cb,
     });
     this.uncork();
@@ -360,14 +360,11 @@ function SPI(params, port) {
 }
 
 SPI.prototype.send = function(data, callback) {
-    var self = this;
-    self.chipSelect.toggle(function(){
-        self._port._tx(data, function(){
-            self.chipSelect.toggle(function(){
-                callback && callback();
-            });
-        });
-    });
+    this._port.cork();
+    this.chipSelect.low();
+    this._port._tx(data, callback);
+    this.chipSelect.high();
+    this._port.uncork();
 }
 
 SPI.prototype.deinit = function(){
@@ -375,25 +372,19 @@ SPI.prototype.deinit = function(){
 }
 
 SPI.prototype.receive = function(data_len, callback) {
-    var self = this;
-    self.chipSelect.toggle(function(){
-        self._port._rx(data_len, function(){
-            self.chipSelect.toggle(function(){
-                callback && callback();
-            });
-        });
-    });
+    this._port.cork();
+    this.chipSelect.low();
+    this._port._rx(data_len, callback);
+    this.chipSelect.high();
+    this._port.uncork();
 }
 
 SPI.prototype.transfer = function(data, callback) {
-    var self = this;
-    self.chipSelect.toggle(function(){
-        self._port._txrx(data, function(){
-            self.chipSelect.toggle(function(){
-                callback && callback();
-            });
-        });
-    });
+    this._port.cork();
+    this.chipSelect.low();
+    this._port._txrx(data, callback);
+    this.chipSelect.high();
+    this._port.uncork();
 }
 
 function UART(port) {
