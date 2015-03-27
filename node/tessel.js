@@ -323,7 +323,7 @@ I2C.prototype.transfer = function(txbuf, rxlen, callback) {
 function SPI(params, port) {
     this._port = port;
     // default to pin 3 of the module port as cs
-    this.chipSelect = params.chipSelect || this._port.digital[5];
+    this.chipSelect = params.chipSelect || this._port.digital[0];
 
     this.chipSelectActive = params.chipSelectActive == 'high' || params.chipSelectActive == 1 ? 1 : 0;
 
