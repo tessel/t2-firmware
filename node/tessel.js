@@ -360,16 +360,14 @@ function SPI(params, port) {
 }
 
 SPI.prototype.send = function(data, callback) {
-    // cork/uncork?
-    // pull cs low
-    console.log("pulling pin 5 low");
-    this.chipSelect.toggle();
-
-    this._port._tx(data);
-    
-    console.log("transmitted data");
-    
-    this.chipSelect.toggle();
+    var self = this;
+    self.chipSelect.toggle(function(){
+        self._port._tx(data, function(){
+            self.chipSelect.toggle(function(){
+                callback && callback();
+            });
+        });
+    });
 }
 
 SPI.prototype.deinit = function(){
@@ -377,19 +375,25 @@ SPI.prototype.deinit = function(){
 }
 
 SPI.prototype.receive = function(data_len, callback) {
-    this.chipSelect.toggle();
-    // console.log("pulling pin 5 low");
-    this._port._rx(data_len, callback);
-    
-    this.chipSelect.toggle();
+    var self = this;
+    self.chipSelect.toggle(function(){
+        self._port._rx(data_len, function(){
+            self.chipSelect.toggle(function(){
+                callback && callback();
+            });
+        });
+    });
 }
 
 SPI.prototype.transfer = function(data, callback) {
-    this.chipSelect.toggle();
-    
-    // console.log("pulling pin 5 low");
-    this._port._txrx(data, callback);
-    this.chipSelect.toggle();
+    var self = this;
+    self.chipSelect.toggle(function(){
+        self._port._txrx(data, function(){
+            self.chipSelect.toggle(function(){
+                callback && callback();
+            });
+        });
+    });
 }
 
 function UART(port) {
