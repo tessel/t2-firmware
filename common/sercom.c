@@ -31,7 +31,7 @@ void sercom_spi_slave_init(SercomId id, u32 dipo, u32 dopo, bool cpol, bool cpha
       | (cpha ? SERCOM_SPI_CTRLA_CPHA : 0);
 }
 
-void sercom_spi_master_init(SercomId id, u32 dipo, u32 dopo, bool cpol, bool cpha) {
+void sercom_spi_master_init(SercomId id, u32 dipo, u32 dopo, bool cpol, bool cpha, u8 baud) {
     sercom_reset(id);
     sercom(id)->SPI.CTRLA.reg = SERCOM_SPI_CTRLA_MODE_SPI_MASTER;
 
@@ -39,7 +39,7 @@ void sercom_spi_master_init(SercomId id, u32 dipo, u32 dopo, bool cpol, bool cph
       = SERCOM_SPI_CTRLB_RXEN
       | SERCOM_SPI_CTRLB_SSDE;
 
-    sercom(id)->SPI.BAUD.reg = 2; // 9.6MHz -- TODO: adjustable
+    sercom(id)->SPI.BAUD.reg = baud;
 
     sercom(id)->SPI.CTRLA.reg
       = SERCOM_SPI_CTRLA_ENABLE
