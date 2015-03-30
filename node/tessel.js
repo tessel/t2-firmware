@@ -177,7 +177,7 @@ Port.prototype._txrx = function(buf, cb) {
     this.sock.write(new Buffer([CMD.TXRX, buf.length]))
     this.sock.write(buf);
     this.replyQueue.push({
-        size: buf.length(),
+        size: buf.length,
         callback: cb,
     });
     this.uncork();
@@ -189,7 +189,7 @@ Port.prototype.I2C = function (addr, mode) {
 };
 
 Port.prototype.SPI = function (format) {
-    return new SPI(format, this);
+    return new SPI(format == null ? {} : format, this);
 };
 
 Port.prototype.UART = function (format) {
@@ -320,8 +320,71 @@ I2C.prototype.transfer = function(txbuf, rxlen, callback) {
     this._port.uncork();
 }
 
-function SPI(port) {
-    throw new Error("Unimplemented")
+function SPI(params, port) {
+    this._port = port;
+    // default to pin 5 of the module port as cs
+    this.chipSelect = params.chipSelect || this._port.pin[5];
+
+    this.chipSelectActive = params.chipSelectActive == 'high' || params.chipSelectActive == 1 ? 1 : 0;
+
+    if (this.chipSelectActive) {
+        // active high, pull low for now
+        this.chipSelect.low();
+    } else {
+        // active low, pull high for now
+        this.chipSelect.high();
+    }
+
+    /* spi baud rate is set by the following equation:
+    *  f_baud = f_ref/(2*(baud_reg+1))
+    *  max baud rate is 24MHz for the SAMD21
+    */
+    // default is 2MHz
+    params.clockSpeed = params.clockSpeed ? params.clockSpeed : 2e6;
+
+    if (params.clockSpeed > 24e6 || params.clockSpeed < 93750) {
+        throw new Error('SPI Clock needs to be between 24e6 and 93750Hz.');
+    }
+
+    this.clockReg = parseInt(48e6/(2*params.clockSpeed) - 1);
+
+    if (typeof params.dataMode == 'number') {
+        params.cpol = params.dataMode & 0x1;
+        params.cpha = params.dataMode & 0x2;
+    }
+
+    this.cpol = params.cpol == 'high' || params.cpol == 1 ? 1 : 0;
+    this.cpha = params.cpha == 'second' || params.cpha == 1 ? 1 : 0;
+
+    this._port._simple_cmd([CMD.ENABLE_SPI, this.cpol + (this.cpha << 1), this.clockReg]);
+}
+
+SPI.prototype.send = function(data, callback) {
+    this._port.cork();
+    this.chipSelect.low();
+    this._port._tx(data, callback);
+    this.chipSelect.high();
+    this._port.uncork();
+}
+
+SPI.prototype.deinit = function(){
+    this._port._simple_cmd([CMD.CMD_DISABLE_SPI]);
+}
+
+SPI.prototype.receive = function(data_len, callback) {
+    this._port.cork();
+    this.chipSelect.low();
+    this._port._rx(data_len, callback);
+    this.chipSelect.high();
+    this._port.uncork();
+}
+
+SPI.prototype.transfer = function(data, callback) {
+    this._port.cork();
+    this.chipSelect.low();
+    this._port._txrx(data, callback);
+    this.chipSelect.high();
+    this._port.uncork();
 }
 
 function UART(port) {
@@ -361,6 +424,11 @@ var REPLY = {
 
     MIN_ASYNC: 0xA0,
     ASYNC_PIN_CHANGE_N: 0xC0,
+};
+
+var SPISettings = {
+    CPOL: 1,
+    CPHA: 2
 };
 
 module.exports = new Tessel();
