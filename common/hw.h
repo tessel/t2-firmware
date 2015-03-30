@@ -167,10 +167,12 @@ inline static Sercom* sercom(SercomId id) {
   return (Sercom*) (0x42000800U + id * 1024);
 }
 
+#define SERCOM_SPI_BAUD_10MHZ 2
+
 void sercom_clock_enable(SercomId id);
 void sercom_reset(SercomId id);
 void sercom_spi_slave_init(SercomId id, u32 dipo, u32 dopo, bool cpol, bool cpha);
-void sercom_spi_master_init(SercomId id, u32 dipo, u32 dopo, bool cpol, bool cpha);
+void sercom_spi_master_init(SercomId id, u32 dipo, u32 dopo, bool cpol, bool cpha, u8 baud);
 void sercom_i2c_master_init(SercomId id);
 void sercom_uart_init(SercomId id, u32 rxpo, u32 txpo);
 
