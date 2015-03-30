@@ -70,13 +70,15 @@ inline static bool port_pin_supports_interrupt(PortData* p, u8 i) {
     return !!((1 << extint) & p->port->pin_interrupts);
 }
 
-void port_init(PortData* p, u8 chan, const TesselPort* port, DmaChan dma_tx, DmaChan dma_rx) {
+void port_init(PortData* p, u8 chan, const TesselPort* port, u8 clock_channel, DmaChan dma_tx, DmaChan dma_rx) {
     p->chan = chan;
     p->port = port;
     p->dma_tx = dma_tx;
     p->dma_rx = dma_rx;
-    sercom_clock_enable(p->port->spi);
-    sercom_clock_enable(p->port->uart_i2c);
+    p->clock_channel = clock_channel;
+
+    sercom_clock_enable(p->port->spi, p->clock_channel, 1);
+    sercom_clock_enable(p->port->uart_i2c, p->clock_channel, 1);
 }
 
 void port_enable(PortData* p) {
@@ -157,8 +159,8 @@ int port_cmd_args(PortCmd cmd) {
 
         // Config argument:
         case CMD_ENABLE_SPI:
-            // 1 byte for mode, 1 byte for freq
-            cmd_args = 2;
+            // 1 byte for mode, 1 byte for freq, 1 byte for div
+            cmd_args = 3;
             break;
         case CMD_ENABLE_I2C:
             // 1 byte for freq, 1 byte for master/slave
@@ -279,6 +281,8 @@ ExecStatus port_begin_cmd(PortData *p) {
             return EXEC_DONE;
 
         case CMD_ENABLE_SPI:
+            // set up clock in case we need to use a divider
+            sercom_clock_enable(p->port->spi, p->clock_channel, p->arg[2]);
             // can only do spi master
             sercom_spi_master_init(p->port->spi, p->port->spi_dipo, p->port->spi_dopo, 
                 p->arg[0] & (SPI_CPOL), (p->arg[0] & SPI_CPHA) >> 1, p->arg[1]);
