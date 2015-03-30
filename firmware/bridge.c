@@ -33,7 +33,7 @@ u8* out_chan_ptr[BRIDGE_NUM_CHAN];
 u8 out_chan_ready;
 
 void bridge_init() {
-    sercom_clock_enable(SERCOM_BRIDGE);
+    sercom_clock_enable(SERCOM_BRIDGE, 0, 1);
 
     pin_mux(PIN_BRIDGE_MOSI);
     pin_mux(PIN_BRIDGE_MISO);
