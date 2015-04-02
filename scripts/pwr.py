@@ -6,6 +6,7 @@ REQ_PWR  = 0x10
 pins = {
     'rst': 0x0,
     'soc': 0x1,
+    '1v8': 0x2,
     'a': 0x10,
     'b': 0x11,
     'led': 0x20,

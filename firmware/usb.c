@@ -291,6 +291,7 @@ bool usb_cb_set_configuration(uint8_t config) {
 #define REQ_PWR 0x10
 #define REQ_PWR_RST 0x0
 #define REQ_PWR_SOC 0x1
+#define REQ_PWR_1V8 0x2
 #define REQ_PWR_PORT_A 0x10
 #define REQ_PWR_PORT_B 0x11
 #define REQ_PWR_LED 0x20
@@ -303,6 +304,9 @@ void req_gpio(uint16_t wIndex, uint16_t wValue) {
 			break;
 		case REQ_PWR_SOC:
 			pin_set(PIN_SOC_PWR, wValue);
+			break;
+		case REQ_PWR_1V8:
+			pin_set(PIN_1V8_PWR, wValue);
 			break;
 		case REQ_PWR_PORT_A:
 			pin_set(PORT_A.power, wValue);

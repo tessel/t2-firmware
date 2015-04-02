@@ -26,6 +26,9 @@ int main(void) {
     pin_high(PIN_SOC_PWR);
     pin_out(PIN_SOC_PWR);
 
+    pin_high(PIN_1V8_PWR);
+    pin_out(PIN_1V8_PWR);
+
     pin_low(PORT_A.power);
     pin_out(PORT_A.power);
 
