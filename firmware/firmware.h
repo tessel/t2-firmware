@@ -37,6 +37,12 @@
 /// Timer allocation
 #define TC_TERMINAL_TIMEOUT 3
 
+// GCLK channel allocation
+#define GCLK_SYSTEM 0
+#define GCLK_32K    2
+#define GCLK_PORT_A 3
+#define GCLK_PORT_B 4
+
 // flash.c
 
 void flash_init();

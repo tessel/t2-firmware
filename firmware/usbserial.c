@@ -8,7 +8,7 @@ USB_ALIGN u8 usbserial_buf_in[2][64];
 USB_ALIGN u8 usbserial_buf_out[64];
 
 void usbserial_init() {
-    sercom_clock_enable(SERCOM_TERMINAL, 0, 1);
+    sercom_clock_enable(SERCOM_TERMINAL, GCLK_SYSTEM, 1);
     pin_mux(PIN_SERIAL_TX);
     pin_mux(PIN_SERIAL_RX);
     sercom_uart_init(SERCOM_TERMINAL, TERMINAL_RXPO, TERMINAL_TXPO);

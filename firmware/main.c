@@ -53,8 +53,8 @@ int main(void) {
     bridge_init();
     usbpipe_init();
 
-    port_init(&port_a, 1, &PORT_A, GCLK_CLKCTRL_GEN_GCLK3_Val, DMA_PORT_A_TX, DMA_PORT_A_RX);
-    port_init(&port_b, 2, &PORT_B, GCLK_CLKCTRL_GEN_GCLK4_Val, DMA_PORT_B_TX, DMA_PORT_B_RX);
+    port_init(&port_a, 1, &PORT_A, GCLK_PORT_A, DMA_PORT_A_TX, DMA_PORT_A_RX);
+    port_init(&port_b, 2, &PORT_B, GCLK_PORT_B, DMA_PORT_B_TX, DMA_PORT_B_RX);
 
     __enable_irq();
     SCB->SCR |= SCB_SCR_SLEEPONEXIT_Msk;
