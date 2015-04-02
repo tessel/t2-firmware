@@ -358,15 +358,16 @@ function SPI(params, port) {
         throw new Error('SPI Clock needs to be between 24e6 and 368Hz.');
     }
 
-    this.clockReg = parseInt(48e6/(2*params.clockSpeed) - 1);
+    this.clockReg = Math.floor(48e6/(2*params.clockSpeed) - 1);
 
     // find the smallest clock divider such that clockReg is <=255
     if (this.clockReg > 255) {
-        this._clockDiv = parseInt(48e6/(params.clockSpeed*(2*255+2)));
+        // find the clock divider, make sure its at least 1
+        this._clockDiv = Math.floor(48e6/(params.clockSpeed*(2*255+2))) || 1;
 
         // if the speed is still too low, set the clock divider to max and set baud accordingly
         if (this._clockDiv > 255) {
-            this.clockReg = parseInt(this.clockReg/255);
+            this.clockReg = Math.floor(this.clockReg/255) || 1; 
             this._clockDiv = 255;
         } else {
             // if we can set a clock divider <255, max out clockReg
