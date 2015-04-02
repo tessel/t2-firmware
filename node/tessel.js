@@ -273,6 +273,16 @@ Pin.prototype.low = function(cb) {
     return this;
 }
 
+// Deprecated. Added for tessel 1 lib compat
+Pin.prototype.rawWrite = function(value){
+    if (value) {
+        this.high();
+    } else {
+        this.low();
+    }
+    return this;
+}
+
 Pin.prototype.toggle = function(cb) {
     this._port._simple_cmd([CMD.GPIO_TOGGLE, this.pin], cb);
     return this;
@@ -323,7 +333,7 @@ I2C.prototype.transfer = function(txbuf, rxlen, callback) {
 function SPI(params, port) {
     this._port = port;
     // default to pin 5 of the module port as cs
-    this.chipSelect = params.chipSelect || this._port.pin[5];
+    this.chipSelect = params.chipSelect || this._port.digital[0];
 
     this.chipSelectActive = params.chipSelectActive == 'high' || params.chipSelectActive == 1 ? 1 : 0;
 
