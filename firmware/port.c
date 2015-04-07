@@ -285,7 +285,13 @@ ExecStatus port_begin_cmd(PortData *p) {
             return EXEC_DONE;
 
         case CMD_ENABLE_I2C:
-            sercom_i2c_master_init(p->port->uart_i2c);
+            if (p->arg[0] == 1) {
+                // master mode
+                sercom_i2c_master_init(p->port->uart_i2c, p->arg[1]);
+            } else {
+                // TODO: i2c slave mode
+                invalid();
+            }
             pin_mux(p->port->sda);
             pin_mux(p->port->scl);
             sercom(p->port->uart_i2c)->I2CM.INTENSET.reg = SERCOM_I2CM_INTENSET_SB | SERCOM_I2CM_INTENSET_MB;

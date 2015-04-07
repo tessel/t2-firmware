@@ -184,8 +184,8 @@ Port.prototype._txrx = function(buf, cb) {
 }
 
 Port.prototype.I2C = function (addr, mode) {
-    this._simple_cmd([CMD.ENABLE_I2C, 0]);
-    return new I2C(addr, this);
+    params = {addr: addr, mode:mode};
+    return new I2C(params, this);
 };
 
 Port.prototype.SPI = function (format) {
@@ -287,9 +287,21 @@ Pin.prototype.output = function output(initialValue, cb) {
     return this;
 }
 
-function I2C(addr, port) {
-    this.addr = addr;
+function I2C(params, port) {
+    this.addr = params.addr;
     this._port = port;
+    this._freq = params.freq ? params.freq : 100000; // 100khz
+    this._mode = params.mode ? params.mode : I2CSettings.Master;
+
+    // 15ns is max scl rise time
+    // f = (48e6)/(2*(5+baud)+48e6*1.5e-8)
+    this._baud = Math.floor(((48e6/this._freq) - 48e6*(1.5e-8))/2 - 5);
+    if (this._baud > 255 || this._baud <= 0) {
+        throw new Error('I2C frequency should be between 4Mhz and 90khz');
+    }
+    console.log("mode/baud", this._mode, this._baud);
+    // enable i2c 
+    this._port._simple_cmd([CMD.ENABLE_I2C, this._mode, this._baud]);
 }
 
 I2C.prototype.send = function(data, callback) {
@@ -425,6 +437,11 @@ var REPLY = {
     MIN_ASYNC: 0xA0,
     ASYNC_PIN_CHANGE_N: 0xC0,
 };
+
+var I2CSettings = {
+    Slave: 0,
+    Master: 1
+}
 
 var SPISettings = {
     CPOL: 1,
