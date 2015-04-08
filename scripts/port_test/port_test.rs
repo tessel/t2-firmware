@@ -1,6 +1,6 @@
-#![feature(core, exit_status, path_ext, std_misc, thread_sleep, io)]
+#![feature(exit_status, path_ext)]
 
-use std::{io, fs, num};
+use std::{io, fs};
 use std::io::prelude::*;
 use std::path::Path;
 use std::fs::PathExt as NewPathExt;
@@ -39,7 +39,7 @@ fn parse_op(s: &str) -> Option<u8> {
             "LOW"  => 0x83,
             "DATA" => 0x84,
             s if s.starts_with("0x") => {
-                num::from_str_radix(&s[2..], 16)
+                u8::from_str_radix(&s[2..], 16)
                     .unwrap_or_else(|_| panic!("Invalid literal: {:?}", s))
             }
             _ => s.parse().unwrap_or_else(|_| panic!("Invalid literal: {:?}", s))
@@ -60,7 +60,7 @@ impl<R:Read> ReadAll for R {
             match self.read(&mut buf[total..]) {
                 Ok(0) => return Err(Error::new(ErrorKind::Other,
                     "failed to read whole buffer",
-                None)),
+                )),
 
                 Ok(n) => total += n,
                 Err(ref e) if e.kind() == ErrorKind::Interrupted => {}
@@ -120,7 +120,7 @@ fn run_tests(sockpath: &Path, fname: &Path) -> io::Result<()> {
         let mut file = io::BufReader::new(try!(fs::File::open(file)));
         success &= run_test(&mut sock, &mut file);
         drop(sock);
-        std::thread::sleep(std::time::duration::Duration::milliseconds(100));
+        std::thread::sleep_ms(100);
     }
 
     std::env::set_exit_status(if success { 0 } else { 1 });

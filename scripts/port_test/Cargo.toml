@@ -3,7 +3,7 @@ name = "test_port"
 version = "0.0.1"
 
 [dependencies]
-unix_socket = "0.2.1"
+unix_socket = "0.3.0"
 
 [[bin]]
 name = "port_test"
