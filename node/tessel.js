@@ -299,19 +299,26 @@ Pin.prototype.write = function (value, cb) {
 };
 
 Pin.prototype.rawDirection = function (isOutput, cb) {
-    if (isOutput) {
-        this._port._simple_cmd([CMD.GPIO_OUTPUT, this.pin], cb);
-    } else {
-        this._port._simple_cmd([CMD.GPIO_INPUT, this.pin], cb);
-    }
-    return this;
+    throw new Error("Pin.rawDirection is deprecated. Use Pin.input or .output instead.");
 };
+
+Pin.prototype._readPin = function (cmd, cb){
+    this._port.cork();
+    this._port.sock.write(new Buffer([cmd, this.pin]))
+    this._port.replyQueue.push({
+        size: 0,
+        callback: function(err, data){
+            cb(err, data == REPLY.HIGH ? 1 : 0);
+        },
+    });
+    this._port.uncork();
+}
 
 Pin.prototype.rawRead = function rawRead(cb) {
     if (typeof cb != "function") {
         console.warn("pin.rawRead is async, pass in a callback to get the value");
     }
-    this._port._simple_cmd([CMD.GPIO_RAW_READ, this.pin], cb);
+    this._readPin(CMD.GPIO_RAW_READ, cb);
     return this;
 };
 
@@ -324,7 +331,7 @@ Pin.prototype.read = function (cb) {
     if (typeof cb != "function") {
         console.warn("pin.read is async, pass in a callback to get the value");
     }
-    this._port._simple_cmd([CMD.GPIO_IN, this.pin], cb);
+    this._readPin(CMD.GPIO_IN, cb);
   return this;
 };
 
@@ -449,8 +456,7 @@ var CMD = {
     GPIO_WAIT: 15,
     GPIO_INT: 16,
     GPIO_INPUT: 17,
-    GPIO_OUTPUT: 18,
-    GPIO_RAW_READ: 19,
+    GPIO_RAW_READ: 18,
 
     ENABLE_SPI: 30,
     DISABLE_SPI: 31,
