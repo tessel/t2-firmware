@@ -10,13 +10,19 @@ function Tessel() {
         Tessel.instance = this;
     }
     this.ports = {
-        A: new Port('A', '/var/run/tessel/port_a'),
-        B: new Port('B', '/var/run/tessel/port_b')
+        A: new Port('A', '/var/run/tessel/port_a', this),
+        B: new Port('B', '/var/run/tessel/port_b', this)
     };
     this.port = this.ports;
+
+    // tessel v1 does not have this version number
+    // this is useful for libraries to adapt to changes 
+    // such as all pin reads/writes becoming async in version 2
+    this.version = 2; 
 }
 
-function Port(name, socketPath) {
+function Port(name, socketPath, board) {
+    this.board = board;
     // Connection to the SPI daemon
     this.sock = net.createConnection({path: socketPath}, function(e) {
         if (e) { throw e; }
@@ -287,6 +293,45 @@ Pin.prototype.output = function output(initialValue, cb) {
     return this;
 }
 
+Pin.prototype.write = function (value, cb) {
+    // same as .output
+    return this.output(value, cb);
+};
+
+Pin.prototype.rawDirection = function (isOutput, cb) {
+    if (isOutput) {
+        this._port._simple_cmd([CMD.GPIO_OUTPUT, this.pin], cb);
+    } else {
+        this._port._simple_cmd([CMD.GPIO_INPUT, this.pin], cb);
+    }
+    return this;
+};
+
+Pin.prototype.rawRead = function rawRead(cb) {
+    if (typeof cb != "function") {
+        console.warn("pin.rawRead is async, pass in a callback to get the value");
+    }
+    this._port._simple_cmd([CMD.GPIO_RAW_READ, this.pin], cb);
+    return this;
+};
+
+Pin.prototype.input = function input(cb) {
+    this._port._simple_cmd([CMD.GPIO_INPUT, this.pin], cb);
+    return this;
+};
+
+Pin.prototype.read = function (cb) {
+    if (typeof cb != "function") {
+        console.warn("pin.read is async, pass in a callback to get the value");
+    }
+    this._port._simple_cmd([CMD.GPIO_IN, this.pin], cb);
+  return this;
+};
+
+Pin.prototype.readPulse = function(type, timeout, callback) {
+    throw new Error("Pin.readPulse is not yet implemented");
+}
+
 function I2C(addr, port) {
     this.addr = addr;
     this._port = port;
@@ -395,24 +440,32 @@ var CMD = {
     NOP: 0,
     FLUSH: 1,
     ECHO: 2,
-    GPIO_IN: 3,
-    GPIO_HIGH: 4,
-    GPIO_LOW: 5,
-    GPIO_TOGGLE: 21,
-    GPIO_CFG: 6,
-    GPIO_WAIT: 7,
-    GPIO_INT: 8,
-    ENABLE_SPI: 10,
-    DISABLE_SPI: 11,
-    ENABLE_I2C: 12,
-    DISABLE_I2C: 13,
-    ENABLE_UART: 14,
-    DISABLE_UART: 15,
-    TX: 16,
-    RX: 17,
-    TXRX: 18,
-    START: 19,
-    STOP: 20,
+
+    GPIO_IN: 10,
+    GPIO_HIGH: 11,
+    GPIO_LOW: 12,
+    GPIO_TOGGLE: 13,
+    GPIO_CFG: 14,
+    GPIO_WAIT: 15,
+    GPIO_INT: 16,
+    GPIO_INPUT: 17,
+    GPIO_OUTPUT: 18,
+    GPIO_RAW_READ: 19,
+
+    ENABLE_SPI: 30,
+    DISABLE_SPI: 31,
+
+    ENABLE_I2C: 40,
+    DISABLE_I2C: 41,
+    START: 42,
+    STOP: 43,
+
+    ENABLE_UART: 50,
+    DISABLE_UART: 51,
+    
+    TX: 60,
+    RX: 61,
+    TXRX: 62,
 };
 
 var REPLY = {

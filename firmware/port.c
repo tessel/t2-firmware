@@ -12,25 +12,32 @@ typedef enum PortCmd {
     CMD_NOP = 0,
     CMD_FLUSH = 1,
     CMD_ECHO = 2,
-    CMD_GPIO_IN = 3,
-    CMD_GPIO_HIGH = 4,
-    CMD_GPIO_LOW = 5,
-    CMD_GPIO_TOGGLE = 21,
-    CMD_GPIO_CFG = 6,
-    CMD_GPIO_WAIT = 7,
-    CMD_GPIO_INT = 8,
 
-    CMD_ENABLE_SPI = 10,
-    CMD_DISABLE_SPI = 11,
-    CMD_ENABLE_I2C = 12,
-    CMD_DISABLE_I2C = 13,
-    CMD_ENABLE_UART = 14,
-    CMD_DISABLE_UART = 15,
-    CMD_TX = 16,
-    CMD_RX = 17,
-    CMD_TXRX = 18,
-    CMD_START = 19,
-    CMD_STOP = 20,
+    CMD_GPIO_IN = 10, // switches pin to input mode AND reads value
+    CMD_GPIO_HIGH = 11, // switch to output and write high
+    CMD_GPIO_LOW = 12, // switch to output and write low
+    CMD_GPIO_TOGGLE = 13, // switch to output and toggle low/high
+    CMD_GPIO_CFG = 14, // ???
+    CMD_GPIO_WAIT = 15, // ???
+    CMD_GPIO_INT = 16, // set interrupt on pin
+    CMD_GPIO_INPUT = 17, // switches pin to input, does not read value
+    CMD_GPIO_OUTPUT = 18, // switches pin to output, does not write value
+    CMD_GPIO_RAW_READ = 19, // reads pin state, does not switch between input/output
+
+    CMD_ENABLE_SPI = 30,
+    CMD_DISABLE_SPI = 31,
+
+    CMD_ENABLE_I2C = 40,
+    CMD_DISABLE_I2C = 41,
+    CMD_START = 42,
+    CMD_STOP = 43,
+
+    CMD_ENABLE_UART = 50,
+    CMD_DISABLE_UART = 51,
+
+    CMD_TX = 60,
+    CMD_RX = 61,
+    CMD_TXRX = 62
 } PortCmd;
 
 #define FLAG_SPI_CPOL (1<<0)
@@ -148,6 +155,9 @@ int port_cmd_args(PortCmd cmd) {
         case CMD_GPIO_WAIT:
         case CMD_GPIO_INT:
         case CMD_GPIO_CFG:
+        case CMD_GPIO_INPUT:
+        case CMD_GPIO_OUTPUT:
+        case CMD_GPIO_RAW_READ:
             return 1;
 
         // Config argument:
@@ -227,6 +237,18 @@ ExecStatus port_begin_cmd(PortData *p) {
             pin_in(port_selected_pin(p));
             u8 state = pin_read(port_selected_pin(p));
             port_send_status(p, state ? REPLY_HIGH : REPLY_LOW);
+            return EXEC_DONE;
+
+        case CMD_GPIO_INPUT:
+            pin_in(port_selected_pin(p));
+            return EXEC_DONE;
+
+        case CMD_GPIO_OUTPUT:
+            pin_out(port_selected_pin(p));
+            return EXEC_DONE;
+
+        case CMD_GPIO_RAW_READ:
+            port_send_status(p, pin_read(port_selected_pin(p)) ? REPLY_HIGH : REPLY_LOW);
             return EXEC_DONE;
 
         case CMD_GPIO_HIGH:
