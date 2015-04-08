@@ -273,6 +273,16 @@ Pin.prototype.low = function(cb) {
     return this;
 }
 
+// Deprecated. Added for tessel 1 lib compat
+Pin.prototype.rawWrite = function(value){
+    if (value) {
+        this.high();
+    } else {
+        this.low();
+    }
+    return this;
+}
+
 Pin.prototype.toggle = function(cb) {
     this._port._simple_cmd([CMD.GPIO_TOGGLE, this.pin], cb);
     return this;
@@ -323,7 +333,7 @@ I2C.prototype.transfer = function(txbuf, rxlen, callback) {
 function SPI(params, port) {
     this._port = port;
     // default to pin 5 of the module port as cs
-    this.chipSelect = params.chipSelect || this._port.pin[5];
+    this.chipSelect = params.chipSelect || this._port.digital[0];
 
     this.chipSelectActive = params.chipSelectActive == 'high' || params.chipSelectActive == 1 ? 1 : 0;
 
@@ -337,17 +347,36 @@ function SPI(params, port) {
 
     /* spi baud rate is set by the following equation:
     *  f_baud = f_ref/(2*(baud_reg+1))
-    *  max baud rate is 24MHz for the SAMD21
+    *  max baud rate is 24MHz for the SAMD21, min baud rate is 93750 without a clock divisor
+    *  with a max clock divisor of 255, slowest clock is 368Hz unless we switch from 48MHz xtal to 32KHz xtal
     */
     // default is 2MHz
     params.clockSpeed = params.clockSpeed ? params.clockSpeed : 2e6;
 
-    if (params.clockSpeed > 24e6 || params.clockSpeed < 93750) {
-        throw new Error('SPI Clock needs to be between 24e6 and 93750Hz.');
+    // if speed is slower than 93750 then we need a clock divisor
+    if (params.clockSpeed > 24e6 || params.clockSpeed < 368) {
+        throw new Error('SPI Clock needs to be between 24e6 and 368Hz.');
     }
 
-    this.clockReg = parseInt(48e6/(2*params.clockSpeed) - 1);
+    this.clockReg = Math.floor(48e6/(2*params.clockSpeed) - 1);
 
+    // find the smallest clock divider such that clockReg is <=255
+    if (this.clockReg > 255) {
+        // find the clock divider, make sure its at least 1
+        this._clockDiv = Math.floor(48e6/(params.clockSpeed*(2*255+2))) || 1;
+
+        // if the speed is still too low, set the clock divider to max and set baud accordingly
+        if (this._clockDiv > 255) {
+            this.clockReg = Math.floor(this.clockReg/255) || 1; 
+            this._clockDiv = 255;
+        } else {
+            // if we can set a clock divider <255, max out clockReg
+            this.clockReg = 255;
+        }
+    } else {
+        this._clockDiv = 1;
+    }
+    
     if (typeof params.dataMode == 'number') {
         params.cpol = params.dataMode & 0x1;
         params.cpha = params.dataMode & 0x2;
@@ -356,7 +385,7 @@ function SPI(params, port) {
     this.cpol = params.cpol == 'high' || params.cpol == 1 ? 1 : 0;
     this.cpha = params.cpha == 'second' || params.cpha == 1 ? 1 : 0;
 
-    this._port._simple_cmd([CMD.ENABLE_SPI, this.cpol + (this.cpha << 1), this.clockReg]);
+    this._port._simple_cmd([CMD.ENABLE_SPI, this.cpol + (this.cpha << 1), this.clockReg, this._clockDiv]);
 }
 
 SPI.prototype.send = function(data, callback) {

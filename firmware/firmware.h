@@ -37,6 +37,12 @@
 /// Timer allocation
 #define TC_TERMINAL_TIMEOUT 3
 
+// GCLK channel allocation
+#define GCLK_SYSTEM 0
+#define GCLK_32K    2
+#define GCLK_PORT_A 3
+#define GCLK_PORT_B 4
+
 // flash.c
 
 void flash_init();
@@ -102,11 +108,12 @@ typedef struct PortData {
     u8 arg_len;
     u8 arg_pos;
     u8 len;
+    u8 clock_channel;
     bool pending_out;
     bool pending_in;
 } PortData;
 
-void port_init(PortData* p, u8 chan, const TesselPort* port, DmaChan dma_tx, DmaChan dma_rx);
+void port_init(PortData* p, u8 chan, const TesselPort* port, u8 clock_channel, DmaChan dma_tx, DmaChan dma_rx);
 void port_enable(PortData *p);
 void port_bridge_out_completion(PortData* p, u8 len);
 void port_bridge_in_completion(PortData* p);

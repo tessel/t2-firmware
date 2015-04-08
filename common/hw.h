@@ -142,6 +142,7 @@ inline static void evsys_config(u8 channel, u8 source, u8 user) {
 #define EVSYS_EVD(N) ((N)<=7 ? (1<<((N) + 8)) : (1 << (24 + (N) - 8)))
 
 // clock.c
+void gclk_enable(uint32_t id, uint32_t src, uint32_t div);
 void clock_init_usb();
 void clock_init_crystal();
 
@@ -168,8 +169,7 @@ inline static Sercom* sercom(SercomId id) {
 }
 
 #define SERCOM_SPI_BAUD_10MHZ 2
-
-void sercom_clock_enable(SercomId id);
+void sercom_clock_enable(SercomId id, uint32_t clock_channel, u8 div);
 void sercom_reset(SercomId id);
 void sercom_spi_slave_init(SercomId id, u32 dipo, u32 dopo, bool cpol, bool cpha);
 void sercom_spi_master_init(SercomId id, u32 dipo, u32 dopo, bool cpol, bool cpha, u8 baud);

@@ -1,10 +1,17 @@
 #include "board.h"
 
-void sercom_clock_enable(SercomId id) {
+void sercom_clock_enable(SercomId id, uint32_t clock_channel, u8 divider) {
+    // prevent this clock write from changing any other clocks
     PM->APBCMASK.reg |= 1 << (PM_APBCMASK_SERCOM0_Pos + id);
 
+    if (clock_channel != 0) {
+      // clock generators 3-8 have 8 division factor bits - DIV[7:0]
+      gclk_enable(clock_channel, GCLK_SOURCE_DFLL48M, divider);
+    }
+
+    // attach clock
     GCLK->CLKCTRL.reg = GCLK_CLKCTRL_CLKEN |
-        GCLK_CLKCTRL_GEN(0) |
+        GCLK_CLKCTRL_GEN(clock_channel) |
         GCLK_CLKCTRL_ID(SERCOM0_GCLK_ID_CORE + id);
 }
 
