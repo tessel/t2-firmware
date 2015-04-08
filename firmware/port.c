@@ -21,8 +21,7 @@ typedef enum PortCmd {
     CMD_GPIO_WAIT = 15, // ???
     CMD_GPIO_INT = 16, // set interrupt on pin
     CMD_GPIO_INPUT = 17, // switches pin to input, does not read value
-    CMD_GPIO_OUTPUT = 18, // switches pin to output, does not write value
-    CMD_GPIO_RAW_READ = 19, // reads pin state, does not switch between input/output
+    CMD_GPIO_RAW_READ = 18, // reads pin state, does not switch between input/output
 
     CMD_ENABLE_SPI = 30,
     CMD_DISABLE_SPI = 31,
@@ -156,7 +155,6 @@ int port_cmd_args(PortCmd cmd) {
         case CMD_GPIO_INT:
         case CMD_GPIO_CFG:
         case CMD_GPIO_INPUT:
-        case CMD_GPIO_OUTPUT:
         case CMD_GPIO_RAW_READ:
             return 1;
 
@@ -241,10 +239,6 @@ ExecStatus port_begin_cmd(PortData *p) {
 
         case CMD_GPIO_INPUT:
             pin_in(port_selected_pin(p));
-            return EXEC_DONE;
-
-        case CMD_GPIO_OUTPUT:
-            pin_out(port_selected_pin(p));
             return EXEC_DONE;
 
         case CMD_GPIO_RAW_READ:
