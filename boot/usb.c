@@ -29,7 +29,7 @@ const USB_DeviceDescriptor device_descriptor = {
 
 	.iManufacturer          = 0x01,
 	.iProduct               = 0x02,
-	.iSerialNumber          = 0x00,
+	.iSerialNumber          = 0x03,
 
 	.bNumConfigurations     = 1
 };
@@ -145,6 +145,9 @@ uint16_t usb_cb_get_descriptor(uint8_t type, uint8_t index, const uint8_t** ptr)
 					break;
 				case 0x02:
 					address = usb_string_to_descriptor("Tessel DFU");
+					break;
+				case 0x03:
+					address = samd_serial_number_string_descriptor();
 					break;
 				case 0x10:
 					address = usb_string_to_descriptor("Flash");
