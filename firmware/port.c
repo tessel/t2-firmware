@@ -211,6 +211,26 @@ void port_exec_async_complete(PortData* p, ExecStatus s) {
     port_step(p);
 }
 
+void usart_test_send(SercomId id, uint8_t* buf, uint32_t buf_len){
+    if (!(sercom(id)->USART.INTFLAG.reg & SERCOM_USART_INTFLAG_DRE)) {
+        invalid();
+        return;
+    }
+
+    while (sercom(id)->USART.SYNCBUSY.reg) {
+        // wait until not busy
+    }
+
+    for (uint32_t i = 0; i < buf_len; i++){
+        // write one byte
+        sercom(id)->USART.DATA.reg = buf[i];
+
+        while (!(sercom(id)->USART.INTFLAG.reg & SERCOM_USART_INTFLAG_TXC)) {
+            // wait until byte is written
+        }
+    }
+}
+
 ExecStatus port_begin_cmd(PortData *p) {
     switch (p->cmd) {
         case CMD_NOP:
@@ -314,6 +334,15 @@ ExecStatus port_begin_cmd(PortData *p) {
             return EXEC_DONE;
 
         case CMD_ENABLE_UART:
+            // set up uart
+            pin_mux(PORT_A.tx);
+            pin_mux(PORT_A.rx);
+            sercom_uart_init(p->port->uart_i2c, p->port->uart_dipo, p->port->uart_dopo, 63019);
+            // send some stuff
+            unsigned char gps_init_buff[32] = {0xA0, 0xA2, 0x00, 0x18, 0x81, 0x02, 0x01, 0x01,
+                0x00, 0x01, 0x01, 0x01, 0x05, 0x01, 0x01, 0x01, 0x00, 0x01, 0x00, 0x01,
+                0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x25, 0x80, 0x01, 0x3A, 0xB0, 0xB3};
+            usart_test_send(p->port->uart_i2c, gps_init_buff, 32);
             return EXEC_DONE;
 
         case CMD_DISABLE_UART:

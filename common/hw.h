@@ -174,7 +174,7 @@ void sercom_reset(SercomId id);
 void sercom_spi_slave_init(SercomId id, u32 dipo, u32 dopo, bool cpol, bool cpha);
 void sercom_spi_master_init(SercomId id, u32 dipo, u32 dopo, bool cpol, bool cpha, u8 baud);
 void sercom_i2c_master_init(SercomId id, u8 baud);
-void sercom_uart_init(SercomId id, u32 rxpo, u32 txpo);
+void sercom_uart_init(SercomId id, u32 rxpo, u32 txpo, u32 baud);
 
 inline static void jump_to_flash(uint32_t addr_p, uint32_t r0_val) {
   uint32_t *addr = (void*) addr_p;

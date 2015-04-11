@@ -428,7 +428,8 @@ SPI.prototype.transfer = function(data, callback) {
 }
 
 function UART(port) {
-    throw new Error("Unimplemented")
+    this._port = port;
+    this._port._simple_cmd([CMD.ENABLE_UART, 0, 0]);
 }
 
 var CMD = {
