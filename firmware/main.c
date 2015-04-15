@@ -69,6 +69,10 @@ void DMAC_Handler() {
         if (id == DMA_BRIDGE_RX) {
             bridge_dma_rx_completion();
             flash_dma_rx_completion();
+        } else if (id == DMA_PORT_A_TX) {
+            port_dma_tx_completion(&port_a);
+        } else if (id == DMA_PORT_B_TX) {
+            port_dma_tx_completion(&port_b);
         } else if (id == DMA_PORT_A_RX) {
             port_dma_rx_completion(&port_a);
         } else if (id == DMA_PORT_B_RX) {

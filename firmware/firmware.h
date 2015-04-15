@@ -90,6 +90,8 @@ void bridge_close_3();
 
 // port.c
 
+#define UART_RX_SIZE 20
+
 typedef struct PortData {
     u8 chan;
     const TesselPort* port;
@@ -118,6 +120,7 @@ void port_enable(PortData *p);
 void port_bridge_out_completion(PortData* p, u8 len);
 void port_bridge_in_completion(PortData* p);
 void port_dma_rx_completion(PortData* p);
+void port_dma_tx_completion(PortData* p);
 void bridge_handle_sercom_uart_i2c(PortData* p);
 void port_handle_extint(PortData *p, u32 flags);
 void port_disable(PortData *p);

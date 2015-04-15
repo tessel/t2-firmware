@@ -184,16 +184,25 @@ Port.prototype._txrx = function(buf, cb) {
 }
 
 Port.prototype.I2C = function (addr, mode) {
-    params = {addr: addr, mode:mode};
-    return new I2C(params, this);
+    if (!this._i2c) {
+        params = {addr: addr, mode:mode};
+        this._i2c = new I2C(params, this);
+    }
+    return this._i2c;
 };
 
 Port.prototype.SPI = function (format) {
-    return new SPI(format == null ? {} : format, this);
+    if (!this._spi) {
+        this._spi = new SPI(format == null ? {} : format, this);
+    }
+    return this._spi;
 };
 
 Port.prototype.UART = function (format) {
-    return new UART(this);
+    if (!this._uart) {
+        this._uart = new UART(this);
+    }
+    return this._uart;
 };
 
 function Pin (pin, port, interruptSupported) {
@@ -428,8 +437,30 @@ SPI.prototype.transfer = function(data, callback) {
 }
 
 function UART(port) {
+    Duplex.call(this, {});
+
     this._port = port;
     this._port._simple_cmd([CMD.ENABLE_UART, 0, 0]);
+}
+
+util.inherits(UART, Duplex);
+
+UART.prototype._write = function(chunk, encoding, cb){
+    console.log("UART _write called");
+
+    this._port.cork();
+    this._port._tx(chunk, cb);
+    this._port.uncork();
+}
+
+UART.prototype._read = function() {
+    console.log("UART _read called");
+    // if (byte == REPLY.ASYNC_UART_RX) {
+    //     // read number of bytes
+    //     console.log("REPLY.ASYNC_UART_RX");
+        
+    //     this._uart.push();
+    // } 
 }
 
 var CMD = {
@@ -464,7 +495,8 @@ var REPLY = {
     DATA: 0x84,
 
     MIN_ASYNC: 0xA0,
-    ASYNC_PIN_CHANGE_N: 0xC0,
+    ASYNC_PIN_CHANGE_N: 0xC0, // c0 to c8 is all async pin assignments
+    ASYNC_UART_RX: 0xD0
 };
 
 var SPISettings = {

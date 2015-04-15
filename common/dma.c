@@ -31,6 +31,7 @@ u32 dma_remaining(DmaChan chan) {
 
 const u8 dummy_tx = 0x99;
 void dma_fill_sercom_tx(DmacDescriptor* desc, SercomId id, u8 *src, unsigned size) {
+    // doesn't matter if this is SPI.DATA or USART.DATA. both are in the same address 
     desc->DSTADDR.reg = (unsigned) &sercom(id)->SPI.DATA;
     desc->BTCNT.reg = size;
     if (src != NULL) {
@@ -45,6 +46,7 @@ void dma_fill_sercom_tx(DmacDescriptor* desc, SercomId id, u8 *src, unsigned siz
 
 u8 dummy_rx = 0;
 void dma_fill_sercom_rx(DmacDescriptor* desc, SercomId id, u8 *dst, unsigned size) {
+    // doesn't matter if this is SPI.DATA or USART.DATA. both are in the same address 
     desc->SRCADDR.reg = (unsigned) &sercom(id)->SPI.DATA;
     desc->BTCNT.reg = size;
     if (dst != NULL) {

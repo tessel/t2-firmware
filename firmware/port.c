@@ -59,6 +59,8 @@ typedef enum ExecStatus {
     EXEC_ASYNC = PORT_EXEC_ASYNC,
 } ExecStatus;
 
+uint8_t uart_rx_buf[UART_RX_SIZE];
+
 void port_step(PortData* p);
 void port_enable_async_events(PortData *p);
 void port_disable_async_events(PortData *p);
@@ -338,14 +340,23 @@ ExecStatus port_begin_cmd(PortData *p) {
             pin_mux(PORT_A.tx);
             pin_mux(PORT_A.rx);
             sercom_uart_init(p->port->uart_i2c, p->port->uart_dipo, p->port->uart_dopo, 63019);
+            dma_sercom_configure_tx(p->dma_tx, p->port->uart_i2c);
+            // dma_sercom_configure_rx(p->dma_rx, p->port->uart_i2c);
+            DMAC->CHINTENSET.reg = DMAC_CHINTENSET_TCMPL | DMAC_CHINTENSET_TERR;
+
             // send some stuff
-            unsigned char gps_init_buff[32] = {0xA0, 0xA2, 0x00, 0x18, 0x81, 0x02, 0x01, 0x01,
-                0x00, 0x01, 0x01, 0x01, 0x05, 0x01, 0x01, 0x01, 0x00, 0x01, 0x00, 0x01,
-                0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x25, 0x80, 0x01, 0x3A, 0xB0, 0xB3};
-            usart_test_send(p->port->uart_i2c, gps_init_buff, 32);
+            // unsigned char gps_init_buff[32] = {0xA0, 0xA2, 0x00, 0x18, 0x81, 0x02, 0x01, 0x01,
+            //     0x00, 0x01, 0x01, 0x01, 0x05, 0x01, 0x01, 0x01, 0x00, 0x01, 0x00, 0x01,
+            //     0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x25, 0x80, 0x01, 0x3A, 0xB0, 0xB3};
+            // usart_test_send(p->port->uart_i2c, gps_init_buff, 32);
+            p->mode = MODE_UART;
+            // while (sercom(p->port->uart_i2c)->USART.SYNCBUSY.reg) {
+            //     // wait until not busy
+            // }
             return EXEC_DONE;
 
         case CMD_DISABLE_UART:
+            p->mode = MODE_NONE;
             return EXEC_DONE;
     }
     invalid();
@@ -373,6 +384,13 @@ ExecStatus port_continue_cmd(PortData *p) {
                 sercom(p->port->uart_i2c)->I2CM.DATA.reg = p->cmd_buf[p->cmd_pos];
                 p->cmd_pos += 1;
                 p->arg[0] -= 1;
+            } else if (p->mode == MODE_UART) {
+                u32 size = port_tx_len(p);
+                // start dma transfer
+                // dma_sercom_start_rx(p->dma_rx, p->port->uart_i2c, NULL, size);
+                dma_sercom_start_tx(p->dma_tx, p->port->uart_i2c, &p->cmd_buf[p->cmd_pos], size);
+                p->cmd_pos += size;
+                p->arg[0] -= size;
             }
             return EXEC_ASYNC;
         case CMD_RX:
@@ -382,12 +400,17 @@ ExecStatus port_continue_cmd(PortData *p) {
                 dma_sercom_start_tx(p->dma_tx, p->port->spi, NULL, size);
                 p->reply_len += size;
                 p->arg[0] -= size;
-            } if (p->mode == MODE_I2C) {
+            } else if (p->mode == MODE_I2C) {
                 p->reply_buf[p->reply_len] = sercom(p->port->uart_i2c)->I2CM.DATA.reg;
                 sercom(p->port->uart_i2c)->I2CM.CTRLB.bit.ACKACT = 0;
                 sercom(p->port->uart_i2c)->I2CM.CTRLB.bit.CMD = 2;
                 p->reply_len += 1;
                 p->arg[0] -= 1;
+            } else if (p->mode == MODE_UART) {
+                // clear out buffer
+                memset(uart_rx_buf, 0, UART_RX_SIZE);
+                dma_sercom_start_rx(p->dma_rx, p->port->uart_i2c, uart_rx_buf, UART_RX_SIZE);
+                p->reply_len += UART_RX_SIZE;
             }
             return EXEC_ASYNC;
         case CMD_TXRX:
@@ -484,6 +507,15 @@ void port_bridge_in_completion(PortData* p) {
 }
 
 void port_dma_rx_completion(PortData* p) {
+    if (p->state == PORT_EXEC_ASYNC) {
+        p->state = (p->arg[0] == 0 ? EXEC_DONE : EXEC_CONTINUE);
+        port_step(p);
+    } else {
+        invalid();
+    }
+}
+
+void port_dma_tx_completion(PortData* p) {
     if (p->state == PORT_EXEC_ASYNC) {
         p->state = (p->arg[0] == 0 ? EXEC_DONE : EXEC_CONTINUE);
         port_step(p);
