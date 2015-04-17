@@ -91,6 +91,14 @@ void bridge_close_3();
 // port.c
 
 #define UART_RX_SIZE 20
+#define RX_BUF_INCR(pos)  (pos=((++pos) == (UART_RX_SIZE - 1) ? 0 : pos))
+
+typedef struct UartBuf {
+    u8 head;
+    u8 tail;
+    u8 buf_len;
+    u8 rx[UART_RX_SIZE];
+} UartBuf; 
 
 typedef struct PortData {
     u8 chan;

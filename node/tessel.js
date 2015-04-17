@@ -37,6 +37,25 @@ function Port(name, socketPath) {
             if (!d) break;
             var byte = d[0];
 
+            if (byte == REPLY.ASYNC_UART_RX) {
+                console.log("REPLY.ASYNC_UART_RX");
+
+                // get the next byte which is the number of bytes
+                var rxNum = this.sock.read(1);
+                var rxData = this.sock.read(rxNum);
+                console.log("rxNum", rxNum, "data", rxData);
+                // if rxNum is bad or if we don't have enough data, wait until next cycle
+                if (!rxNum || !rxData) {
+                    this.sock.unshift(rxNum);
+                    this.sock.unshift(d);
+                    break;
+                }
+
+                // otherwise we read some uart data
+                this._uart.push(rxData);
+                break;
+            }
+
             if (byte >= REPLY.MIN_ASYNC) {
                 if (byte >= REPLY.ASYNC_PIN_CHANGE_N && byte < REPLY.ASYNC_PIN_CHANGE_N+8) {
                     var pin = this.pin[byte - REPLY.ASYNC_PIN_CHANGE_N];
@@ -67,7 +86,8 @@ function Port(name, socketPath) {
                 }
                 data = this.sock.read(data_size);
                 if (!data) {
-                    this.sock.unshift(data);
+                    // if there's a partial reply, 
+                    // wait until we get the full data
                     this.sock.unshift(d);
                     break;
                 }
@@ -446,7 +466,7 @@ function UART(port) {
 util.inherits(UART, Duplex);
 
 UART.prototype._write = function(chunk, encoding, cb){
-    console.log("UART _write called");
+    console.log("UART _write called", chunk.toString());
 
     this._port.cork();
     this._port._tx(chunk, cb);
