@@ -42,19 +42,20 @@ function Port(name, socketPath) {
 
                 // get the next byte which is the number of bytes
                 var rxNum = this.sock.read(1);
-                var rxData = this.sock.read(rxNum);
+                var rxData = this.sock.read();
                 console.log("rxNum", rxNum, "data", rxData);
                 // if rxNum is bad or if we don't have enough data, wait until next cycle
                 if (!rxNum || !rxData) {
-                    console.log("unshifting rx data");
+                    // console.log("unshifting rx data");
                     this.sock.unshift(rxNum);
                     this.sock.unshift(d);
                     break;
                 }
 
+                var actualRx = rxData.slice(0, rxNum[0]).toString();
                 // otherwise we read some uart data
-                console.log("pushing into uart rxdata", rxData.toString());
-                this._uart.push(rxData);
+                console.log("pushing into uart rxdata", actualRx);
+                this._uart.push(actualRx);
                 break;
             }
 

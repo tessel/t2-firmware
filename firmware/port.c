@@ -688,7 +688,7 @@ void bridge_handle_sercom_uart_i2c(PortData* p) {
         // sending data on the coprocessor bridge. If that happens
         // then there will be uart data dropped.
         // Ideally this won't happen if the buffer is big enough
-        if (uart_buf.head == uart_buf.tail && enabled_async_events) {
+        if (uart_buf.head == uart_buf.tail) {
             times_sent++;
             uart_send_data(p);
             // p->state = EXEC_ASYNC;
