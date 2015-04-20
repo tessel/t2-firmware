@@ -38,25 +38,21 @@ function Port(name, socketPath) {
             var byte = d[0];
             console.log("byte", byte);
             if (byte == REPLY.ASYNC_UART_RX) {
-                console.log("REPLY.ASYNC_UART_RX");
+                // console.log("REPLY.ASYNC_UART_RX");
 
                 // get the next byte which is the number of bytes
-                var rxNum = this.sock.read(1);
-                var rxData = this.sock.read();
-                console.log("rxNum", rxNum, "data", rxData);
+                var rxNum = this.sock.read(1)[0];
+                var rxData = this.sock.read(rxNum);
+                // console.log("rxNum", rxNum, "data", rxData);
                 // if rxNum is bad or if we don't have enough data, wait until next cycle
                 if (!rxNum || !rxData) {
-                    // console.log("unshifting rx data");
                     this.sock.unshift(rxNum);
                     this.sock.unshift(d);
                     break;
                 }
 
-                var actualRx = rxData.slice(0, rxNum[0]).toString();
-                // otherwise we read some uart data
-                console.log("pushing into uart rxdata", actualRx);
-                this._uart.push(actualRx);
-                break;
+                this._uart.push(rxData.toString());
+                continue;
             }
 
             if (byte >= REPLY.MIN_ASYNC) {
