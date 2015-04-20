@@ -203,3 +203,6 @@ inline static Tc* tc(TimerId id) {
 }
 
 void timer_clock_enable(TimerId id);
+void timer_delay_ms_clear(TimerId id);
+void timer_delay_disable(TimerId id);
+void timer_delay_ms_enable(TimerId id, uint32_t ms);

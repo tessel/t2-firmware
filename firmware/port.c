@@ -70,56 +70,6 @@ inline static bool port_pin_supports_interrupt(PortData* p, u8 i) {
     return !!((1 << extint) & p->port->pin_interrupts);
 }
 
-// clears timeout and resets timer
-void timer_delay_ms_clear(TimerId id) {
-    tc(id)->COUNT16.COUNT.reg = 0;
-}
-
-// disables timer delay
-void timer_delay_disable(TimerId id) {
-    // uart_rx_enabled = false;
-    tc(id)->COUNT16.INTENCLR.reg = TC_INTENSET_OVF;
-    tc(id)->COUNT16.CTRLA.bit.ENABLE = 0;
-    NVIC_DisableIRQ(TC3_IRQn + id - 3);
-}
-
-bool flip = false;
-
-void TC_HANDLER(TC_DELAY_CALLBACK) {
-    if (!flip) {
-        flip = true;
-        pin_high(PORT_A.g3);
-    } else {
-        flip = false;
-        pin_low(PORT_A.g3);
-    }
-    if (port_a.uart_buf.buf_len > 0) {
-        uart_send_data(&port_a);
-    }
-
-    // clear irq
-    tc(TC_DELAY_CALLBACK)->COUNT16.INTFLAG.reg = TC_INTENSET_OVF;
-}
-
-// sets up a timer to count down from a certain number of microseconds. 
-// calls callback on timeout
-void timer_delay_ms_enable(TimerId id, uint32_t ms, PortData *p) {
-    timer_clock_enable(id);
-    tc(id)->COUNT16.CTRLA.reg = 
-        TC_CTRLA_WAVEGEN_MPWM | TC_CTRLA_PRESCALER_DIV1024;
-
-    tc(id)->COUNT16.DBGCTRL.reg = TC_DBGCTRL_DBGRUN;
-
-    tc(id)->COUNT16.CC[0].reg = 200; // ms*200
-
-    while (tc(id)->COUNT16.STATUS.bit.SYNCBUSY);
-
-    tc(id)->COUNT16.CTRLA.bit.ENABLE = 1;
-    tc(id)->COUNT16.INTENSET.reg = TC_INTENSET_OVF;
-
-    // nvic gets enabled on async enable events
-}
-
 void port_init(PortData* p, u8 chan, const TesselPort* port, u8 clock_channel, DmaChan dma_tx, DmaChan dma_rx) {
     p->chan = chan;
     p->port = port;
@@ -400,8 +350,8 @@ ExecStatus port_begin_cmd(PortData *p) {
 
         case CMD_ENABLE_UART:
             // set up uart
-            pin_mux(PORT_A.tx);
-            pin_mux(PORT_A.rx);
+            pin_mux(p->port->tx);
+            pin_mux(p->port->rx);
             sercom_uart_init(p->port->uart_i2c, p->port->uart_dipo, p->port->uart_dopo, 63019);
             dma_sercom_configure_tx(p->dma_tx, p->port->uart_i2c);
             DMAC->CHINTENSET.reg = DMAC_CHINTENSET_TCMPL | DMAC_CHINTENSET_TERR;
@@ -416,12 +366,16 @@ ExecStatus port_begin_cmd(PortData *p) {
             sercom(p->port->uart_i2c)->USART.INTENSET.reg = SERCOM_USART_INTFLAG_RXC;
             
             // set up interrupt timer so that uart data will get written on timeout
-            timer_delay_ms_enable(TC_DELAY_CALLBACK, 10, p);
+            timer_delay_ms_enable(TC_DELAY_CALLBACK, 10);
 
             return EXEC_DONE;
 
         case CMD_DISABLE_UART:
             p->mode = MODE_NONE;
+            // disable interrupt only if both ports are not in uart mode
+            if (port_a.mode != MODE_UART && port_b.mode != MODE_UART) {
+                timer_delay_disable(TC_DELAY_CALLBACK);
+            }
             return EXEC_DONE;
     }
     invalid();

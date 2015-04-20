@@ -163,3 +163,11 @@ void bridge_close_2() {
 void TC_HANDLER(TC_TERMINAL_TIMEOUT) {
     usbserial_handle_tc();
 }
+
+void TC_HANDLER(TC_DELAY_CALLBACK) {
+    uart_send_data(&port_a);
+    uart_send_data(&port_b);
+
+    // clear irq
+    tc(TC_DELAY_CALLBACK)->COUNT16.INTFLAG.reg = TC_INTENSET_OVF;
+}
