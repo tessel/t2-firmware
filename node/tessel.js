@@ -36,7 +36,7 @@ function Port(name, socketPath) {
 
             if (!d) break;
             var byte = d[0];
-
+            console.log("byte", byte);
             if (byte == REPLY.ASYNC_UART_RX) {
                 console.log("REPLY.ASYNC_UART_RX");
 
@@ -46,12 +46,14 @@ function Port(name, socketPath) {
                 console.log("rxNum", rxNum, "data", rxData);
                 // if rxNum is bad or if we don't have enough data, wait until next cycle
                 if (!rxNum || !rxData) {
+                    console.log("unshifting rx data");
                     this.sock.unshift(rxNum);
                     this.sock.unshift(d);
                     break;
                 }
 
                 // otherwise we read some uart data
+                console.log("pushing into uart rxdata", rxData.toString());
                 this._uart.push(rxData);
                 break;
             }
@@ -468,9 +470,9 @@ util.inherits(UART, Duplex);
 UART.prototype._write = function(chunk, encoding, cb){
     console.log("UART _write called", chunk.toString());
 
-    this._port.cork();
+    // this._port.cork();
     this._port._tx(chunk, cb);
-    this._port.uncork();
+    // this._port.uncork();
 }
 
 UART.prototype._read = function() {

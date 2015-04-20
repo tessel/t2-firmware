@@ -36,6 +36,7 @@
 
 /// Timer allocation
 #define TC_TERMINAL_TIMEOUT 3
+#define TC_DELAY_CALLBACK   4  // timer used for ms delays
 
 // GCLK channel allocation
 #define GCLK_SYSTEM 0
@@ -90,7 +91,8 @@ void bridge_close_3();
 
 // port.c
 
-#define UART_RX_SIZE 20
+#define UART_MS_TIMEOUT 10 // send uart data after ms timeout even if buffer is not full
+#define UART_RX_SIZE 30
 #define RX_BUF_INCR(pos)  (pos=((++pos) == (UART_RX_SIZE - 1) ? 0 : pos))
 
 typedef struct UartBuf {
@@ -117,6 +119,7 @@ typedef struct PortData {
     u8 arg[BRIDGE_ARG_SIZE];
     u8 arg_len;
     u8 arg_pos;
+    u8 uart_data_pos; // 255 = no uart data has been passed
     u8 len;
     u8 clock_channel;
     bool pending_out;

@@ -38,6 +38,14 @@ int main(void) {
     pin_pull_up(PIN_SERIAL_TX);
     pin_pull_up(PIN_SERIAL_RX);
 
+    // pull up pin a g3
+    pin_high(PORT_A.g3);
+    pin_out(PORT_A.g3);
+
+    // pull up pin b g3
+    // pin_high(PORT_B.g3);
+    // pin_out(PORT_B.g3);
+
     dma_init();
     NVIC_EnableIRQ(DMAC_IRQn);
     NVIC_SetPriority(DMAC_IRQn, 0xff);
