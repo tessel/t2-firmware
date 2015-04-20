@@ -92,7 +92,7 @@ void bridge_close_3();
 // port.c
 
 #define UART_MS_TIMEOUT 10 // send uart data after ms timeout even if buffer is not full
-#define UART_RX_SIZE 30
+#define UART_RX_SIZE 20
 #define RX_BUF_INCR(pos)  (pos=((++pos) == (UART_RX_SIZE - 1) ? 0 : pos))
 
 typedef struct UartBuf {
@@ -100,6 +100,7 @@ typedef struct UartBuf {
     u8 tail;
     u8 buf_len;
     u8 rx[UART_RX_SIZE];
+    u8 data_pos; // 255 = no uart data has been passed
 } UartBuf; 
 
 typedef struct PortData {
@@ -119,12 +120,16 @@ typedef struct PortData {
     u8 arg[BRIDGE_ARG_SIZE];
     u8 arg_len;
     u8 arg_pos;
-    u8 uart_data_pos; // 255 = no uart data has been passed
     u8 len;
     u8 clock_channel;
     bool pending_out;
     bool pending_in;
+    UartBuf uart_buf;
 } PortData;
+
+// main ports
+extern PortData port_a;
+extern PortData port_b;
 
 void port_init(PortData* p, u8 chan, const TesselPort* port, u8 clock_channel, DmaChan dma_tx, DmaChan dma_rx);
 void port_enable(PortData *p);

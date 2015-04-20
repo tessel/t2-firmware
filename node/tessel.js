@@ -48,7 +48,7 @@ function Port(name, socketPath) {
                 if (!rxNum || !rxData) {
                     this.sock.unshift(rxNum);
                     this.sock.unshift(d);
-                    break;
+                    continue;
                 }
 
                 this._uart.push(rxData.toString());
