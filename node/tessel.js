@@ -48,7 +48,9 @@ function Port(name, socketPath) {
                     continue;
                 }
 
-                this._uart.push(rxData.toString());
+                if (this._uart) {
+                    this._uart.push(rxData.toString());
+                }
                 continue;
             }
 
