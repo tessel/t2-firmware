@@ -373,6 +373,8 @@ ExecStatus port_begin_cmd(PortData *p) {
 
         case CMD_DISABLE_UART:
             p->mode = MODE_NONE;
+            sercom(p->port->uart_i2c)->USART.INTENCLR.reg = SERCOM_USART_INTFLAG_RXC;
+
             // disable interrupt only if both ports are not in uart mode
             if (port_a.mode != MODE_UART && port_b.mode != MODE_UART) {
                 timer_delay_disable(TC_DELAY_CALLBACK);
