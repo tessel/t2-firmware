@@ -127,7 +127,6 @@ typedef struct PortData {
     UartBuf uart_buf;
 } PortData;
 
-// main ports
 extern PortData port_a;
 extern PortData port_b;
 
@@ -140,6 +139,7 @@ void port_dma_tx_completion(PortData* p);
 void bridge_handle_sercom_uart_i2c(PortData* p);
 void port_handle_extint(PortData *p, u32 flags);
 void port_disable(PortData *p);
+void uart_send_data(PortData *p);
 
 // usbpipe.c
 

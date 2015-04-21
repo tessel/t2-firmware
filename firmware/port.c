@@ -352,7 +352,8 @@ ExecStatus port_begin_cmd(PortData *p) {
             // set up uart
             pin_mux(p->port->tx);
             pin_mux(p->port->rx);
-            sercom_uart_init(p->port->uart_i2c, p->port->uart_dipo, p->port->uart_dopo, 63019);
+            sercom_uart_init(p->port->uart_i2c, p->port->uart_dipo, 
+                p->port->uart_dopo, (p->arg[0] << 8) + p->arg[1]); // 63019
             dma_sercom_configure_tx(p->dma_tx, p->port->uart_i2c);
             DMAC->CHINTENSET.reg = DMAC_CHINTENSET_TCMPL | DMAC_CHINTENSET_TERR;
 

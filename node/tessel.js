@@ -219,7 +219,7 @@ Port.prototype.SPI = function (format) {
 
 Port.prototype.UART = function (format) {
     if (!this._uart) {
-        this._uart = new UART(this);
+        this._uart = new UART(this, format || {});
     }
     return this._uart;
 };
@@ -455,31 +455,43 @@ SPI.prototype.transfer = function(data, callback) {
     this._port.uncork();
 }
 
-function UART(port) {
+function UART(port, options) {
     Duplex.call(this, {});
 
     this._port = port;
-    this._port._simple_cmd([CMD.ENABLE_UART, 0, 0]);
+    
+    // baud is given by the following:
+    // baud = 65536*(1-(samples_per_bit)*(f_wanted/f_ref))
+    // samples_per_bit = 16, 8, or 3
+    // f_ref = 48e6
+    this._baudrate = options.baudrate || 9600;
+    // make sure baudrate is in between 9600 and 115200
+    if (this._baudrate < 9600 || this._baudrate > 115200) {
+        throw new Error("UART baudrate must be between 9600 and 115200");
+    }
+    this._baud = Math.floor(65536*(1-16*(this._baudrate/48e6)));
+
+    // split _baud up into two bytes & send
+    this._port._simple_cmd([CMD.ENABLE_UART, this._baud >> 8, this._baud & 0xFF]);
+
+    this.enabled = true;
 }
 
 util.inherits(UART, Duplex);
 
-UART.prototype._write = function(chunk, encoding, cb){
-    console.log("UART _write called", chunk.toString());
-
-    // this._port.cork();
+UART.prototype._write = function(chunk, encoding, cb) {
+    // throw an error if not enabled
+    if (!this.enabled) {
+        throw new Error("UART is not enabled on this port");
+    }
     this._port._tx(chunk, cb);
-    // this._port.uncork();
 }
 
-UART.prototype._read = function() {
-    console.log("UART _read called");
-    // if (byte == REPLY.ASYNC_UART_RX) {
-    //     // read number of bytes
-    //     console.log("REPLY.ASYNC_UART_RX");
-        
-    //     this._uart.push();
-    // } 
+UART.prototype._read = function() {}
+
+UART.prototype.disable = function() {
+    this._port._simple_cmd([CMD.DISABLE_UART, 0, 0]);
+    this.enabled = false;
 }
 
 var CMD = {
