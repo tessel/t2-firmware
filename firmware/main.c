@@ -53,8 +53,10 @@ int main(void) {
     bridge_init();
     usbpipe_init();
 
-    port_init(&port_a, 1, &PORT_A, GCLK_PORT_A, DMA_PORT_A_TX, DMA_PORT_A_RX);
-    port_init(&port_b, 2, &PORT_B, GCLK_PORT_B, DMA_PORT_B_TX, DMA_PORT_B_RX);
+    port_init(&port_a, 1, &PORT_A, GCLK_PORT_A, 
+        TCC_PORT_A, DMA_PORT_A_TX, DMA_PORT_A_RX);
+    port_init(&port_b, 2, &PORT_B, GCLK_PORT_B, 
+        TCC_PORT_B, DMA_PORT_B_TX, DMA_PORT_B_RX);
 
     __enable_irq();
     SCB->SCR |= SCB_SCR_SLEEPONEXIT_Msk;
@@ -156,10 +158,16 @@ void TC_HANDLER(TC_TERMINAL_TIMEOUT) {
     usbserial_handle_tc();
 }
 
-void TC_HANDLER(TC_DELAY_CALLBACK) {
+void TCC_HANDLER(TCC_PORT_A) {
     uart_send_data(&port_a);
+
+    // clear irq
+    tcc(TCC_PORT_A)->INTFLAG.reg = TCC_INTENSET_OVF;
+}
+
+void TCC_HANDLER(TCC_PORT_B) {
     uart_send_data(&port_b);
 
     // clear irq
-    tc(TC_DELAY_CALLBACK)->COUNT16.INTFLAG.reg = TC_INTENSET_OVF;
+    tcc(TCC_PORT_B)->INTFLAG.reg = TCC_INTENSET_OVF;
 }

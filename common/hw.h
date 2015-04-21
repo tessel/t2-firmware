@@ -202,7 +202,11 @@ inline static Tc* tc(TimerId id) {
   return (Tc*) (0x42002C00U + (id - 3) * 1024);
 }
 
+inline static Tcc* tcc(TimerId id) {
+  return (Tcc*) (0x42002000U + (id) * 1024);
+}
+
 void timer_clock_enable(TimerId id);
-void timer_delay_ms_clear(TimerId id);
-void timer_delay_disable(TimerId id);
-void timer_delay_ms_enable(TimerId id, uint32_t ms);
+void tcc_delay_ms_clear(TimerId id);
+void tcc_delay_disable(TimerId id);
+void tcc_delay_ms_enable(TimerId id, uint32_t ms);

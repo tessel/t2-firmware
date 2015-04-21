@@ -36,7 +36,11 @@
 
 /// Timer allocation
 #define TC_TERMINAL_TIMEOUT 3
-#define TC_DELAY_CALLBACK   4  // timer used for ms delays
+
+// TCC allocation
+// muxed with i2c. also used for uart read timers
+#define TCC_PORT_A 2 // PA12, PA13
+#define TCC_PORT_B 0 // PA08, PA09
 
 // GCLK channel allocation
 #define GCLK_SYSTEM 0
@@ -122,6 +126,7 @@ typedef struct PortData {
     u8 arg_pos;
     u8 len;
     u8 clock_channel;
+    u8 tcc_channel;
     bool pending_out;
     bool pending_in;
     UartBuf uart_buf;
@@ -130,7 +135,8 @@ typedef struct PortData {
 extern PortData port_a;
 extern PortData port_b;
 
-void port_init(PortData* p, u8 chan, const TesselPort* port, u8 clock_channel, DmaChan dma_tx, DmaChan dma_rx);
+void port_init(PortData* p, u8 chan, const TesselPort* port, 
+    u8 clock_channel, u8 tcc_channel, DmaChan dma_tx, DmaChan dma_rx);
 void port_enable(PortData *p);
 void port_bridge_out_completion(PortData* p, u8 len);
 void port_bridge_in_completion(PortData* p);

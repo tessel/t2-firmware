@@ -70,7 +70,9 @@ inline static bool port_pin_supports_interrupt(PortData* p, u8 i) {
     return !!((1 << extint) & p->port->pin_interrupts);
 }
 
-void port_init(PortData* p, u8 chan, const TesselPort* port, u8 clock_channel, DmaChan dma_tx, DmaChan dma_rx) {
+void port_init(PortData* p, u8 chan, const TesselPort* port, 
+    u8 clock_channel, u8 tcc_channel, DmaChan dma_tx, DmaChan dma_rx) {
+    p->tcc_channel = tcc_channel;
     p->chan = chan;
     p->port = port;
     p->dma_tx = dma_tx;
@@ -367,7 +369,7 @@ ExecStatus port_begin_cmd(PortData *p) {
             sercom(p->port->uart_i2c)->USART.INTENSET.reg = SERCOM_USART_INTFLAG_RXC;
             
             // set up interrupt timer so that uart data will get written on timeout
-            timer_delay_ms_enable(TC_DELAY_CALLBACK, 10);
+            tcc_delay_ms_enable(p->tcc_channel, 10);
 
             return EXEC_DONE;
 
@@ -377,7 +379,7 @@ ExecStatus port_begin_cmd(PortData *p) {
 
             // disable interrupt only if both ports are not in uart mode
             if (port_a.mode != MODE_UART && port_b.mode != MODE_UART) {
-                timer_delay_disable(TC_DELAY_CALLBACK);
+                tcc_delay_disable(p->tcc_channel);
             }
             return EXEC_DONE;
     }
@@ -449,7 +451,13 @@ void port_enable_async_events(PortData *p) {
     EIC->INTENSET.reg = p->port->pin_interrupts;
 
     // enable uart data getting copied
-    NVIC_EnableIRQ(TC3_IRQn + TC_DELAY_CALLBACK - 3);
+    if (port_a.mode == MODE_UART) {
+        NVIC_EnableIRQ(TCC0_IRQn + port_a.tcc_channel);
+    }
+
+    if (port_b.mode == MODE_UART) {
+        NVIC_EnableIRQ(TCC0_IRQn + port_b.tcc_channel);
+    }
 }
 
 void port_disable_async_events(PortData *p) {
@@ -457,7 +465,8 @@ void port_disable_async_events(PortData *p) {
     EIC->INTENCLR.reg = p->port->pin_interrupts;
 
     // disable uart data getting copied
-    NVIC_DisableIRQ(TC3_IRQn + TC_DELAY_CALLBACK - 3);
+    NVIC_DisableIRQ(TCC0_IRQn + port_a.tcc_channel);
+    NVIC_DisableIRQ(TCC0_IRQn + port_b.tcc_channel);
 }
 
 void port_step(PortData* p) {
@@ -555,7 +564,7 @@ void bridge_handle_sercom_uart_i2c(PortData* p) {
     // check if its a uart or i2c irq
     if (sercom(p->port->uart_i2c)->USART.INTFLAG.reg & SERCOM_USART_INTFLAG_RXC) {
         // reset timeout to zero
-        timer_delay_ms_clear(TC_DELAY_CALLBACK);
+        tcc_delay_ms_clear(p->tcc_channel);
 
         // read data and push into buffer
         p->uart_buf.rx[p->uart_buf.head] = sercom(p->port->uart_i2c)->USART.DATA.reg;

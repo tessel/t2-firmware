@@ -9,31 +9,28 @@ void timer_clock_enable(TimerId id) {
 }
 
 // clears timeout and resets timer
-void timer_delay_ms_clear(TimerId id) {
-    tc(id)->COUNT16.COUNT.reg = 0;
+void tcc_delay_ms_clear(TimerId id) {
+    tcc(id)->COUNT.reg = 0;
 }
 
 // disables timer delay
-void timer_delay_disable(TimerId id) {
-    tc(id)->COUNT16.INTENCLR.reg = TC_INTENSET_OVF;
-    tc(id)->COUNT16.CTRLA.bit.ENABLE = 0;
-    NVIC_DisableIRQ(TC3_IRQn + id - 3);
+void tcc_delay_disable(TimerId id) {
+    tcc(id)->INTENCLR.reg = TC_INTENSET_OVF;
+    tcc(id)->CTRLA.bit.ENABLE = 0;
+    NVIC_DisableIRQ(TCC0_IRQn + id);
 }
 
 // sets up a timer to count down from a certain number of microseconds. 
-void timer_delay_ms_enable(TimerId id, uint32_t ms) {
+void tcc_delay_ms_enable(TimerId id, uint32_t ms) {
     timer_clock_enable(id);
-    tc(id)->COUNT16.CTRLA.reg = 
-        TC_CTRLA_WAVEGEN_MPWM | TC_CTRLA_PRESCALER_DIV256;
 
-    tc(id)->COUNT16.DBGCTRL.reg = TC_DBGCTRL_DBGRUN;
+    tcc(id)->CTRLA.reg = TCC_CTRLA_PRESCALER_DIV256;
+    tcc(id)->COUNT.reg = ms*200;
 
-    tc(id)->COUNT16.CC[0].reg = ms*200;
+    while (tcc(id)->SYNCBUSY.reg > 0);
 
-    while (tc(id)->COUNT16.STATUS.bit.SYNCBUSY);
-
-    tc(id)->COUNT16.CTRLA.bit.ENABLE = 1;
-    tc(id)->COUNT16.INTENSET.reg = TC_INTENSET_OVF;
+    tcc(id)->CTRLA.bit.ENABLE = 1;
+    tcc(id)->INTENSET.reg = TCC_INTENSET_OVF;
 
     // nvic gets enabled on async enable events
 }
