@@ -68,10 +68,6 @@ void sercom_i2c_master_init(SercomId id, u8 baud) {
     sercom(id)->I2CM.STATUS.reg = SERCOM_I2CM_STATUS_BUSSTATE(1);
 }
 
-// baud is given by the following:
-// baud = 65536*(1-(samples_per_bit)*(f_wanted/f_ref))
-// samples_per_bit = 16, 8, or 3
-// f_ref = 48e6
 void sercom_uart_init(SercomId id, u32 rxpo, u32 txpo, u32 baud) {
     sercom_reset(id);
     sercom(id)->USART.CTRLA.reg = SERCOM_USART_CTRLA_MODE_USART_INT_CLK;

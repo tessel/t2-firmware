@@ -36,14 +36,11 @@ function Port(name, socketPath) {
 
             if (!d) break;
             var byte = d[0];
-            console.log("byte", byte);
             if (byte == REPLY.ASYNC_UART_RX) {
-                // console.log("REPLY.ASYNC_UART_RX");
-
                 // get the next byte which is the number of bytes
                 var rxNum = this.sock.read(1)[0];
                 var rxData = this.sock.read(rxNum);
-                // console.log("rxNum", rxNum, "data", rxData);
+
                 // if rxNum is bad or if we don't have enough data, wait until next cycle
                 if (!rxNum || !rxData) {
                     this.sock.unshift(rxNum);

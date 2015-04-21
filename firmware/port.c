@@ -549,13 +549,9 @@ void port_dma_tx_completion(PortData* p) {
     }
 }
 
-int number_hit = 0;
-int times_sent = 0;
-
 void bridge_handle_sercom_uart_i2c(PortData* p) {
     // check if its a uart or i2c irq
     if (sercom(p->port->uart_i2c)->USART.INTFLAG.reg & SERCOM_USART_INTFLAG_RXC) {
-        number_hit++;
         // reset timeout to zero
         timer_delay_ms_clear(TC_DELAY_CALLBACK);
 
@@ -570,7 +566,6 @@ void bridge_handle_sercom_uart_i2c(PortData* p) {
         // then there will be uart data dropped.
         // Ideally this won't happen if the buffer is big enough
         if (p->uart_buf.head == p->uart_buf.tail) {
-            times_sent++;
             uart_send_data(p);
         }
 
