@@ -364,7 +364,7 @@ ExecStatus port_begin_cmd(PortData *p) {
             sercom(p->port->uart_i2c)->USART.INTENSET.reg = SERCOM_USART_INTFLAG_RXC;
 
             // set up interrupt timer so that uart data will get written on timeout
-            tcc_delay_ms_enable(p->tcc_channel, 10);
+            tcc_delay_enable(p->tcc_channel);
 
             return EXEC_DONE;
 
@@ -555,8 +555,8 @@ void bridge_handle_sercom_uart_i2c(PortData* p) {
         if (sercom(p->port->uart_i2c)->USART.INTFLAG.reg & SERCOM_USART_INTFLAG_RXC) {
             sercom(p->port->uart_i2c)->USART.INTFLAG.reg = SERCOM_USART_INTFLAG_RXC;
 
-            // reset timeout to zero
-            tcc_delay_ms_clear(p->tcc_channel);
+            // reset timeout
+            tcc_delay_start(p->tcc_channel, 200*10);
 
             // Read data and push into buffer
             p->uart_buf.rx[p->uart_buf.head] = sercom(p->port->uart_i2c)->USART.DATA.reg;

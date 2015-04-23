@@ -8,29 +8,27 @@ void timer_clock_enable(TimerId id) {
         GCLK_CLKCTRL_ID(TCC0_GCLK_ID + id/2);
 }
 
-// clears timeout and resets timer
-void tcc_delay_ms_clear(TimerId id) {
-    tcc(id)->COUNT.reg = 0;
+// Starts timer countdown
+void tcc_delay_start(TimerId id, u32 ticks) {
+    tcc(id)->PER.reg = ticks;
+    tcc(id)->CTRLBSET.reg = TCC_CTRLBSET_CMD_RETRIGGER;
 }
 
 // disables timer delay
 void tcc_delay_disable(TimerId id) {
     tcc(id)->INTENCLR.reg = TC_INTENSET_OVF;
     tcc(id)->CTRLA.bit.ENABLE = 0;
-    NVIC_DisableIRQ(TCC0_IRQn + id);
 }
 
-// sets up a timer to count down from a certain number of microseconds. 
-void tcc_delay_ms_enable(TimerId id, uint32_t ms) {
+// sets up a timer to count down in one-shot mode.
+void tcc_delay_enable(TimerId id) {
     timer_clock_enable(id);
 
     tcc(id)->CTRLA.reg = TCC_CTRLA_PRESCALER_DIV256;
-    tcc(id)->COUNT.reg = ms*200;
+    tcc(id)->CTRLBSET.reg = TCC_CTRLBSET_DIR | TCC_CTRLBSET_ONESHOT;
 
     while (tcc(id)->SYNCBUSY.reg > 0);
 
     tcc(id)->CTRLA.bit.ENABLE = 1;
     tcc(id)->INTENSET.reg = TCC_INTENSET_OVF;
-
-    // nvic gets enabled on async enable events
 }
