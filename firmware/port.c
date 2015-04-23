@@ -550,38 +550,38 @@ void port_dma_tx_completion(PortData* p) {
 }
 
 void bridge_handle_sercom_uart_i2c(PortData* p) {
-    // check if its a uart or i2c irq
-    if (sercom(p->port->uart_i2c)->USART.INTFLAG.reg & SERCOM_USART_INTFLAG_RXC) {
-        // reset timeout to zero
-        tcc_delay_ms_clear(p->tcc_channel);
+    if (p->mode == MODE_UART) {
+        if (sercom(p->port->uart_i2c)->USART.INTFLAG.reg & SERCOM_USART_INTFLAG_RXC) {
+            sercom(p->port->uart_i2c)->USART.INTFLAG.reg = SERCOM_USART_INTFLAG_RXC;
 
-        // Read data and push into buffer
-        p->uart_buf.rx[p->uart_buf.head] = sercom(p->port->uart_i2c)->USART.DATA.reg;
-        p->uart_buf.head = (p->uart_buf.head + 1) % UART_RX_SIZE;
+            // reset timeout to zero
+            tcc_delay_ms_clear(p->tcc_channel);
 
-        if (p->uart_buf.buf_len < UART_RX_SIZE) {
-            p->uart_buf.buf_len++;
+            // Read data and push into buffer
+            p->uart_buf.rx[p->uart_buf.head] = sercom(p->port->uart_i2c)->USART.DATA.reg;
+            p->uart_buf.head = (p->uart_buf.head + 1) % UART_RX_SIZE;
+
+            if (p->uart_buf.buf_len < UART_RX_SIZE) {
+                p->uart_buf.buf_len++;
+            } else {
+                // Buffer full. Drop the oldest byte.
+                p->uart_buf.tail = (p->uart_buf.tail + 1) % UART_RX_SIZE;
+            }
+
+            // If the buffer is almost full and we're in a safe state, flush it immediately
+            if (p->uart_buf.buf_len > (UART_RX_SIZE - 4) && port_async_events_allowed(p)) {
+                uart_send_data(p);
+            }
+        }
+    } else if (p->mode == MODE_I2C) {
+        // interrupt on i2c flag
+        sercom(p->port->uart_i2c)->I2CM.INTFLAG.reg = SERCOM_I2CM_INTFLAG_SB | SERCOM_I2CM_INTFLAG_MB;
+        if (p->state == PORT_EXEC_ASYNC) {
+            p->state = (p->arg[0] == 0 ? EXEC_DONE : EXEC_CONTINUE);
+            port_step(p);
         } else {
-            // Buffer full. Drop the oldest byte.
-            p->uart_buf.tail = (p->uart_buf.tail + 1) % UART_RX_SIZE;
+            invalid();
         }
-
-        // If the buffer is almost full and we're in a safe state, flush it immediately
-        if (p->uart_buf.buf_len > (UART_RX_SIZE - 4) && port_async_events_allowed(p)) {
-            uart_send_data(p);
-        }
-
-        // clear irq
-        sercom(p->port->uart_i2c)->USART.INTFLAG.reg = SERCOM_USART_INTFLAG_RXC;
-
-        return;
-    }
-
-    // interrupt on i2c flag
-    sercom(p->port->uart_i2c)->I2CM.INTFLAG.reg = SERCOM_I2CM_INTFLAG_SB | SERCOM_I2CM_INTFLAG_MB;
-    if (p->state == PORT_EXEC_ASYNC) {
-        p->state = (p->arg[0] == 0 ? EXEC_DONE : EXEC_CONTINUE);
-        port_step(p);
     } else {
         invalid();
     }
