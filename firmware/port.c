@@ -373,6 +373,8 @@ ExecStatus port_begin_cmd(PortData *p) {
             p->mode = MODE_NONE;
             sercom(p->port->uart_i2c)->USART.INTENCLR.reg = SERCOM_USART_INTFLAG_RXC;
             tcc_delay_disable(p->tcc_channel);
+            pin_gpio(p->port->tx);
+            pin_gpio(p->port->rx);
             return EXEC_DONE;
     }
     invalid();
