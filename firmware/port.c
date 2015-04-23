@@ -439,6 +439,26 @@ ExecStatus port_continue_cmd(PortData *p) {
     return EXEC_DONE;
 }
 
+// Returns true if the TX buffer is in use in the PORT_EXEC_ASYNC state of the current command
+bool port_tx_locked(PortData* p) {
+    switch (p->cmd) {
+        case CMD_RX:
+            return false;
+        default:
+            return true;
+    }
+}
+
+// Returns true if the RX buffer is in use in the PORT_EXEC_ASYNC state of the current command
+bool port_rx_locked(PortData *p) {
+    switch (p->cmd) {
+        case CMD_TX:
+            return false;
+        default:
+            return true;
+    }
+}
+
 void port_enable_async_events(PortData *p) {
     EIC->INTENSET.reg = p->port->pin_interrupts;
 
@@ -458,11 +478,18 @@ void port_disable_async_events(PortData *p) {
 }
 
 inline bool port_async_events_allowed(PortData* p) {
-    return !p->pending_in && p->state == PORT_READ_CMD;
+    if (!p->pending_in) {
+        if (p->state == PORT_READ_CMD) return true;
+
+        // TX doesn't touch reply_buf, so it is safe to process async events while it is sending.
+        // This is needed for UART loopback.
+        if (p->state == PORT_EXEC_ASYNC && !port_rx_locked(p)) return true;
+    }
+    return false;
 }
 
 void port_step(PortData* p) {
-    if (p->state == PORT_DISABLE || p->state == PORT_EXEC_ASYNC) {
+    if (p->state == PORT_DISABLE) {
         invalid();
         return;
     }
@@ -471,13 +498,14 @@ void port_step(PortData* p) {
 
     while (1) {
         // If the command buffer has been processed, request a new one
-        if (p->cmd_pos >= p->cmd_len && !p->pending_out) {
+        if (p->cmd_pos >= p->cmd_len && !p->pending_out && !(p->state == PORT_EXEC_ASYNC && port_tx_locked(p))) {
             p->pending_out = true;
             bridge_start_out(p->chan, p->cmd_buf);
         }
         // If the reply buffer is full, flush it.
         // Or, if there is any data and no commands, might as well flush.
-        if ((p->reply_len >= BRIDGE_BUF_SIZE || (p->pending_out && p->reply_len > 0)) && !p->pending_in) {
+        if ((p->reply_len >= BRIDGE_BUF_SIZE || (p->pending_out && p->reply_len > 0))
+           && !p->pending_in && !(p->state == PORT_EXEC_ASYNC && port_rx_locked(p))) {
             p->pending_in = true;
             bridge_start_in(p->chan, p->reply_buf, p->reply_len);
         }
