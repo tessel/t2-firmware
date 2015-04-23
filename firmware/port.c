@@ -455,11 +455,13 @@ void port_disable_async_events(PortData *p) {
         tcc(p->tcc_channel)->INTENCLR.reg = TCC_INTENCLR_OVF;
     }
 }
+
+inline bool port_async_events_allowed(PortData* p) {
+    return !p->pending_in && p->state == PORT_READ_CMD;
 }
 
 void port_step(PortData* p) {
-    if ( (p->state == PORT_DISABLE || p->state == PORT_EXEC_ASYNC)
-        && p->mode != MODE_UART) {
+    if (p->state == PORT_DISABLE || p->state == PORT_EXEC_ASYNC) {
         invalid();
         return;
     }
@@ -482,7 +484,7 @@ void port_step(PortData* p) {
         // Wait for bridge transfers to complete;
         // TODO: multiple-buffer FIFO
         if (p->pending_in || p->pending_out) {
-            if (!p->pending_in && p->state == PORT_READ_CMD) {
+            if (port_async_events_allowed(p)) {
                 // If we're waiting for further commands, also
                 // wait for async events.
                 port_enable_async_events(p);
@@ -553,17 +555,19 @@ void bridge_handle_sercom_uart_i2c(PortData* p) {
         // reset timeout to zero
         tcc_delay_ms_clear(p->tcc_channel);
 
-        // read data and push into buffer
+        // Read data and push into buffer
         p->uart_buf.rx[p->uart_buf.head] = sercom(p->port->uart_i2c)->USART.DATA.reg;
-        p->uart_buf.buf_len++;
         p->uart_buf.head = (p->uart_buf.head + 1) % UART_RX_SIZE;
 
-        // TODO: there is a bug that can occur if we run out of 
-        // room on the uart buffer and we are in the middle of
-        // sending data on the coprocessor bridge. If that happens
-        // then there will be uart data dropped.
-        // Ideally this won't happen if the buffer is big enough
-        if (p->uart_buf.head == p->uart_buf.tail) {
+        if (p->uart_buf.buf_len < UART_RX_SIZE) {
+            p->uart_buf.buf_len++;
+        } else {
+            // Buffer full. Drop the oldest byte.
+            p->uart_buf.tail = (p->uart_buf.tail + 1) % UART_RX_SIZE;
+        }
+
+        // If the buffer is almost full and we're in a safe state, flush it immediately
+        if (p->uart_buf.buf_len > (UART_RX_SIZE - 4) && port_async_events_allowed(p)) {
             uart_send_data(p);
         }
 
