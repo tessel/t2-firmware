@@ -133,7 +133,7 @@ typedef struct PortData {
 extern PortData port_a;
 extern PortData port_b;
 
-void port_init(PortData* p, u8 chan, const TesselPort* port, 
+void port_init(PortData* p, u8 chan, const TesselPort* port,
     u8 clock_channel, u8 tcc_channel, DmaChan dma_tx, DmaChan dma_rx);
 void port_enable(PortData *p);
 void port_bridge_out_completion(PortData* p, u8 len);

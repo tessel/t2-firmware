@@ -70,7 +70,7 @@ inline static bool port_pin_supports_interrupt(PortData* p, u8 i) {
     return !!((1 << extint) & p->port->pin_interrupts);
 }
 
-void port_init(PortData* p, u8 chan, const TesselPort* port, 
+void port_init(PortData* p, u8 chan, const TesselPort* port,
     u8 clock_channel, u8 tcc_channel, DmaChan dma_tx, DmaChan dma_rx) {
     p->tcc_channel = tcc_channel;
     p->chan = chan;
@@ -350,7 +350,7 @@ ExecStatus port_begin_cmd(PortData *p) {
             // set up uart
             pin_mux(p->port->tx);
             pin_mux(p->port->rx);
-            sercom_uart_init(p->port->uart_i2c, p->port->uart_dipo, 
+            sercom_uart_init(p->port->uart_i2c, p->port->uart_dipo,
                 p->port->uart_dopo, (p->arg[0] << 8) + p->arg[1]); // 63019
             dma_sercom_configure_tx(p->dma_tx, p->port->uart_i2c);
             DMAC->CHINTENSET.reg = DMAC_CHINTENSET_TCMPL | DMAC_CHINTENSET_TERR;
@@ -362,7 +362,7 @@ ExecStatus port_begin_cmd(PortData *p) {
             p->uart_buf.buf_len = 0;
             // set up interrupt on uart receive data complete
             sercom(p->port->uart_i2c)->USART.INTENSET.reg = SERCOM_USART_INTFLAG_RXC;
-            
+
             // set up interrupt timer so that uart data will get written on timeout
             tcc_delay_ms_enable(p->tcc_channel, 10);
 
