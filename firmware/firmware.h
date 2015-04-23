@@ -96,8 +96,7 @@ void bridge_close_3();
 // port.c
 
 #define UART_MS_TIMEOUT 10 // send uart data after ms timeout even if buffer is not full
-#define UART_RX_SIZE 20
-#define RX_BUF_INCR(pos)  (pos=((++pos) == (UART_RX_SIZE - 1) ? 0 : pos))
+#define UART_RX_SIZE 32
 
 typedef struct UartBuf {
     u8 head;

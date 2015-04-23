@@ -235,8 +235,7 @@ void uart_send_data(PortData *p){
         // copy data into reply buf
         for (uint8_t i = 0; i < count; i++) {
             p->reply_buf[p->reply_len++] = p->uart_buf.rx[p->uart_buf.tail];
-
-            RX_BUF_INCR(p->uart_buf.tail);
+            p->uart_buf.tail = (p->uart_buf.tail + 1) % UART_RX_SIZE;
         }
 
         p->uart_buf.buf_len -= count;
@@ -563,8 +562,8 @@ void bridge_handle_sercom_uart_i2c(PortData* p) {
 
         // read data and push into buffer
         p->uart_buf.rx[p->uart_buf.head] = sercom(p->port->uart_i2c)->USART.DATA.reg;
-        RX_BUF_INCR(p->uart_buf.head);
         p->uart_buf.buf_len++;
+        p->uart_buf.head = (p->uart_buf.head + 1) % UART_RX_SIZE;
 
         // TODO: there is a bug that can occur if we run out of 
         // room on the uart buffer and we are in the middle of
