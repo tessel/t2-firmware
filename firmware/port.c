@@ -78,7 +78,6 @@ void port_init(PortData* p, u8 chan, const TesselPort* port,
     p->dma_tx = dma_tx;
     p->dma_rx = dma_rx;
     p->clock_channel = clock_channel;
-    p->uart_buf.data_pos = 255;
 
     sercom_clock_enable(p->port->spi, p->clock_channel, 1);
     sercom_clock_enable(p->port->uart_i2c, p->clock_channel, 1);
@@ -220,30 +219,27 @@ void uart_send_data(PortData *p){
     if (p->uart_buf.buf_len > 0) {
         // pad 2 bytes at the beginning
         // 1st byte indicates uart rx
-        // 2nd byte indicates uart rx number. 
+        // 2nd byte indicates uart rx number.
         // this also means rx number has to be <255
-        // p->reply_len += uart_buf.buf_len;
-        if (p->uart_buf.data_pos == 255) {
-            // if this is the first time that uart data is 
-            // getting put into reply buf, pad by 2.
-            p->uart_buf.data_pos = p->reply_len; // keep track of where we write uart data headers
+        u8 count = p->uart_buf.buf_len;
 
-            p->reply_buf[p->reply_len++] = REPLY_ASYNC_UART_RX;
-            p->reply_buf[p->reply_len++] = p->uart_buf.buf_len;
-            // p->reply_len += 2; 
-        } else {
-            // otherwise we are appending uart data to the buffer
-            p->reply_buf[p->uart_buf.data_pos+1] += p->uart_buf.buf_len;
+        if (count + 2 > BRIDGE_BUF_SIZE - p->reply_len) {
+            // Shouldn't have to worry about insufficient buffer space because the buffer is
+            // always flushed before enabling async events, but assert to be sure.
+            invalid();
         }
-        
+
+        p->reply_buf[p->reply_len++] = REPLY_ASYNC_UART_RX;
+        p->reply_buf[p->reply_len++] = count;
+
         // copy data into reply buf
-        for (uint8_t i = 0; i < p->uart_buf.buf_len; i++) {
+        for (uint8_t i = 0; i < count; i++) {
             p->reply_buf[p->reply_len++] = p->uart_buf.rx[p->uart_buf.tail];
 
             RX_BUF_INCR(p->uart_buf.tail);
         }
 
-        p->uart_buf.buf_len = 0;
+        p->uart_buf.buf_len -= count;
         port_step(p);
     }
 }
@@ -538,7 +534,6 @@ void port_bridge_out_completion(PortData* p, u8 len) {
 void port_bridge_in_completion(PortData* p) {
     p->pending_in = false;
     p->reply_len = 0;
-    p->uart_buf.data_pos = 255;
     port_step(p);
 }
 

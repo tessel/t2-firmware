@@ -104,8 +104,7 @@ typedef struct UartBuf {
     u8 tail;
     u8 buf_len;
     u8 rx[UART_RX_SIZE];
-    u8 data_pos; // 255 = no uart data has been passed
-} UartBuf; 
+} UartBuf;
 
 typedef struct PortData {
     u8 chan;
