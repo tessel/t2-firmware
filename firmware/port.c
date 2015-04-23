@@ -356,11 +356,10 @@ ExecStatus port_begin_cmd(PortData *p) {
             DMAC->CHINTENSET.reg = DMAC_CHINTENSET_TCMPL | DMAC_CHINTENSET_TERR;
 
             p->mode = MODE_UART;
-            
-            // clear out buffer
-            memset(p->uart_buf.rx, 0, UART_RX_SIZE);
+
             p->uart_buf.head = 0;
             p->uart_buf.tail = 0;
+            p->uart_buf.buf_len = 0;
             // set up interrupt on uart receive data complete
             sercom(p->port->uart_i2c)->USART.INTENSET.reg = SERCOM_USART_INTFLAG_RXC;
             
