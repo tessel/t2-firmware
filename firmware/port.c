@@ -93,6 +93,7 @@ void port_enable(PortData* p) {
     p->state = PORT_READ_CMD;
     p->mode = MODE_NONE;
     NVIC_EnableIRQ(SERCOM0_IRQn + p->port->uart_i2c);
+    NVIC_EnableIRQ(TCC0_IRQn + p->tcc_channel);
 
     pin_high(p->port->power);
     for (int i = 0; i<8; i++) {
@@ -371,11 +372,7 @@ ExecStatus port_begin_cmd(PortData *p) {
         case CMD_DISABLE_UART:
             p->mode = MODE_NONE;
             sercom(p->port->uart_i2c)->USART.INTENCLR.reg = SERCOM_USART_INTFLAG_RXC;
-
-            // disable interrupt only if both ports are not in uart mode
-            if (port_a.mode != MODE_UART && port_b.mode != MODE_UART) {
-                tcc_delay_disable(p->tcc_channel);
-            }
+            tcc_delay_disable(p->tcc_channel);
             return EXEC_DONE;
     }
     invalid();
@@ -442,26 +439,22 @@ ExecStatus port_continue_cmd(PortData *p) {
 }
 
 void port_enable_async_events(PortData *p) {
-    pin_low(PORT_A.g3);
     EIC->INTENSET.reg = p->port->pin_interrupts;
 
     // enable uart data getting copied
-    if (port_a.mode == MODE_UART) {
-        NVIC_EnableIRQ(TCC0_IRQn + port_a.tcc_channel);
-    }
-
-    if (port_b.mode == MODE_UART) {
-        NVIC_EnableIRQ(TCC0_IRQn + port_b.tcc_channel);
+    if (p->mode == MODE_UART) {
+        tcc(p->tcc_channel)->INTENSET.reg = TCC_INTENSET_OVF;
     }
 }
 
 void port_disable_async_events(PortData *p) {
-    // pin_high(PORT_A.g3);
     EIC->INTENCLR.reg = p->port->pin_interrupts;
 
     // disable uart data getting copied
-    NVIC_DisableIRQ(TCC0_IRQn + port_a.tcc_channel);
-    NVIC_DisableIRQ(TCC0_IRQn + port_b.tcc_channel);
+    if (p->mode == MODE_UART) {
+        tcc(p->tcc_channel)->INTENCLR.reg = TCC_INTENCLR_OVF;
+    }
+}
 }
 
 void port_step(PortData* p) {
