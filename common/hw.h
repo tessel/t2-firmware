@@ -207,6 +207,7 @@ inline static Tcc* tcc(TimerId id) {
 }
 
 void timer_clock_enable(TimerId id);
-void tcc_delay_ms_clear(TimerId id);
+
+void tcc_delay_start(TimerId id, u32 ticks);
 void tcc_delay_disable(TimerId id);
-void tcc_delay_ms_enable(TimerId id, uint32_t ms);
+void tcc_delay_enable(TimerId id);
