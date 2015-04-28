@@ -1,0 +1,12 @@
+[package]
+
+name = "usbdaemon_test"
+version = "0.0.1"
+authors = ["Jon McKay <jon@technical.io>"]
+
+[dependencies]
+unix_socket = "0.3.0"
+
+[[bin]]
+name = "usbdaemon_test"
+path = "usbdaemon_test.rs"
