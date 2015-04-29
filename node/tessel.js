@@ -36,6 +36,23 @@ function Port(name, socketPath) {
 
             if (!d) break;
             var byte = d[0];
+            if (byte == REPLY.ASYNC_UART_RX) {
+                // get the next byte which is the number of bytes
+                var rxNum = this.sock.read(1)[0];
+                var rxData = this.sock.read(rxNum);
+
+                // if rxNum is bad or if we don't have enough data, wait until next cycle
+                if (!rxNum || !rxData) {
+                    this.sock.unshift(rxNum);
+                    this.sock.unshift(d);
+                    continue;
+                }
+
+                if (this._uart) {
+                    this._uart.push(rxData.toString());
+                }
+                continue;
+            }
 
             if (byte >= REPLY.MIN_ASYNC) {
                 if (byte >= REPLY.ASYNC_PIN_CHANGE_N && byte < REPLY.ASYNC_PIN_CHANGE_N+8) {
@@ -67,7 +84,8 @@ function Port(name, socketPath) {
                 }
                 data = this.sock.read(data_size);
                 if (!data) {
-                    this.sock.unshift(data);
+                    // if there's a partial reply, 
+                    // wait until we get the full data
                     this.sock.unshift(d);
                     break;
                 }
@@ -184,16 +202,25 @@ Port.prototype._txrx = function(buf, cb) {
 }
 
 Port.prototype.I2C = function (addr, mode) {
-    params = {addr: addr, mode:mode};
-    return new I2C(params, this);
+    if (!this._i2c) {
+        params = {addr: addr, mode:mode};
+        this._i2c = new I2C(params, this);
+    }
+    return this._i2c;
 };
 
 Port.prototype.SPI = function (format) {
-    return new SPI(format == null ? {} : format, this);
+    if (!this._spi) {
+        this._spi = new SPI(format == null ? {} : format, this);
+    }
+    return this._spi;
 };
 
 Port.prototype.UART = function (format) {
-    return new UART(this);
+    if (!this._uart) {
+        this._uart = new UART(this, format || {});
+    }
+    return this._uart;
 };
 
 function Pin (pin, port, interruptSupported) {
@@ -427,8 +454,43 @@ SPI.prototype.transfer = function(data, callback) {
     this._port.uncork();
 }
 
-function UART(port) {
-    throw new Error("Unimplemented")
+function UART(port, options) {
+    Duplex.call(this, {});
+
+    this._port = port;
+    
+    // baud is given by the following:
+    // baud = 65536*(1-(samples_per_bit)*(f_wanted/f_ref))
+    // samples_per_bit = 16, 8, or 3
+    // f_ref = 48e6
+    this._baudrate = options.baudrate || 9600;
+    // make sure baudrate is in between 9600 and 115200
+    if (this._baudrate < 9600 || this._baudrate > 115200) {
+        throw new Error("UART baudrate must be between 9600 and 115200");
+    }
+    this._baud = Math.floor(65536*(1-16*(this._baudrate/48e6)));
+
+    // split _baud up into two bytes & send
+    this._port._simple_cmd([CMD.ENABLE_UART, this._baud >> 8, this._baud & 0xFF]);
+
+    this.enabled = true;
+}
+
+util.inherits(UART, Duplex);
+
+UART.prototype._write = function(chunk, encoding, cb) {
+    // throw an error if not enabled
+    if (!this.enabled) {
+        throw new Error("UART is not enabled on this port");
+    }
+    this._port._tx(chunk, cb);
+}
+
+UART.prototype._read = function() {}
+
+UART.prototype.disable = function() {
+    this._port._simple_cmd([CMD.DISABLE_UART, 0, 0]);
+    this.enabled = false;
 }
 
 var CMD = {
@@ -463,7 +525,8 @@ var REPLY = {
     DATA: 0x84,
 
     MIN_ASYNC: 0xA0,
-    ASYNC_PIN_CHANGE_N: 0xC0,
+    ASYNC_PIN_CHANGE_N: 0xC0, // c0 to c8 is all async pin assignments
+    ASYNC_UART_RX: 0xD0
 };
 
 var SPISettings = {

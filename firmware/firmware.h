@@ -37,6 +37,11 @@
 /// Timer allocation
 #define TC_TERMINAL_TIMEOUT 3
 
+// TCC allocation
+// muxed with i2c. also used for uart read timers
+#define TCC_PORT_A 2 // PA12, PA13
+#define TCC_PORT_B 0 // PA08, PA09
+
 // GCLK channel allocation
 #define GCLK_SYSTEM 0
 #define GCLK_32K    2
@@ -90,6 +95,16 @@ void bridge_close_3();
 
 // port.c
 
+#define UART_MS_TIMEOUT 10 // send uart data after ms timeout even if buffer is not full
+#define UART_RX_SIZE 32
+
+typedef struct UartBuf {
+    u8 head;
+    u8 tail;
+    u8 buf_len;
+    u8 rx[UART_RX_SIZE];
+} UartBuf;
+
 typedef struct PortData {
     u8 chan;
     const TesselPort* port;
@@ -109,18 +124,26 @@ typedef struct PortData {
     u8 arg_pos;
     u8 len;
     u8 clock_channel;
+    u8 tcc_channel;
     bool pending_out;
     bool pending_in;
+    UartBuf uart_buf;
 } PortData;
 
-void port_init(PortData* p, u8 chan, const TesselPort* port, u8 clock_channel, DmaChan dma_tx, DmaChan dma_rx);
+extern PortData port_a;
+extern PortData port_b;
+
+void port_init(PortData* p, u8 chan, const TesselPort* port,
+    u8 clock_channel, u8 tcc_channel, DmaChan dma_tx, DmaChan dma_rx);
 void port_enable(PortData *p);
 void port_bridge_out_completion(PortData* p, u8 len);
 void port_bridge_in_completion(PortData* p);
 void port_dma_rx_completion(PortData* p);
+void port_dma_tx_completion(PortData* p);
 void bridge_handle_sercom_uart_i2c(PortData* p);
 void port_handle_extint(PortData *p, u32 flags);
 void port_disable(PortData *p);
+void uart_send_data(PortData *p);
 
 // usbpipe.c
 

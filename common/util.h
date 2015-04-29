@@ -21,6 +21,9 @@ typedef struct Pin {
 #define TC_HANDLER_(ID) TC ## ID ## _Handler()
 #define TC_HANDLER(ID) TC_HANDLER_(ID)
 
+#define TCC_HANDLER_(ID) TCC ## ID ## _Handler()
+#define TCC_HANDLER(ID) TCC_HANDLER_(ID)
+
 inline static void invalid() {
     __asm__("bkpt");
 }
