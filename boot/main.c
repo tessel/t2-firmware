@@ -77,28 +77,16 @@ unsigned led_next_time = 0;
 void led_task() {
 	if (g_msTicks > led_next_time) {
 		led_next_time += 400;
-		pin_toggle(PIN_LED);
+		pin_toggle(PIN_LED[0]);
 	}
 }
 
 void bootloader_main() {
-	if (PM->RCAUSE.reg & PM_RCAUSE_POR) {
-		// On powerup, force a clean reset of the MT7620
-		pin_low(PIN_SOC_RST);
-		pin_out(PIN_SOC_RST);
-	}
-
 	clock_init_usb();
 	init_systick();
 	nvm_init();
 
-	pin_low(PORT_A.power);
-	pin_out(PORT_A.power);
-
-	pin_low(PORT_B.power);
-	pin_out(PORT_B.power);
-
-	pin_out(PIN_LED);
+	pin_out(PIN_LED[0]);
 
 	__enable_irq();
 
@@ -132,8 +120,7 @@ bool flash_valid() {
 }
 
 bool button_pressed() {
-	pin_in(PIN_BTN);
-	return !pin_read(PIN_BTN);
+	return true;
 }
 
 int main() {

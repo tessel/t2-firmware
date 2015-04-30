@@ -84,7 +84,9 @@ void port_init(PortData* p, u8 chan, const TesselPort* port,
 }
 
 void port_enable(PortData* p) {
-    bridge_start_out(p->chan, p->cmd_buf);
+    usb_enable_ep(USB_EP_PORT_OUT, USB_EP_TYPE_BULK, 64);
+    usb_enable_ep(USB_EP_PORT_IN, USB_EP_TYPE_BULK, 64);
+    usb_ep_start_out(USB_EP_PORT_OUT, p->cmd_buf, BRIDGE_BUF_SIZE);
     p->pending_in = false;
     p->pending_out = true;
     p->cmd_len = 0;
@@ -500,14 +502,14 @@ void port_step(PortData* p) {
         // If the command buffer has been processed, request a new one
         if (p->cmd_pos >= p->cmd_len && !p->pending_out && !(p->state == PORT_EXEC_ASYNC && port_tx_locked(p))) {
             p->pending_out = true;
-            bridge_start_out(p->chan, p->cmd_buf);
+            usb_ep_start_out(USB_EP_PORT_OUT, p->cmd_buf, BRIDGE_BUF_SIZE);
         }
         // If the reply buffer is full, flush it.
         // Or, if there is any data and no commands, might as well flush.
         if ((p->reply_len >= BRIDGE_BUF_SIZE || (p->pending_out && p->reply_len > 0))
            && !p->pending_in && !(p->state == PORT_EXEC_ASYNC && port_rx_locked(p))) {
             p->pending_in = true;
-            bridge_start_in(p->chan, p->reply_buf, p->reply_len);
+            usb_ep_start_in(USB_EP_PORT_IN, p->reply_buf, p->reply_len, true);
         }
 
         // Wait for bridge transfers to complete;

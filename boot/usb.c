@@ -23,8 +23,8 @@ const USB_DeviceDescriptor device_descriptor = {
 	.bDeviceProtocol        = USB_CSCP_NoDeviceProtocol,
 
 	.bMaxPacketSize0        = 64,
-	.idVendor               = 0x1d50,
-	.idProduct              = 0x6097,
+	.idVendor               = 0x59e3,
+	.idProduct              = 0x5555,
 	.bcdDevice              = 0x0002,
 
 	.iManufacturer          = 0x01,
@@ -141,10 +141,10 @@ uint16_t usb_cb_get_descriptor(uint8_t type, uint8_t index, const uint8_t** ptr)
 					address = &language_string;
 					break;
 				case 0x01:
-					address = usb_string_to_descriptor("Technical Machine");
+					address = usb_string_to_descriptor("Signalspec");
 					break;
 				case 0x02:
-					address = usb_string_to_descriptor("Tessel DFU");
+					address = usb_string_to_descriptor("Starfish DFU");
 					break;
 				case 0x03:
 					address = samd_serial_number_string_descriptor();

@@ -4,14 +4,16 @@ import usb.core
 REQ_PWR  = 0x10
 
 pins = {
-    'rst': 0x0,
-    'soc': 0x1,
     'a': 0x10,
     'b': 0x11,
-    'led': 0x20,
+    'r': 0x12,
+    'lr': 0x20,
+    'lg': 0x21,
+    'lb': 0x22,
+    'dac': 0xd0,
 }
 
-dev = usb.core.find(idVendor=0x9999, idProduct=0xffff)
+dev = usb.core.find(idVendor=0x59e3, idProduct=0x5555)
 if dev is None:
     raise ValueError('device is not connected')
 

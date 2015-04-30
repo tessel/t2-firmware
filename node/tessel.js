@@ -2,6 +2,67 @@ var util = require('util');
 var EventEmitter = require('events').EventEmitter;
 var Duplex = require('stream').Duplex;
 var net = require('net');
+var usb = require('usb');
+
+function UsbStream(epIn, epOut) {
+    Duplex.call(this);
+    this.corked = true;
+    this.outBuf = new Buffer(0);
+    this.setEp(epIn, epOut)
+}
+util.inherits(UsbStream, Duplex);
+
+UsbStream.prototype.setEp = function (epIn, epOut) {
+    this.epIn = epIn;
+    this.epOut = epOut;
+
+    if (this.epIn && this.epOut) {
+        this._read();
+        this.uncork();
+    } else {
+        this.cork();
+    }
+}
+
+UsbStream.prototype._read = function() {
+    if (!this.epIn) return;
+
+    var self = this;
+    self.epIn.transfer(4096, function(err, data) {
+        if (err) {
+            self.emit('error', err);
+        } else {
+            self.push(data);
+        }
+    });
+}
+
+UsbStream.prototype._write = function(chunk, encoding, callback) {
+    this.outBuf = Buffer.concat([this.outBuf, chunk])
+
+    if (!this.corked && this.epOut) {
+        this._doWrite(callback)
+    } else {
+        callback()
+    }
+}
+
+UsbStream.prototype._doWrite = function(callback) {
+    if (!this.epOut) return;
+    if (this.outBuf.length) {
+        this.epOut.transfer(this.outBuf, callback);
+        this.outBuf = new Buffer(0);
+    }
+}
+
+UsbStream.prototype.cork = function() {
+    this.corked = true;
+}
+
+UsbStream.prototype.uncork = function() {
+    this.corked = false;
+    this._doWrite();
+}
 
 function Tessel() {
     if (Tessel.instance) {
@@ -9,18 +70,39 @@ function Tessel() {
     } else {
         Tessel.instance = this;
     }
-    this.ports = {
-        A: new Port('A', '/var/run/tessel/port_a'),
-        B: new Port('B', '/var/run/tessel/port_b')
-    };
+
+    var self = this;
+
+    this.usb = usb.findByIds(0x59e3, 0x5555);
+    if (!this.usb) throw new Error("Device not found");
+
+    this.usb.open()
+
+    self.intf = self.usb.interface(0);
+    try {
+        self.intf.claim();
+    } catch (e) {
+        if (e.message === 'LIBUSB_ERROR_BUSY') {
+            e = "Device is in use by another process";
+        }
+        return next(e);
+    }
+
+    this.stream = new UsbStream();
+
+    self.intf.setAltSetting(1, function(error) {
+        console.log("setAltSetting", error)
+        if (error) throw error;
+        self.stream.setEp(self.intf.endpoints[0], self.intf.endpoints[1]);
+    });
+
+    this.ports = {'A': new Port('A', self.stream)};
     this.port = this.ports;
 }
 
-function Port(name, socketPath) {
+function Port(name, sock) {
     // Connection to the SPI daemon
-    this.sock = net.createConnection({path: socketPath}, function(e) {
-        if (e) { throw e; }
-    });
+    this.sock = sock;
 
     this.sock.on('error', function(e) {
         console.log('sock err', e)
@@ -30,15 +112,19 @@ function Port(name, socketPath) {
         throw new Error("Port socket closed");
     })
 
+    this.partialCmd = null;
+
     this.sock.on('readable', function() {
         while (true) {
-            var d = this.sock.read(1);
+            var d = this.partialCmd || this.sock.read(1);
+            this.partialCmd = null;
 
             if (!d) break;
             var byte = d[0];
             if (byte == REPLY.ASYNC_UART_RX) {
                 // get the next byte which is the number of bytes
                 var rxNum = this.sock.read(1)[0];
+                console.log('rxnum', rxnum)
                 var rxData = this.sock.read(rxNum);
 
                 // if rxNum is bad or if we don't have enough data, wait until next cycle
@@ -84,9 +170,9 @@ function Port(name, socketPath) {
                 }
                 data = this.sock.read(data_size);
                 if (!data) {
-                    // if there's a partial reply, 
+                    // if there's a partial reply,
                     // wait until we get the full data
-                    this.sock.unshift(d);
+                    this.partialCmd = d;
                     break;
                 }
             }
@@ -336,7 +422,7 @@ function I2C(params, port) {
         // restrict to between 400khz and 90khz. can actually go up to 4mhz without clk modification
         throw new Error('I2C frequency should be between 400khz and 90khz');
     }
-    // enable i2c 
+    // enable i2c
     this._port._simple_cmd([CMD.ENABLE_I2C, this._baud]);
 }
 
@@ -405,7 +491,7 @@ function SPI(params, port) {
 
         // if the speed is still too low, set the clock divider to max and set baud accordingly
         if (this._clockDiv > 255) {
-            this.clockReg = Math.floor(this.clockReg/255) || 1; 
+            this.clockReg = Math.floor(this.clockReg/255) || 1;
             this._clockDiv = 255;
         } else {
             // if we can set a clock divider <255, max out clockReg
@@ -414,7 +500,7 @@ function SPI(params, port) {
     } else {
         this._clockDiv = 1;
     }
-    
+
     if (typeof params.dataMode == 'number') {
         params.cpol = params.dataMode & 0x1;
         params.cpha = params.dataMode & 0x2;
@@ -458,7 +544,7 @@ function UART(port, options) {
     Duplex.call(this, {});
 
     this._port = port;
-    
+
     // baud is given by the following:
     // baud = 65536*(1-(samples_per_bit)*(f_wanted/f_ref))
     // samples_per_bit = 16, 8, or 3

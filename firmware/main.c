@@ -1,16 +1,9 @@
 #include "firmware.h"
 
 PortData port_a;
-PortData port_b;
 
 int main(void) {
-    if (PM->RCAUSE.reg & PM_RCAUSE_POR) {
-        // On powerup, force a clean reset of the MT7620
-        pin_low(PIN_SOC_RST);
-        pin_out(PIN_SOC_RST);
-    }
-
-    clock_init_crystal();
+    clock_init_usb();
 
     pin_mux(PIN_USB_DM);
     pin_mux(PIN_USB_DP);
@@ -18,25 +11,29 @@ int main(void) {
     usb_attach();
     NVIC_SetPriority(USB_IRQn, 0xff);
 
-    pin_high(PIN_LED);
-    pin_out(PIN_LED);
+    for (int i = 0; i<3; i++) {
+        pin_high(PIN_LED[i]);
+        pin_out(PIN_LED[i]);
+    }
 
-    pin_in(PIN_SOC_RST);
+    pin_high(PIN_EN_A);
+    pin_high(PIN_EN_B);
+    pin_low(PIN_EN_REG);
+    pin_out(PIN_EN_A);
+    pin_out(PIN_EN_B);
+    pin_out(PIN_EN_REG);
 
-    pin_high(PIN_SOC_PWR);
-    pin_out(PIN_SOC_PWR);
+    pin_mux(PIN_ADC_P);
+    pin_mux(PIN_ADC_U);
+    pin_mux(PIN_DAC);
 
-    pin_low(PORT_A.power);
-    pin_out(PORT_A.power);
+    PM->APBCMASK.reg |= PM_APBCMASK_DAC | PM_APBCMASK_ADC;
+    GCLK->CLKCTRL.reg = GCLK_CLKCTRL_CLKEN | GCLK_CLKCTRL_GEN(GCLK_32K) | GCLK_CLKCTRL_ID(DAC_GCLK_ID);
+    GCLK->CLKCTRL.reg = GCLK_CLKCTRL_CLKEN | GCLK_CLKCTRL_GEN(GCLK_SYSTEM) | GCLK_CLKCTRL_ID(ADC_GCLK_ID);
 
-    pin_low(PORT_B.power);
-    pin_out(PORT_B.power);
-
-    pin_pull_up(PIN_BRIDGE_CS);
-    pin_pull_up(PIN_FLASH_CS);
-
-    pin_pull_up(PIN_SERIAL_TX);
-    pin_pull_up(PIN_SERIAL_RX);
+    DAC->CTRLB.reg = DAC_CTRLB_EOEN | DAC_CTRLB_REFSEL_AVCC;
+    DAC->DATA.reg = 380; // 3.3V
+    DAC->CTRLA.reg = DAC_CTRLA_ENABLE;
 
     dma_init();
     NVIC_EnableIRQ(DMAC_IRQn);
@@ -50,13 +47,8 @@ int main(void) {
     NVIC_EnableIRQ(EVSYS_IRQn);
     NVIC_SetPriority(EVSYS_IRQn, 0);
 
-    bridge_init();
-    usbpipe_init();
-
-    port_init(&port_a, 1, &PORT_A, GCLK_PORT_A, 
+    port_init(&port_a, 1, &PORT_A, GCLK_PORT_A,
         TCC_PORT_A, DMA_PORT_A_TX, DMA_PORT_A_RX);
-    port_init(&port_b, 2, &PORT_B, GCLK_PORT_B, 
-        TCC_PORT_B, DMA_PORT_B_TX, DMA_PORT_B_RX);
 
     __enable_irq();
     SCB->SCR |= SCB_SCR_SLEEPONEXIT_Msk;
@@ -68,21 +60,10 @@ void DMAC_Handler() {
     if (intpend & DMAC_INTPEND_TCMPL) {
         u32 id = intpend & DMAC_INTPEND_ID_Msk;
 
-        if (id == DMA_BRIDGE_RX) {
-            bridge_dma_rx_completion();
-            flash_dma_rx_completion();
-        } else if (id == DMA_PORT_A_TX) {
+        if (id == DMA_PORT_A_TX) {
             port_dma_tx_completion(&port_a);
-        } else if (id == DMA_PORT_B_TX) {
-            port_dma_tx_completion(&port_b);
         } else if (id == DMA_PORT_A_RX) {
             port_dma_rx_completion(&port_a);
-        } else if (id == DMA_PORT_B_RX) {
-            port_dma_rx_completion(&port_b);
-        } else if (id == DMA_TERMINAL_RX) {
-            usbserial_dma_rx_completion();
-        } else if (id == DMA_TERMINAL_TX) {
-            usbserial_dma_tx_completion();
         }
     }
 
@@ -97,65 +78,11 @@ void EIC_Handler() {
     u32 flags = EIC->INTFLAG.reg;
     if (flags & PORT_A.pin_interrupts) {
         port_handle_extint(&port_a, flags);
-    } else if (flags & PORT_B.pin_interrupts) {
-        port_handle_extint(&port_b, flags);
     }
 }
 
-void EVSYS_Handler() {
-    if (EVSYS->INTFLAG.reg & EVSYS_EVD(EVSYS_BRIDGE_SYNC)) {
-        EVSYS->INTFLAG.reg = EVSYS_EVD(EVSYS_BRIDGE_SYNC);
-        bridge_handle_sync();
-    } else {
-        invalid();
-    }
-}
-
-void SERCOM_HANDLER(SERCOM_PORT_A_UART_I2C) {
+void SERCOM_HANDLER(SERCOM_PORT_A_I2C) {
     bridge_handle_sercom_uart_i2c(&port_a);
-}
-
-void SERCOM_HANDLER(SERCOM_PORT_B_UART_I2C) {
-    bridge_handle_sercom_uart_i2c(&port_b);
-}
-
-void bridge_open_0() {}
-void bridge_completion_out_0(u8 count) {
-    pipe_bridge_out_completion(count);
-}
-void bridge_completion_in_0() {
-    pipe_bridge_in_completion();
-}
-void bridge_close_0() {}
-
-void bridge_open_1() {
-    port_enable(&port_a);
-}
-void bridge_completion_out_1(u8 count) {
-    port_bridge_out_completion(&port_a, count);
-}
-void bridge_completion_in_1() {
-    port_bridge_in_completion(&port_a);
-}
-void bridge_close_1() {
-    port_disable(&port_a);
-}
-
-void bridge_open_2() {
-    port_enable(&port_b);
-}
-void bridge_completion_out_2(u8 count) {
-    port_bridge_out_completion(&port_b, count);
-}
-void bridge_completion_in_2() {
-    port_bridge_in_completion(&port_b);
-}
-void bridge_close_2() {
-    port_disable(&port_b);
-}
-
-void TC_HANDLER(TC_TERMINAL_TIMEOUT) {
-    usbserial_handle_tc();
 }
 
 void TCC_HANDLER(TCC_PORT_A) {
@@ -163,11 +90,4 @@ void TCC_HANDLER(TCC_PORT_A) {
 
     // clear irq
     tcc(TCC_PORT_A)->INTFLAG.reg = TCC_INTENSET_OVF;
-}
-
-void TCC_HANDLER(TCC_PORT_B) {
-    uart_send_data(&port_b);
-
-    // clear irq
-    tcc(TCC_PORT_B)->INTFLAG.reg = TCC_INTENSET_OVF;
 }

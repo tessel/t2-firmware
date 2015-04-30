@@ -14,8 +14,8 @@ __attribute__((__aligned__(4))) const USB_DeviceDescriptor device_descriptor = {
 	.bDeviceProtocol        = USB_CSCP_NoDeviceProtocol,
 
 	.bMaxPacketSize0        = 64,
-	.idVendor               = 0x9999,
-	.idProduct              = 0xFFFF,
+	.idVendor               = 0x59e3,
+	.idProduct              = 0x5555,
 	.bcdDevice              = 0x0110,
 
 	.iManufacturer          = 0x01,
@@ -28,33 +28,16 @@ __attribute__((__aligned__(4))) const USB_DeviceDescriptor device_descriptor = {
 uint16_t altsetting = 0;
 
 #define INTERFACE_VENDOR 0
-	#define ALTSETTING_FLASH 1
-	#define ALTSETTING_PIPE 2
-#define INTERFACE_CDC_CONTROL 1
-#define INTERFACE_CDC_DATA 2
+	#define ALTSETTING_PORT 1
 
 typedef struct ConfigDesc {
 	USB_ConfigurationDescriptor Config;
 	USB_InterfaceDescriptor OffInterface;
 
-	USB_InterfaceDescriptor FlashInterface;
-	USB_EndpointDescriptor FlashInEndpoint;
-	USB_EndpointDescriptor FlashOutEndpoint;
+	USB_InterfaceDescriptor PortInterface;
+	USB_EndpointDescriptor PortInEndpoint;
+	USB_EndpointDescriptor PortOutEndpoint;
 
-	USB_InterfaceDescriptor PipeInterface;
-	USB_EndpointDescriptor PipeInEndpoint;
-	USB_EndpointDescriptor PipeOutEndpoint;
-
-	USB_InterfaceDescriptor CDC_control_interface;
-
-	CDC_FunctionalHeaderDescriptor CDC_functional_header;
-	CDC_FunctionalACMDescriptor CDC_functional_ACM;
-	CDC_FunctionalUnionDescriptor CDC_functional_union;
-	USB_EndpointDescriptor CDC_notification_endpoint;
-
-	USB_InterfaceDescriptor CDC_data_interface;
-	USB_EndpointDescriptor CDC_out_endpoint;
-	USB_EndpointDescriptor CDC_in_endpoint;
 }  __attribute__((packed)) ConfigDesc;
 
 __attribute__((__aligned__(4))) const ConfigDesc configuration_descriptor = {
@@ -79,124 +62,32 @@ __attribute__((__aligned__(4))) const ConfigDesc configuration_descriptor = {
 		.bInterfaceProtocol = 0x00,
 		.iInterface = 0,
 	},
-	.FlashInterface = {
+	.PortInterface = {
 		.bLength = sizeof(USB_InterfaceDescriptor),
 		.bDescriptorType = USB_DTYPE_Interface,
 		.bInterfaceNumber = 0,
-		.bAlternateSetting = ALTSETTING_FLASH,
+		.bAlternateSetting = ALTSETTING_PORT,
 		.bNumEndpoints = 2,
 		.bInterfaceClass = USB_CSCP_VendorSpecificClass,
 		.bInterfaceSubClass = 0x00,
 		.bInterfaceProtocol = 0x00,
 		.iInterface = 0,
 	},
-	.FlashInEndpoint = {
+	.PortInEndpoint = {
 		.bLength = sizeof(USB_EndpointDescriptor),
 		.bDescriptorType = USB_DTYPE_Endpoint,
-		.bEndpointAddress = USB_EP_FLASH_IN,
+		.bEndpointAddress = USB_EP_PORT_IN,
 		.bmAttributes = (USB_EP_TYPE_BULK | ENDPOINT_ATTR_NO_SYNC | ENDPOINT_USAGE_DATA),
 		.wMaxPacketSize = 64,
 		.bInterval = 0x00
 	},
-	.FlashOutEndpoint = {
+	.PortOutEndpoint = {
 		.bLength = sizeof(USB_EndpointDescriptor),
 		.bDescriptorType = USB_DTYPE_Endpoint,
-		.bEndpointAddress = USB_EP_FLASH_OUT,
+		.bEndpointAddress = USB_EP_PORT_OUT,
 		.bmAttributes = (USB_EP_TYPE_BULK | ENDPOINT_ATTR_NO_SYNC | ENDPOINT_USAGE_DATA),
 		.wMaxPacketSize = 64,
 		.bInterval = 0x00
-	},
-	.PipeInterface = {
-		.bLength = sizeof(USB_InterfaceDescriptor),
-		.bDescriptorType = USB_DTYPE_Interface,
-		.bInterfaceNumber = 0,
-		.bAlternateSetting = ALTSETTING_PIPE,
-		.bNumEndpoints = 2,
-		.bInterfaceClass = USB_CSCP_VendorSpecificClass,
-		.bInterfaceSubClass = 0x00,
-		.bInterfaceProtocol = 0x00,
-		.iInterface = 0,
-	},
-	.PipeInEndpoint = {
-		.bLength = sizeof(USB_EndpointDescriptor),
-		.bDescriptorType = USB_DTYPE_Endpoint,
-		.bEndpointAddress = USB_EP_PIPE_IN,
-		.bmAttributes = (USB_EP_TYPE_BULK | ENDPOINT_ATTR_NO_SYNC | ENDPOINT_USAGE_DATA),
-		.wMaxPacketSize = 64,
-		.bInterval = 0x00
-	},
-	.PipeOutEndpoint = {
-		.bLength = sizeof(USB_EndpointDescriptor),
-		.bDescriptorType = USB_DTYPE_Endpoint,
-		.bEndpointAddress = USB_EP_PIPE_OUT,
-		.bmAttributes = (USB_EP_TYPE_BULK | ENDPOINT_ATTR_NO_SYNC | ENDPOINT_USAGE_DATA),
-		.wMaxPacketSize = 64,
-		.bInterval = 0x00
-	},
-	.CDC_control_interface = {
-		.bLength = sizeof(USB_InterfaceDescriptor),
-		.bDescriptorType = USB_DTYPE_Interface,
-		.bInterfaceNumber = INTERFACE_CDC_CONTROL,
-		.bAlternateSetting = 0,
-		.bNumEndpoints = 1,
-		.bInterfaceClass = CDC_INTERFACE_CLASS,
-		.bInterfaceSubClass = CDC_INTERFACE_SUBCLASS_ACM,
-		.bInterfaceProtocol = 0,
-		.iInterface = 0,
-	},
-	.CDC_functional_header = {
-		.bLength = sizeof(CDC_FunctionalHeaderDescriptor),
-		.bDescriptorType = USB_DTYPE_CSInterface,
-		.bDescriptorSubtype = CDC_SUBTYPE_HEADER,
-		.bcdCDC = 0x0110,
-	},
-	.CDC_functional_ACM = {
-		.bLength = sizeof(CDC_FunctionalACMDescriptor),
-		.bDescriptorType = USB_DTYPE_CSInterface,
-		.bDescriptorSubtype = CDC_SUBTYPE_ACM,
-		.bmCapabilities = 0x00,
-	},
-	.CDC_functional_union = {
-		.bLength = sizeof(CDC_FunctionalUnionDescriptor),
-		.bDescriptorType = USB_DTYPE_CSInterface,
-		.bDescriptorSubtype = CDC_SUBTYPE_UNION,
-		.bMasterInterface = INTERFACE_CDC_CONTROL,
-		.bSlaveInterface = INTERFACE_CDC_DATA,
-	},
-	.CDC_notification_endpoint = {
-		.bLength = sizeof(USB_EndpointDescriptor),
-		.bDescriptorType = USB_DTYPE_Endpoint,
-		.bEndpointAddress = USB_EP_CDC_NOTIFICATION,
-		.bmAttributes = (USB_EP_TYPE_INTERRUPT | ENDPOINT_ATTR_NO_SYNC | ENDPOINT_USAGE_DATA),
-		.wMaxPacketSize = 8,
-		.bInterval = 0xFF
-	},
-	.CDC_data_interface = {
-		.bLength = sizeof(USB_InterfaceDescriptor),
-		.bDescriptorType = USB_DTYPE_Interface,
-		.bInterfaceNumber = INTERFACE_CDC_DATA,
-		.bAlternateSetting = 0,
-		.bNumEndpoints = 2,
-		.bInterfaceClass = CDC_INTERFACE_CLASS_DATA,
-		.bInterfaceSubClass = 0,
-		.bInterfaceProtocol = 0,
-		.iInterface = 0,
-	},
-	.CDC_out_endpoint = {
-		.bLength = sizeof(USB_EndpointDescriptor),
-		.bDescriptorType = USB_DTYPE_Endpoint,
-		.bEndpointAddress = USB_EP_CDC_OUT,
-		.bmAttributes = (USB_EP_TYPE_BULK | ENDPOINT_ATTR_NO_SYNC | ENDPOINT_USAGE_DATA),
-		.wMaxPacketSize = 64,
-		.bInterval = 0x05
-	},
-	.CDC_in_endpoint = {
-		.bLength = sizeof(USB_EndpointDescriptor),
-		.bDescriptorType = USB_DTYPE_Endpoint,
-		.bEndpointAddress = USB_EP_CDC_IN,
-		.bmAttributes = (USB_EP_TYPE_BULK | ENDPOINT_ATTR_NO_SYNC | ENDPOINT_USAGE_DATA),
-		.wMaxPacketSize = 64,
-		.bInterval = 0x05
 	},
 };
 
@@ -248,10 +139,10 @@ uint16_t usb_cb_get_descriptor(uint8_t type, uint8_t index, const uint8_t** ptr)
 					address = &language_string;
 					break;
 				case 0x01:
-					address = usb_string_to_descriptor("Technical Machine");
+					address = usb_string_to_descriptor("Signalspec");
 					break;
 				case 0x02:
-					address = usb_string_to_descriptor("Tessel 2");
+					address = usb_string_to_descriptor("Starfish");
 					break;
 				case 0x03:
 					address = samd_serial_number_string_descriptor();
@@ -273,36 +164,42 @@ void usb_cb_reset(void) {
 
 bool usb_cb_set_configuration(uint8_t config) {
 	if (config <= 1) {
-		usbserial_init();
 		return true;
 	}
 	return false;
 }
 
 #define REQ_PWR 0x10
-#define REQ_PWR_RST 0x0
-#define REQ_PWR_SOC 0x1
-#define REQ_PWR_PORT_A 0x10
-#define REQ_PWR_PORT_B 0x11
-#define REQ_PWR_LED 0x20
+#define REQ_PWR_EN_A 0x10
+#define REQ_PWR_EN_B 0x11
+#define REQ_PWR_EN_REG 0x12
+#define REQ_PWR_LED_R 0x20
+#define REQ_PWR_LED_G 0x21
+#define REQ_PWR_LED_B 0x22
+#define REQ_PWR_DAC 0xd0
 
 void req_gpio(uint16_t wIndex, uint16_t wValue) {
 	switch (wIndex) {
-		case REQ_PWR_RST:
-			pin_low(PIN_SOC_RST);
-			pin_dir(PIN_SOC_RST, !wValue);
+		case REQ_PWR_EN_A:
+			pin_set(PIN_EN_A, wValue);
 			break;
-		case REQ_PWR_SOC:
-			pin_set(PIN_SOC_PWR, wValue);
+		case REQ_PWR_EN_B:
+			pin_set(PIN_EN_B, wValue);
 			break;
-		case REQ_PWR_PORT_A:
-			pin_set(PORT_A.power, wValue);
+		case REQ_PWR_EN_REG:
+			pin_set(PIN_EN_REG, wValue);
 			break;
-		case REQ_PWR_PORT_B:
-			pin_set(PORT_B.power, wValue);
+		case REQ_PWR_LED_R:
+			pin_set(PIN_LED[0], wValue);
 			break;
-		case REQ_PWR_LED:
-			pin_set(PIN_LED, wValue);
+		case REQ_PWR_LED_G:
+			pin_set(PIN_LED[1], wValue);
+			break;
+		case REQ_PWR_LED_B:
+			pin_set(PIN_LED[2], wValue);
+			break;
+		case REQ_PWR_DAC:
+			DAC->DATA.reg = wValue;
 			break;
 		default:
 			return usb_ep0_stall();
@@ -331,37 +228,17 @@ void usb_cb_control_out_completion(void) {
 }
 
 void usb_cb_completion(void) {
-	if (altsetting == ALTSETTING_FLASH) {
-		if (usb_ep_pending(USB_EP_FLASH_OUT)) {
-			flash_usb_out_completion();
-			usb_ep_handled(USB_EP_FLASH_OUT);
-		}
+	if (altsetting == ALTSETTING_PORT) {
+        if (usb_ep_pending(USB_EP_PORT_OUT)) {
+			port_bridge_out_completion(&port_a, usb_ep_out_length(USB_EP_PORT_OUT));
+            usb_ep_handled(USB_EP_PORT_OUT);
+        }
 
-		if (usb_ep_pending(USB_EP_FLASH_IN)) {
-			flash_usb_in_completion();
-			usb_ep_handled(USB_EP_FLASH_IN);
-		}
-	} else if (altsetting == ALTSETTING_PIPE) {
-		if (usb_ep_pending(USB_EP_PIPE_OUT)) {
-			pipe_usb_out_completion();
-			usb_ep_handled(USB_EP_PIPE_OUT);
-		}
-
-		if (usb_ep_pending(USB_EP_PIPE_IN)) {
-			pipe_usb_in_completion();
-			usb_ep_handled(USB_EP_PIPE_IN);
-		}
-	}
-
-	if (usb_ep_pending(USB_EP_CDC_OUT)) {
-		usbserial_out_completion();
-		usb_ep_handled(USB_EP_CDC_OUT);
-	}
-
-	if (usb_ep_pending(USB_EP_CDC_IN)) {
-		usbserial_in_completion();
-		usb_ep_handled(USB_EP_CDC_IN);
-	}
+        if (usb_ep_pending(USB_EP_PORT_IN)) {
+			port_bridge_in_completion(&port_a);
+            usb_ep_handled(USB_EP_PORT_IN);
+        }
+    }
 }
 
 bool usb_cb_set_interface(uint16_t interface, uint16_t new_altsetting) {
@@ -370,22 +247,10 @@ bool usb_cb_set_interface(uint16_t interface, uint16_t new_altsetting) {
 			return false;
 		}
 
-		if (altsetting == ALTSETTING_FLASH) {
-			flash_disable();
-		} else if (altsetting == ALTSETTING_PIPE) {
-			usbpipe_disable();
-		}
-
-		if (altsetting != ALTSETTING_FLASH && new_altsetting == ALTSETTING_FLASH) {
-			bridge_disable();
-		} else if (altsetting == ALTSETTING_FLASH && new_altsetting != ALTSETTING_FLASH) {
-			bridge_init();
-		}
-
-		if (new_altsetting == ALTSETTING_FLASH){
-			flash_init();
-		} else if (new_altsetting == ALTSETTING_PIPE) {
-			usbpipe_init();
+		if (new_altsetting == ALTSETTING_PORT) {
+			port_enable(&port_a);
+		} else {
+			port_disable(&port_a);
 		}
 
 		altsetting = new_altsetting;
