@@ -1,43 +1,40 @@
 #![feature(exit_status, path_ext)]
 
+
 use std::{io, fs};
 use std::io::prelude::*;
 use std::path::Path;
 use std::fs::PathExt as NewPathExt;
+
 extern crate unix_socket;
 use unix_socket::UnixStream;
+use unix_socket::UnixListener;
+
+use std::net::Shutdown;
 
 fn parse_op(s: &str) -> Option<u8> {
     if s == "_" {
         None
     } else {
         Some(match s {
-            "NOP" => 0,
-            "FLUSH" => 1,
-            "ECHO" => 2,
-            "GPIO_IN" => 3,
-            "GPIO_HIGH" => 4,
-            "GPIO_LOW" => 5,
-            "GPIO_TOGGLE" => 21,
-            "GPIO_CFG" => 6,
-            "GPIO_WAIT" => 7,
-            "GPIO_INT" => 8,
-            "ENABLE_SPI" => 10,
-            "DISABLE_SPI" => 11,
-            "ENABLE_I2C" => 12,
-            "DISABLE_I2C" => 13,
-            "ENABLE_UART" => 14,
-            "DISABLE_UART" => 15,
-            "TX" => 16,
-            "RX" => 17,
-            "TXRX" => 18,
-            "START" => 19,
-            "STOP" => 20,
-            "ACK" => 0x80,
-            "NACK" => 0x81,
-            "HIGH" => 0x82,
-            "LOW"  => 0x83,
-            "DATA" => 0x84,
+            "CMD_RESET" => 0x00,
+            "CMD_OPEN" => 0x01,
+            "CMD_CLOSE" => 0x02,
+            "CMD_KILL" => 0x03,
+            "CMD_EXIT_STATUS" => 0x05,
+            "CMD_CLOSE_ACK" => 0x06,
+            "CMD_WRITE_CONTROL" => 0x10,
+            "CMD_WRITE_STDIN" => 0x11,
+            "CMD_WRITE_STDOUT" => 0x12,
+            "CMD_WRITE_STDERR" => 0x13,
+            "CMD_ACK_CONTROL" => 0x20,
+            "CMD_ACK_STDIN" => 0x21,
+            "CMD_ACK_STDOUT" => 0x22,
+            "CMD_ACK_STDERR" => 0x23,
+            "CMD_CLOSE_CONTROL" => 0x30,
+            "CMD_CLOSE_STDIN" => 0x31,
+            "CMD_CLOSE_STDOUT" => 0x32,
+            "CMD_CLOSE_STDERR" => 0x33,
             s if s.starts_with("0x") => {
                 u8::from_str_radix(&s[2..], 16)
                     .unwrap_or_else(|_| panic!("Invalid literal: {:?}", s))
@@ -116,10 +113,18 @@ fn run_tests(sockpath: &Path, fname: &Path) -> io::Result<()> {
     let mut success = true;
     for file in &files {
         println!("Running: {:?}", file);
-        let mut sock = try!(UnixStream::connect(&sockpath));
+
+        let listener = try!(UnixListener::bind(&sockpath));
+        let mut sock = try!(listener.accept());
+
+        println!("Daemon connected...");
+
         let mut file = io::BufReader::new(try!(fs::File::open(file)));
+
         success &= run_test(&mut sock, &mut file);
-        drop(sock);
+
+        sock.shutdown(Shutdown::Both);
+
         std::thread::sleep_ms(100);
     }
 
@@ -128,8 +133,14 @@ fn run_tests(sockpath: &Path, fname: &Path) -> io::Result<()> {
 }
 
 fn main() {
+
     let args = std::env::args().collect::<Vec<_>>();
     let sockpath =  Path::new(&args[1]);
     let fname = Path::new(&args[2]);
+    println!("Starting test at socket path {:?}", sockpath);
+
     run_tests(sockpath, fname).unwrap();
+
+    println!("Done!" );
+    fs::remove_file(sockpath).unwrap();
 }

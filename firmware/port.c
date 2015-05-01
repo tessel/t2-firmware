@@ -50,6 +50,7 @@ typedef enum {
     REPLY_DATA = 0x84,
 
     REPLY_ASYNC_PIN_CHANGE_N = 0xC0, // 0xC0 + n
+    REPLY_ASYNC_UART_RX = 0xD0
 } PortReply;
 
 typedef enum PortMode {
@@ -68,19 +69,24 @@ typedef enum ExecStatus {
 void port_step(PortData* p);
 void port_enable_async_events(PortData *p);
 void port_disable_async_events(PortData *p);
+void uart_send_data(PortData *p);
 
 inline static bool port_pin_supports_interrupt(PortData* p, u8 i) {
     u8 extint = pin_extint(p->port->gpio[i]);
     return !!((1 << extint) & p->port->pin_interrupts);
 }
 
-void port_init(PortData* p, u8 chan, const TesselPort* port, DmaChan dma_tx, DmaChan dma_rx) {
+void port_init(PortData* p, u8 chan, const TesselPort* port,
+    u8 clock_channel, u8 tcc_channel, DmaChan dma_tx, DmaChan dma_rx) {
+    p->tcc_channel = tcc_channel;
     p->chan = chan;
     p->port = port;
     p->dma_tx = dma_tx;
     p->dma_rx = dma_rx;
-    sercom_clock_enable(p->port->spi);
-    sercom_clock_enable(p->port->uart_i2c);
+    p->clock_channel = clock_channel;
+
+    sercom_clock_enable(p->port->spi, p->clock_channel, 1);
+    sercom_clock_enable(p->port->uart_i2c, p->clock_channel, 1);
 }
 
 void port_enable(PortData* p) {
@@ -93,6 +99,7 @@ void port_enable(PortData* p) {
     p->state = PORT_READ_CMD;
     p->mode = MODE_NONE;
     NVIC_EnableIRQ(SERCOM0_IRQn + p->port->uart_i2c);
+    NVIC_EnableIRQ(TCC0_IRQn + p->tcc_channel);
 
     pin_high(p->port->power);
     for (int i = 0; i<8; i++) {
@@ -160,11 +167,11 @@ int port_cmd_args(PortCmd cmd) {
 
         // Config argument:
         case CMD_ENABLE_SPI:
-            // 1 byte for mode, 1 byte for freq
-            return 2;
+            // 1 byte for mode, 1 byte for freq, 1 byte for div
+            return 3;
         case CMD_ENABLE_I2C:
-            // 1 byte for freq, 1 byte for master/slave
-            return 2;
+            // 1 byte for freq
+            return 1;
         case CMD_ENABLE_UART:
             return 2; // 1 byte for baud, 1 byte for mode
         case CMD_START:
@@ -215,6 +222,34 @@ void port_exec_async_complete(PortData* p, ExecStatus s) {
     }
     p->state = s;
     port_step(p);
+}
+
+void uart_send_data(PortData *p){
+    if (p->uart_buf.buf_len > 0) {
+        // pad 2 bytes at the beginning
+        // 1st byte indicates uart rx
+        // 2nd byte indicates uart rx number.
+        // this also means rx number has to be <255
+        u8 count = p->uart_buf.buf_len;
+
+        if (count + 2 > BRIDGE_BUF_SIZE - p->reply_len) {
+            // Shouldn't have to worry about insufficient buffer space because the buffer is
+            // always flushed before enabling async events, but assert to be sure.
+            invalid();
+        }
+
+        p->reply_buf[p->reply_len++] = REPLY_ASYNC_UART_RX;
+        p->reply_buf[p->reply_len++] = count;
+
+        // copy data into reply buf
+        for (uint8_t i = 0; i < count; i++) {
+            p->reply_buf[p->reply_len++] = p->uart_buf.rx[p->uart_buf.tail];
+            p->uart_buf.tail = (p->uart_buf.tail + 1) % UART_RX_SIZE;
+        }
+
+        p->uart_buf.buf_len -= count;
+        port_step(p);
+    }
 }
 
 ExecStatus port_begin_cmd(PortData *p) {
@@ -281,6 +316,9 @@ ExecStatus port_begin_cmd(PortData *p) {
             return EXEC_DONE;
 
         case CMD_ENABLE_SPI:
+            // set up clock in case we need to use a divider
+            sercom_clock_enable(p->port->spi, p->clock_channel, p->arg[2]);
+            // can only do spi master
             sercom_spi_master_init(p->port->spi, p->port->spi_dipo, p->port->spi_dopo,
                 !!(p->arg[0] & FLAG_SPI_CPOL), !!(p->arg[0] & FLAG_SPI_CPHA), p->arg[1]);
             dma_sercom_configure_tx(p->dma_tx, p->port->spi);
@@ -301,7 +339,7 @@ ExecStatus port_begin_cmd(PortData *p) {
             return EXEC_DONE;
 
         case CMD_ENABLE_I2C:
-            sercom_i2c_master_init(p->port->uart_i2c);
+            sercom_i2c_master_init(p->port->uart_i2c, p->arg[0]);
             pin_mux(p->port->sda);
             pin_mux(p->port->scl);
             sercom(p->port->uart_i2c)->I2CM.INTENSET.reg = SERCOM_I2CM_INTENSET_SB | SERCOM_I2CM_INTENSET_MB;
@@ -325,9 +363,33 @@ ExecStatus port_begin_cmd(PortData *p) {
             return EXEC_DONE;
 
         case CMD_ENABLE_UART:
+            // set up uart
+            pin_mux(p->port->tx);
+            pin_mux(p->port->rx);
+            sercom_uart_init(p->port->uart_i2c, p->port->uart_dipo,
+                p->port->uart_dopo, (p->arg[0] << 8) + p->arg[1]); // 63019
+            dma_sercom_configure_tx(p->dma_tx, p->port->uart_i2c);
+            DMAC->CHINTENSET.reg = DMAC_CHINTENSET_TCMPL | DMAC_CHINTENSET_TERR;
+
+            p->mode = MODE_UART;
+
+            p->uart_buf.head = 0;
+            p->uart_buf.tail = 0;
+            p->uart_buf.buf_len = 0;
+            // set up interrupt on uart receive data complete
+            sercom(p->port->uart_i2c)->USART.INTENSET.reg = SERCOM_USART_INTFLAG_RXC;
+
+            // set up interrupt timer so that uart data will get written on timeout
+            tcc_delay_enable(p->tcc_channel);
+
             return EXEC_DONE;
 
         case CMD_DISABLE_UART:
+            p->mode = MODE_NONE;
+            sercom(p->port->uart_i2c)->USART.INTENCLR.reg = SERCOM_USART_INTFLAG_RXC;
+            tcc_delay_disable(p->tcc_channel);
+            pin_gpio(p->port->tx);
+            pin_gpio(p->port->rx);
             return EXEC_DONE;
     }
     invalid();
@@ -355,6 +417,13 @@ ExecStatus port_continue_cmd(PortData *p) {
                 sercom(p->port->uart_i2c)->I2CM.DATA.reg = p->cmd_buf[p->cmd_pos];
                 p->cmd_pos += 1;
                 p->arg[0] -= 1;
+            } else if (p->mode == MODE_UART) {
+                u32 size = port_tx_len(p);
+                // start dma transfer
+                // dma_sercom_start_rx(p->dma_rx, p->port->uart_i2c, NULL, size);
+                dma_sercom_start_tx(p->dma_tx, p->port->uart_i2c, &p->cmd_buf[p->cmd_pos], size);
+                p->cmd_pos += size;
+                p->arg[0] -= size;
             }
             return EXEC_ASYNC;
         case CMD_RX:
@@ -364,7 +433,7 @@ ExecStatus port_continue_cmd(PortData *p) {
                 dma_sercom_start_tx(p->dma_tx, p->port->spi, NULL, size);
                 p->reply_len += size;
                 p->arg[0] -= size;
-            } if (p->mode == MODE_I2C) {
+            } else if (p->mode == MODE_I2C) {
                 p->reply_buf[p->reply_len] = sercom(p->port->uart_i2c)->I2CM.DATA.reg;
                 sercom(p->port->uart_i2c)->I2CM.CTRLB.bit.ACKACT = 0;
                 sercom(p->port->uart_i2c)->I2CM.CTRLB.bit.CMD = 2;
@@ -386,16 +455,57 @@ ExecStatus port_continue_cmd(PortData *p) {
     return EXEC_DONE;
 }
 
+// Returns true if the TX buffer is in use in the PORT_EXEC_ASYNC state of the current command
+bool port_tx_locked(PortData* p) {
+    switch (p->cmd) {
+        case CMD_RX:
+            return false;
+        default:
+            return true;
+    }
+}
+
+// Returns true if the RX buffer is in use in the PORT_EXEC_ASYNC state of the current command
+bool port_rx_locked(PortData *p) {
+    switch (p->cmd) {
+        case CMD_TX:
+            return false;
+        default:
+            return true;
+    }
+}
+
 void port_enable_async_events(PortData *p) {
     EIC->INTENSET.reg = p->port->pin_interrupts;
+
+    // enable uart data getting copied
+    if (p->mode == MODE_UART) {
+        tcc(p->tcc_channel)->INTENSET.reg = TCC_INTENSET_OVF;
+    }
 }
 
 void port_disable_async_events(PortData *p) {
     EIC->INTENCLR.reg = p->port->pin_interrupts;
+
+    // disable uart data getting copied
+    if (p->mode == MODE_UART) {
+        tcc(p->tcc_channel)->INTENCLR.reg = TCC_INTENCLR_OVF;
+    }
+}
+
+inline bool port_async_events_allowed(PortData* p) {
+    if (!p->pending_in) {
+        if (p->state == PORT_READ_CMD) return true;
+
+        // TX doesn't touch reply_buf, so it is safe to process async events while it is sending.
+        // This is needed for UART loopback.
+        if (p->state == PORT_EXEC_ASYNC && !port_rx_locked(p)) return true;
+    }
+    return false;
 }
 
 void port_step(PortData* p) {
-    if (p->state == PORT_DISABLE || p->state == PORT_EXEC_ASYNC) {
+    if (p->state == PORT_DISABLE) {
         invalid();
         return;
     }
@@ -404,13 +514,14 @@ void port_step(PortData* p) {
 
     while (1) {
         // If the command buffer has been processed, request a new one
-        if (p->cmd_pos >= p->cmd_len && !p->pending_out) {
+        if (p->cmd_pos >= p->cmd_len && !p->pending_out && !(p->state == PORT_EXEC_ASYNC && port_tx_locked(p))) {
             p->pending_out = true;
             bridge_start_out(p->chan, p->cmd_buf);
         }
         // If the reply buffer is full, flush it.
         // Or, if there is any data and no commands, might as well flush.
-        if ((p->reply_len >= BRIDGE_BUF_SIZE || (p->pending_out && p->reply_len > 0)) && !p->pending_in) {
+        if ((p->reply_len >= BRIDGE_BUF_SIZE || (p->pending_out && p->reply_len > 0))
+           && !p->pending_in && !(p->state == PORT_EXEC_ASYNC && port_rx_locked(p))) {
             p->pending_in = true;
             bridge_start_in(p->chan, p->reply_buf, p->reply_len);
         }
@@ -418,7 +529,7 @@ void port_step(PortData* p) {
         // Wait for bridge transfers to complete;
         // TODO: multiple-buffer FIFO
         if (p->pending_in || p->pending_out) {
-            if (!p->pending_in && p->state == PORT_READ_CMD) {
+            if (port_async_events_allowed(p)) {
                 // If we're waiting for further commands, also
                 // wait for async events.
                 port_enable_async_events(p);
@@ -474,11 +585,48 @@ void port_dma_rx_completion(PortData* p) {
     }
 }
 
-void bridge_handle_sercom_uart_i2c(PortData* p) {
-    sercom(p->port->uart_i2c)->I2CM.INTFLAG.reg = SERCOM_I2CM_INTFLAG_SB | SERCOM_I2CM_INTFLAG_MB;
+void port_dma_tx_completion(PortData* p) {
     if (p->state == PORT_EXEC_ASYNC) {
         p->state = (p->arg[0] == 0 ? EXEC_DONE : EXEC_CONTINUE);
         port_step(p);
+    } else {
+        invalid();
+    }
+}
+
+void bridge_handle_sercom_uart_i2c(PortData* p) {
+    if (p->mode == MODE_UART) {
+        if (sercom(p->port->uart_i2c)->USART.INTFLAG.reg & SERCOM_USART_INTFLAG_RXC) {
+            sercom(p->port->uart_i2c)->USART.INTFLAG.reg = SERCOM_USART_INTFLAG_RXC;
+
+            // reset timeout
+            tcc_delay_start(p->tcc_channel, 200*10);
+
+            // Read data and push into buffer
+            p->uart_buf.rx[p->uart_buf.head] = sercom(p->port->uart_i2c)->USART.DATA.reg;
+            p->uart_buf.head = (p->uart_buf.head + 1) % UART_RX_SIZE;
+
+            if (p->uart_buf.buf_len < UART_RX_SIZE) {
+                p->uart_buf.buf_len++;
+            } else {
+                // Buffer full. Drop the oldest byte.
+                p->uart_buf.tail = (p->uart_buf.tail + 1) % UART_RX_SIZE;
+            }
+
+            // If the buffer is almost full and we're in a safe state, flush it immediately
+            if (p->uart_buf.buf_len > (UART_RX_SIZE - 4) && port_async_events_allowed(p)) {
+                uart_send_data(p);
+            }
+        }
+    } else if (p->mode == MODE_I2C) {
+        // interrupt on i2c flag
+        sercom(p->port->uart_i2c)->I2CM.INTFLAG.reg = SERCOM_I2CM_INTFLAG_SB | SERCOM_I2CM_INTFLAG_MB;
+        if (p->state == PORT_EXEC_ASYNC) {
+            p->state = (p->arg[0] == 0 ? EXEC_DONE : EXEC_CONTINUE);
+            port_step(p);
+        } else {
+            invalid();
+        }
     } else {
         invalid();
     }

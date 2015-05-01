@@ -1,0 +1,116 @@
+// *************************
+  PART ONE: Start writing to a file
+**************************** //
+
+Create a Process of Id 0
+< CMD_OPEN 0 0 0
+
+Get Ack that Control can be written to
+> CMD_ACK_CONTROL 0 0 4
+> 0 0x10 0 0
+
+Get Ack that Stdin can be written to
+> CMD_ACK_STDIN 0 0 4
+> 0 0x10 0 0
+
+Create a Process of Id 1
+< CMD_OPEN 1 0 0
+
+Get Ack that Control can be written to
+> CMD_ACK_CONTROL 1 0 4
+> 0 0x10 0 0
+
+Get Ack that Stdin can be written to
+> CMD_ACK_STDIN 1 0 4
+> 0 0x10 0 0
+
+Write that STDOUT has credit
+< CMD_ACK_STDOUT 0 0 4
+< 0 0x10 0 0
+
+Write that STDERR has credit
+< CMD_ACK_STDERR 0 0 4
+< 0 0x10 0 0 
+
+Write Into Control of process 0, a string of length 22
+< CMD_WRITE_CONTROL 0 0 0x16
+Write the command "tee /tmp/usb-test-file"
+< 0x74 0x65 0x65 0x0 0x2f 0x74 0x6d 0x70 0x2f 0x75 0x73 0x62 0x2d 0x74 0x65 0x73 0x74 0x2d 0x66 0x69 0x6c 0x65
+
+Get Ack that more can be written to (22 bytes)
+> CMD_ACK_CONTROL 0 0 4
+> 0x16 0 0 0
+
+Close control stream on process 0
+< CMD_CLOSE_CONTROL 0 0 0
+
+Write Into STDIN of process 0, a string of length 22
+< CMD_WRITE_STDIN 0 0 0x16
+
+Write the string "console.log('testing')"
+< 0x63 0x6f 0x6e 0x73 0x6f 0x6c 0x65 0x2e 0x6c 0x6f 0x67 0x28 0x27 0x74 0x65 0x73 0x74 0x69 0x6e 0x67 0x27 0x29
+
+Get Ack that more can be written to (22 bytes)
+> CMD_ACK_STDIN 0 0 4
+> 0x16 0 0 0
+
+It should write "console.log('testing')" back over stdout
+> CMD_WRITE_STDOUT 0 0 0x16
+> 0x63 0x6f 0x6e 0x73 0x6f 0x6c 0x65 0x2e 0x6c 0x6f 0x67 0x28 0x27 0x74 0x65 0x73 0x74 0x69 0x6e 0x67 0x27 0x29
+
+Close stdin stream on process 0
+< CMD_CLOSE_STDIN 0 0 0
+
+Once the process completes, it will close stdout
+> CMD_CLOSE_STDOUT 0 0 0
+
+Once the process completes, it will close stderr
+> CMD_CLOSE_STDERR 0 0 0
+
+WAIT FOR CHILD TO EXIT for process 0 with a return code of 0
+> CMD_EXIT_STATUS 0 0 0
+
+Write that STDOUT has credit
+< CMD_ACK_STDOUT 1 0 4
+< 0 0x10 0 0
+
+Write that STDERR has credit
+< CMD_ACK_STDERR 1 0 4
+< 0 0x10 0 0 
+
+Write Into Control of process 1, a string of length 23
+< CMD_WRITE_CONTROL 1 0 0x17
+Write the command "node\0/tmp/usb-test-file"
+< 0x6e 0x6f 0x64 0x65 0x0 0x2f 0x74 0x6d 0x70 0x2f 0x75 0x73 0x62 0x2d 0x74 0x65 0x73 0x74 0x2d 0x66 0x69 0x6c 0x65
+
+Get Ack that more can be written to (23 bytes)
+> CMD_ACK_CONTROL 1 0 4
+> 0x17 0 0 0
+
+Close control stream on process 1
+< CMD_CLOSE_CONTROL 1 0 0
+
+It should write "testing" back over stdout
+> CMD_WRITE_STDOUT 1 0 0x08
+> 0x74 0x65 0x73 0x74 0x69 0x6e 0x67 0x0a
+
+Once the process completes, it will close stdout
+> CMD_CLOSE_STDOUT 1 0 0
+
+Once the process completes, it will close stderr
+> CMD_CLOSE_STDERR 1 0 0
+
+WAIT FOR CHILD TO EXIT for process 1 with a return code of 0
+> CMD_EXIT_STATUS 1 0 0
+
+Tell the process to clean up after this child
+< CMD_CLOSE 1 0 0
+
+Get the ack that this process has been freed
+> CMD_CLOSE_ACK 1 255 0
+
+Tell the process to clean up after this child
+< CMD_CLOSE 0 0 0
+
+Get the ack that this process has been freed
+> CMD_CLOSE_ACK 0 255 0

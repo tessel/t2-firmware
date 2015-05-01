@@ -1,10 +1,17 @@
 #include "board.h"
 
-void sercom_clock_enable(SercomId id) {
+void sercom_clock_enable(SercomId id, uint32_t clock_channel, u8 divider) {
+    // prevent this clock write from changing any other clocks
     PM->APBCMASK.reg |= 1 << (PM_APBCMASK_SERCOM0_Pos + id);
 
+    if (clock_channel != 0) {
+      // clock generators 3-8 have 8 division factor bits - DIV[7:0]
+      gclk_enable(clock_channel, GCLK_SOURCE_DFLL48M, divider);
+    }
+
+    // attach clock
     GCLK->CLKCTRL.reg = GCLK_CLKCTRL_CLKEN |
-        GCLK_CLKCTRL_GEN(0) |
+        GCLK_CLKCTRL_GEN(clock_channel) |
         GCLK_CLKCTRL_ID(SERCOM0_GCLK_ID_CORE + id);
 }
 
@@ -51,20 +58,20 @@ void sercom_spi_master_init(SercomId id, u32 dipo, u32 dopo, bool cpol, bool cph
 
 }
 
-void sercom_i2c_master_init(SercomId id) {
+void sercom_i2c_master_init(SercomId id, u8 baud) {
     sercom_reset(id);
     sercom(id)->I2CM.CTRLA.reg = SERCOM_I2CM_CTRLA_MODE_I2C_MASTER;
-    sercom(id)->I2CM.BAUD.reg = 235; // 100kHz
+    sercom(id)->I2CM.BAUD.reg = baud;
     sercom(id)->I2CM.CTRLA.reg
         = SERCOM_I2CM_CTRLA_ENABLE
         | SERCOM_I2CM_CTRLA_MODE_I2C_MASTER;
     sercom(id)->I2CM.STATUS.reg = SERCOM_I2CM_STATUS_BUSSTATE(1);
 }
 
-void sercom_uart_init(SercomId id, u32 rxpo, u32 txpo) {
+void sercom_uart_init(SercomId id, u32 rxpo, u32 txpo, u32 baud) {
     sercom_reset(id);
     sercom(id)->USART.CTRLA.reg = SERCOM_USART_CTRLA_MODE_USART_INT_CLK;
-    sercom(id)->USART.BAUD.reg = 63019; // 115200 baud -- TODO: adjustable
+    sercom(id)->USART.BAUD.reg = baud;
     sercom(id)->USART.CTRLB.reg
         = SERCOM_USART_CTRLB_RXEN
         | SERCOM_USART_CTRLB_TXEN;

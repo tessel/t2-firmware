@@ -8,10 +8,10 @@ USB_ALIGN u8 usbserial_buf_in[2][64];
 USB_ALIGN u8 usbserial_buf_out[64];
 
 void usbserial_init() {
-    sercom_clock_enable(SERCOM_TERMINAL);
+    sercom_clock_enable(SERCOM_TERMINAL, GCLK_SYSTEM, 1);
     pin_mux(PIN_SERIAL_TX);
     pin_mux(PIN_SERIAL_RX);
-    sercom_uart_init(SERCOM_TERMINAL, TERMINAL_RXPO, TERMINAL_TXPO);
+    sercom_uart_init(SERCOM_TERMINAL, TERMINAL_RXPO, TERMINAL_TXPO, 63019);
 
     dma_sercom_configure_tx(DMA_TERMINAL_TX, SERCOM_TERMINAL);
     DMAC->CHINTENSET.reg = DMAC_CHINTENSET_TCMPL | DMAC_CHINTENSET_TERR; // ID depends on prev call

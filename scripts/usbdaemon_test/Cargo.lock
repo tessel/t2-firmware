@@ -1,5 +1,5 @@
 [root]
-name = "test_port"
+name = "usbdaemon_test"
 version = "0.0.1"
 dependencies = [
  "unix_socket 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",

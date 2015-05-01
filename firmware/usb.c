@@ -20,7 +20,7 @@ __attribute__((__aligned__(4))) const USB_DeviceDescriptor device_descriptor = {
 
 	.iManufacturer          = 0x01,
 	.iProduct               = 0x02,
-	.iSerialNumber          = 0,
+	.iSerialNumber          = 0x03,
 
 	.bNumConfigurations     = 1
 };
@@ -206,18 +206,6 @@ __attribute__((__aligned__(4))) const USB_StringDescriptor language_string = {
 	.bString = {USB_LANGUAGE_EN_US},
 };
 
-__attribute__((__aligned__(4))) const USB_StringDescriptor manufacturer_string = {
-	.bLength = USB_STRING_LEN(17),
-	.bDescriptorType = USB_DTYPE_String,
-	.bString = u"Technical Machine"
-};
-
-__attribute__((__aligned__(4))) const USB_StringDescriptor product_string = {
-	.bLength = USB_STRING_LEN(14),
-	.bDescriptorType = USB_DTYPE_String,
-	.bString = u"Tessel 2"
-};
-
 __attribute__((__aligned__(4))) const USB_StringDescriptor msft_os = {
 	.bLength = 18,
 	.bDescriptorType = USB_DTYPE_String,
@@ -260,10 +248,13 @@ uint16_t usb_cb_get_descriptor(uint8_t type, uint8_t index, const uint8_t** ptr)
 					address = &language_string;
 					break;
 				case 0x01:
-					address = &manufacturer_string;
+					address = usb_string_to_descriptor("Technical Machine");
 					break;
 				case 0x02:
-					address = &product_string;
+					address = usb_string_to_descriptor("Tessel 2");
+					break;
+				case 0x03:
+					address = samd_serial_number_string_descriptor();
 					break;
 				case 0xee:
 					address = &msft_os;

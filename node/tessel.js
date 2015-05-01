@@ -42,6 +42,23 @@ function Port(name, socketPath, board) {
 
             if (!d) break;
             var byte = d[0];
+            if (byte == REPLY.ASYNC_UART_RX) {
+                // get the next byte which is the number of bytes
+                var rxNum = this.sock.read(1)[0];
+                var rxData = this.sock.read(rxNum);
+
+                // if rxNum is bad or if we don't have enough data, wait until next cycle
+                if (!rxNum || !rxData) {
+                    this.sock.unshift(rxNum);
+                    this.sock.unshift(d);
+                    continue;
+                }
+
+                if (this._uart) {
+                    this._uart.push(rxData.toString());
+                }
+                continue;
+            }
 
             if (byte >= REPLY.MIN_ASYNC) {
                 if (byte >= REPLY.ASYNC_PIN_CHANGE_N && byte < REPLY.ASYNC_PIN_CHANGE_N+8) {
@@ -73,7 +90,8 @@ function Port(name, socketPath, board) {
                 }
                 data = this.sock.read(data_size);
                 if (!data) {
-                    this.sock.unshift(data);
+                    // if there's a partial reply, 
+                    // wait until we get the full data
                     this.sock.unshift(d);
                     break;
                 }
@@ -190,16 +208,25 @@ Port.prototype._txrx = function(buf, cb) {
 }
 
 Port.prototype.I2C = function (addr, mode) {
-    this._simple_cmd([CMD.ENABLE_I2C, 0]);
-    return new I2C(addr, this);
+    if (!this._i2c) {
+        params = {addr: addr, mode:mode};
+        this._i2c = new I2C(params, this);
+    }
+    return this._i2c;
 };
 
 Port.prototype.SPI = function (format) {
-    return new SPI(format == null ? {} : format, this);
+    if (!this._spi) {
+        this._spi = new SPI(format == null ? {} : format, this);
+    }
+    return this._spi;
 };
 
 Port.prototype.UART = function (format) {
-    return new UART(this);
+    if (!this._uart) {
+        this._uart = new UART(this, format || {});
+    }
+    return this._uart;
 };
 
 function Pin (pin, port, interruptSupported) {
@@ -279,6 +306,16 @@ Pin.prototype.low = function(cb) {
     return this;
 }
 
+// Deprecated. Added for tessel 1 lib compat
+Pin.prototype.rawWrite = function(value){
+    if (value) {
+        this.high();
+    } else {
+        this.low();
+    }
+    return this;
+}
+
 Pin.prototype.toggle = function(cb) {
     this._port._simple_cmd([CMD.GPIO_TOGGLE, this.pin], cb);
     return this;
@@ -339,9 +376,20 @@ Pin.prototype.readPulse = function(type, timeout, callback) {
     throw new Error("Pin.readPulse is not yet implemented");
 }
 
-function I2C(addr, port) {
-    this.addr = addr;
+function I2C(params, port) {
+    this.addr = params.addr;
     this._port = port;
+    this._freq = params.freq ? params.freq : 100000; // 100khz
+
+    // 15ns is max scl rise time
+    // f = (48e6)/(2*(5+baud)+48e6*1.5e-8)
+    this._baud = Math.floor(((48e6/this._freq) - 48e6*(1.5e-8))/2 - 5);
+    if (this._baud > 255 || this._baud <= 0 || this._freq > 4e5) {
+        // restrict to between 400khz and 90khz. can actually go up to 4mhz without clk modification
+        throw new Error('I2C frequency should be between 400khz and 90khz');
+    }
+    // enable i2c 
+    this._port._simple_cmd([CMD.ENABLE_I2C, this._baud]);
 }
 
 I2C.prototype.send = function(data, callback) {
@@ -375,7 +423,7 @@ I2C.prototype.transfer = function(txbuf, rxlen, callback) {
 function SPI(params, port) {
     this._port = port;
     // default to pin 5 of the module port as cs
-    this.chipSelect = params.chipSelect || this._port.pin[5];
+    this.chipSelect = params.chipSelect || this._port.digital[0];
 
     this.chipSelectActive = params.chipSelectActive == 'high' || params.chipSelectActive == 1 ? 1 : 0;
 
@@ -389,17 +437,36 @@ function SPI(params, port) {
 
     /* spi baud rate is set by the following equation:
     *  f_baud = f_ref/(2*(baud_reg+1))
-    *  max baud rate is 24MHz for the SAMD21
+    *  max baud rate is 24MHz for the SAMD21, min baud rate is 93750 without a clock divisor
+    *  with a max clock divisor of 255, slowest clock is 368Hz unless we switch from 48MHz xtal to 32KHz xtal
     */
     // default is 2MHz
     params.clockSpeed = params.clockSpeed ? params.clockSpeed : 2e6;
 
-    if (params.clockSpeed > 24e6 || params.clockSpeed < 93750) {
-        throw new Error('SPI Clock needs to be between 24e6 and 93750Hz.');
+    // if speed is slower than 93750 then we need a clock divisor
+    if (params.clockSpeed > 24e6 || params.clockSpeed < 368) {
+        throw new Error('SPI Clock needs to be between 24e6 and 368Hz.');
     }
 
-    this.clockReg = parseInt(48e6/(2*params.clockSpeed) - 1);
+    this.clockReg = Math.floor(48e6/(2*params.clockSpeed) - 1);
 
+    // find the smallest clock divider such that clockReg is <=255
+    if (this.clockReg > 255) {
+        // find the clock divider, make sure its at least 1
+        this._clockDiv = Math.floor(48e6/(params.clockSpeed*(2*255+2))) || 1;
+
+        // if the speed is still too low, set the clock divider to max and set baud accordingly
+        if (this._clockDiv > 255) {
+            this.clockReg = Math.floor(this.clockReg/255) || 1; 
+            this._clockDiv = 255;
+        } else {
+            // if we can set a clock divider <255, max out clockReg
+            this.clockReg = 255;
+        }
+    } else {
+        this._clockDiv = 1;
+    }
+    
     if (typeof params.dataMode == 'number') {
         params.cpol = params.dataMode & 0x1;
         params.cpha = params.dataMode & 0x2;
@@ -408,7 +475,7 @@ function SPI(params, port) {
     this.cpol = params.cpol == 'high' || params.cpol == 1 ? 1 : 0;
     this.cpha = params.cpha == 'second' || params.cpha == 1 ? 1 : 0;
 
-    this._port._simple_cmd([CMD.ENABLE_SPI, this.cpol + (this.cpha << 1), this.clockReg]);
+    this._port._simple_cmd([CMD.ENABLE_SPI, this.cpol + (this.cpha << 1), this.clockReg, this._clockDiv]);
 }
 
 SPI.prototype.send = function(data, callback) {
@@ -439,39 +506,69 @@ SPI.prototype.transfer = function(data, callback) {
     this._port.uncork();
 }
 
-function UART(port) {
-    throw new Error("Unimplemented")
+function UART(port, options) {
+    Duplex.call(this, {});
+
+    this._port = port;
+    
+    // baud is given by the following:
+    // baud = 65536*(1-(samples_per_bit)*(f_wanted/f_ref))
+    // samples_per_bit = 16, 8, or 3
+    // f_ref = 48e6
+    this._baudrate = options.baudrate || 9600;
+    // make sure baudrate is in between 9600 and 115200
+    if (this._baudrate < 9600 || this._baudrate > 115200) {
+        throw new Error("UART baudrate must be between 9600 and 115200");
+    }
+    this._baud = Math.floor(65536*(1-16*(this._baudrate/48e6)));
+
+    // split _baud up into two bytes & send
+    this._port._simple_cmd([CMD.ENABLE_UART, this._baud >> 8, this._baud & 0xFF]);
+
+    this.enabled = true;
+}
+
+util.inherits(UART, Duplex);
+
+UART.prototype._write = function(chunk, encoding, cb) {
+    // throw an error if not enabled
+    if (!this.enabled) {
+        throw new Error("UART is not enabled on this port");
+    }
+    this._port._tx(chunk, cb);
+}
+
+UART.prototype._read = function() {}
+
+UART.prototype.disable = function() {
+    this._port._simple_cmd([CMD.DISABLE_UART, 0, 0]);
+    this.enabled = false;
 }
 
 var CMD = {
     NOP: 0,
     FLUSH: 1,
     ECHO: 2,
-
-    GPIO_IN: 10,
-    GPIO_HIGH: 11,
-    GPIO_LOW: 12,
-    GPIO_TOGGLE: 13,
-    GPIO_CFG: 14,
-    GPIO_WAIT: 15,
-    GPIO_INT: 16,
-    GPIO_INPUT: 17,
-    GPIO_RAW_READ: 18,
-
-    ENABLE_SPI: 30,
-    DISABLE_SPI: 31,
-
-    ENABLE_I2C: 40,
-    DISABLE_I2C: 41,
-    START: 42,
-    STOP: 43,
-
-    ENABLE_UART: 50,
-    DISABLE_UART: 51,
-    
-    TX: 60,
-    RX: 61,
-    TXRX: 62,
+    GPIO_IN: 3,
+    GPIO_HIGH: 4,
+    GPIO_LOW: 5,
+    GPIO_TOGGLE: 21,
+    GPIO_CFG: 6,
+    GPIO_WAIT: 7,
+    GPIO_INT: 8,
+    GPIO_INPUT: 22,
+    GPIO_RAW_READ: 23,
+    ENABLE_SPI: 10,
+    DISABLE_SPI: 11,
+    ENABLE_I2C: 12,
+    DISABLE_I2C: 13,
+    ENABLE_UART: 14,
+    DISABLE_UART: 15,
+    TX: 16,
+    RX: 17,
+    TXRX: 18,
+    START: 19,
+    STOP: 20,
 };
 
 var REPLY = {
@@ -482,7 +579,8 @@ var REPLY = {
     DATA: 0x84,
 
     MIN_ASYNC: 0xA0,
-    ASYNC_PIN_CHANGE_N: 0xC0,
+    ASYNC_PIN_CHANGE_N: 0xC0, // c0 to c8 is all async pin assignments
+    ASYNC_UART_RX: 0xD0
 };
 
 var SPISettings = {

@@ -53,8 +53,10 @@ int main(void) {
     bridge_init();
     usbpipe_init();
 
-    port_init(&port_a, 1, &PORT_A, DMA_PORT_A_TX, DMA_PORT_A_RX);
-    port_init(&port_b, 2, &PORT_B, DMA_PORT_B_TX, DMA_PORT_B_RX);
+    port_init(&port_a, 1, &PORT_A, GCLK_PORT_A, 
+        TCC_PORT_A, DMA_PORT_A_TX, DMA_PORT_A_RX);
+    port_init(&port_b, 2, &PORT_B, GCLK_PORT_B, 
+        TCC_PORT_B, DMA_PORT_B_TX, DMA_PORT_B_RX);
 
     __enable_irq();
     SCB->SCR |= SCB_SCR_SLEEPONEXIT_Msk;
@@ -69,6 +71,10 @@ void DMAC_Handler() {
         if (id == DMA_BRIDGE_RX) {
             bridge_dma_rx_completion();
             flash_dma_rx_completion();
+        } else if (id == DMA_PORT_A_TX) {
+            port_dma_tx_completion(&port_a);
+        } else if (id == DMA_PORT_B_TX) {
+            port_dma_tx_completion(&port_b);
         } else if (id == DMA_PORT_A_RX) {
             port_dma_rx_completion(&port_a);
         } else if (id == DMA_PORT_B_RX) {
@@ -150,4 +156,18 @@ void bridge_close_2() {
 
 void TC_HANDLER(TC_TERMINAL_TIMEOUT) {
     usbserial_handle_tc();
+}
+
+void TCC_HANDLER(TCC_PORT_A) {
+    uart_send_data(&port_a);
+
+    // clear irq
+    tcc(TCC_PORT_A)->INTFLAG.reg = TCC_INTENSET_OVF;
+}
+
+void TCC_HANDLER(TCC_PORT_B) {
+    uart_send_data(&port_b);
+
+    // clear irq
+    tcc(TCC_PORT_B)->INTFLAG.reg = TCC_INTENSET_OVF;
 }
