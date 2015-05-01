@@ -10,13 +10,19 @@ function Tessel() {
         Tessel.instance = this;
     }
     this.ports = {
-        A: new Port('A', '/var/run/tessel/port_a'),
-        B: new Port('B', '/var/run/tessel/port_b')
+        A: new Port('A', '/var/run/tessel/port_a', this),
+        B: new Port('B', '/var/run/tessel/port_b', this)
     };
     this.port = this.ports;
+
+    // tessel v1 does not have this version number
+    // this is useful for libraries to adapt to changes 
+    // such as all pin reads/writes becoming async in version 2
+    this.version = 2; 
 }
 
-function Port(name, socketPath) {
+function Port(name, socketPath, board) {
+    this.board = board;
     // Connection to the SPI daemon
     this.sock = net.createConnection({path: socketPath}, function(e) {
         if (e) { throw e; }
@@ -324,6 +330,52 @@ Pin.prototype.output = function output(initialValue, cb) {
     return this;
 }
 
+Pin.prototype.write = function (value, cb) {
+    // same as .output
+    return this.output(value, cb);
+};
+
+Pin.prototype.rawDirection = function (isOutput, cb) {
+    throw new Error("Pin.rawDirection is deprecated. Use Pin.input or .output instead.");
+};
+
+Pin.prototype._readPin = function (cmd, cb){
+    this._port.cork();
+    this._port.sock.write(new Buffer([cmd, this.pin]))
+    this._port.replyQueue.push({
+        size: 0,
+        callback: function(err, data){
+            cb(err, data == REPLY.HIGH ? 1 : 0);
+        },
+    });
+    this._port.uncork();
+}
+
+Pin.prototype.rawRead = function rawRead(cb) {
+    if (typeof cb != "function") {
+        console.warn("pin.rawRead is async, pass in a callback to get the value");
+    }
+    this._readPin(CMD.GPIO_RAW_READ, cb);
+    return this;
+};
+
+Pin.prototype.input = function input(cb) {
+    this._port._simple_cmd([CMD.GPIO_INPUT, this.pin], cb);
+    return this;
+};
+
+Pin.prototype.read = function (cb) {
+    if (typeof cb != "function") {
+        console.warn("pin.read is async, pass in a callback to get the value");
+    }
+    this._readPin(CMD.GPIO_IN, cb);
+  return this;
+};
+
+Pin.prototype.readPulse = function(type, timeout, callback) {
+    throw new Error("Pin.readPulse is not yet implemented");
+}
+
 function I2C(params, port) {
     this.addr = params.addr;
     this._port = port;
@@ -504,6 +556,8 @@ var CMD = {
     GPIO_CFG: 6,
     GPIO_WAIT: 7,
     GPIO_INT: 8,
+    GPIO_INPUT: 22,
+    GPIO_RAW_READ: 23,
     ENABLE_SPI: 10,
     DISABLE_SPI: 11,
     ENABLE_I2C: 12,
