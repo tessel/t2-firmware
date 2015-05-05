@@ -161,8 +161,10 @@ int port_cmd_args(PortCmd cmd) {
         case CMD_GPIO_INPUT:
         case CMD_GPIO_RAW_READ:
         case CMD_ANALOG_READ:
-        case CMD_ANALOG_WRITE:
             return 1;
+
+        case CMD_ANALOG_WRITE:
+            return 2;
 
         // Config argument:
         case CMD_ENABLE_SPI:
@@ -314,6 +316,28 @@ uint16_t analog_read(Pin p) {
     // todo disable clock
 }
 
+void analog_write(u16 val) {
+    // switch dac pinmux
+    // this must be PA02, configured for pinmux B
+    PORT->Group[0].PMUX[1].bit.PMUXE = 0x1;
+    PORT->Group[0].PINCFG[2].bit.PMUXEN = 1;
+
+    // disable
+    DAC->CTRLA.reg &= ~DAC_CTRLA_ENABLE;
+    
+    // hook up clk
+    PM->APBCMASK.reg |= PM_APBCMASK_DAC;
+    GCLK->CLKCTRL.reg = GCLK_CLKCTRL_CLKEN | GCLK_CLKCTRL_GEN(GCLK_32K) | GCLK_CLKCTRL_ID(DAC_GCLK_ID);
+
+    // set vcc as reference voltage
+    DAC->CTRLB.reg = DAC_CTRLB_EOEN |DAC_CTRLB_REFSEL_AVCC;
+
+    // enable
+    DAC->CTRLA.reg = DAC_CTRLA_ENABLE;
+
+    DAC->DATA.reg = val;
+}
+
 ExecStatus port_begin_cmd(PortData *p) {
     switch (p->cmd) {
         case CMD_NOP:
@@ -389,7 +413,8 @@ ExecStatus port_begin_cmd(PortData *p) {
         }
 
         case CMD_ANALOG_WRITE:
-            // TODO
+            // get the higher and lower args
+            analog_write((p->arg[0] << 8) + p->arg[1]);
             return EXEC_DONE;
 
         case CMD_ENABLE_SPI:

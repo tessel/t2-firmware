@@ -22,6 +22,7 @@ function Tessel() {
 }
 
 function Port(name, socketPath, board) {
+    this.name = name;
     this.board = board;
     // Connection to the SPI daemon
     this.sock = net.createConnection({path: socketPath}, function(e) {
@@ -415,8 +416,20 @@ AnalogPin.prototype.read = function(cb) {
     return this;
 }
 
-AnalogPin.prototype.write = function() {
+AnalogPin.prototype.write = function(val) {
+    // throw an error if this isn't the adc pin (port b, pin 7)
+    if (this._port.name != 'B' || this.pin != 7) {
+        throw new Error("Analog write can only be used on Pin 7 (G3) of Port B.");
+    }
+    
+    // v_dac = data/(0x3ff)*reference voltage
+    var data = val/(3.3)*0x3ff;
+    if (data > 1023 || data < 0) {
+        throw new Error("Analog write must be between 0 and 3.3");
+    }
 
+    this._port.sock.write(new Buffer([CMD.ANALOG_WRITE, data >> 8, data & 0xff]));
+    return this;
 }
 
 function I2C(params, port) {
