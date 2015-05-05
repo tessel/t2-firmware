@@ -120,7 +120,19 @@ function Port(name, socketPath, board) {
     this.pin.G2 = this.pin.g2 = this.pin[6];
     this.pin.G3 = this.pin.g3 = this.pin[7];
     this.digital = [ this.pin[5], this.pin[6], this.pin[7] ];
+
     this.analog = [];
+    if (name == 'A') {
+        // pin 4 and pin 7 are adcs
+        this.analog.push(new AnalogPin(4, this));
+        this.analog.push(new AnalogPin(7, this));
+    } else if (name == 'B') {
+        // all pins are adcs
+        for (var i = 0; i < 8; i++) {
+            this.analog.push(new AnalogPin(i, this));
+        }
+    }
+
     this.pwm = [];
 }
 
@@ -376,6 +388,37 @@ Pin.prototype.readPulse = function(type, timeout, callback) {
     throw new Error("Pin.readPulse is not yet implemented");
 }
 
+function AnalogPin(pin, port) {
+    this.pin = pin;
+    this._port = port;
+}
+
+var ANALOG_RESOLUTION = 4096;
+AnalogPin.prototype.type = 'analog';
+AnalogPin.prototype.resolution = ANALOG_RESOLUTION;
+
+AnalogPin.prototype.read = function(cb) {
+    if (typeof cb != "function") {
+        console.warn("analogPin.read is async, pass in a callback to get the value");
+    }
+
+    this._port.cork();
+    this._port.sock.write(new Buffer([CMD.ANALOG_READ, this.pin]))
+    this._port.replyQueue.push({
+        size: 2,
+        callback: function(err, data){
+            cb(err, (data[0] + (data[1] << 8))/ANALOG_RESOLUTION * 3.3);
+        },
+    });
+    this._port.uncork();
+
+    return this;
+}
+
+AnalogPin.prototype.write = function() {
+
+}
+
 function I2C(params, port) {
     this.addr = params.addr;
     this._port = port;
@@ -558,6 +601,8 @@ var CMD = {
     GPIO_INT: 8,
     GPIO_INPUT: 22,
     GPIO_RAW_READ: 23,
+    ANALOG_READ: 24,
+    ANALOG_WRITE: 25,
     ENABLE_SPI: 10,
     DISABLE_SPI: 11,
     ENABLE_I2C: 12,
