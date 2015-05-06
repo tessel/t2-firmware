@@ -117,6 +117,7 @@ void usb_cb_reset(void) {
 
 bool usb_cb_set_configuration(uint8_t config) {
 	if (config <= 1) {
+		dap_enable();
 		return true;
 	}
 	return false;
@@ -140,7 +141,15 @@ void usb_cb_control_out_completion(void) {
 }
 
 void usb_cb_completion(void) {
+	if (usb_ep_pending(USB_EP_DAP_HID_OUT)) {
+		dap_handle_usb_out_completion();
+		usb_ep_handled(USB_EP_DAP_HID_OUT);
+	}
 
+	if (usb_ep_pending(USB_EP_DAP_HID_IN)) {
+		dap_handle_usb_in_completion();
+		usb_ep_handled(USB_EP_DAP_HID_IN);
+	}
 }
 
 bool usb_cb_set_interface(uint16_t interface, uint16_t new_altsetting) {

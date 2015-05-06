@@ -1,5 +1,5 @@
 #pragma once
-#include "common/board.h"
+#include "test_rig_board.h"
 #include "common/hw.h"
 #include "samd/usb_samd.h"
 
@@ -10,6 +10,8 @@
 /// EVSYS allocation
 
 /// USB Endpoint allocation
+#define USB_EP_DAP_HID_OUT 0x01
+#define USB_EP_DAP_HID_IN 0x82
 
 /// Timer allocation
 
@@ -18,3 +20,8 @@
 // GCLK channel allocation
 #define GCLK_SYSTEM 0
 #define GCLK_32K    2
+
+// dap_hid.c
+void dap_enable();
+void dap_handle_usb_in_completion();
+void dap_handle_usb_out_completion();

@@ -1,5 +1,6 @@
 #pragma once
-#include <samd21j17a.h>
+#include <parts.h>
+#include <io.h>
 
 #include "common/util.h"
 #include "common/hw.h"
@@ -21,3 +22,9 @@
 
 const static Pin PIN_USB_DM = {.group = 0, .pin = 24, .mux = MUX_PA24G_USB_DM };
 const static Pin PIN_USB_DP = {.group = 0, .pin = 25, .mux = MUX_PA25G_USB_DP };
+
+// SWD
+
+const static Pin PIN_RESET = {.group = 0, .pin = 14};
+const static Pin PIN_SWDIO = {.group = 1, .pin = 10};
+const static Pin PIN_SWCLK = {.group = 1, .pin = 11};
