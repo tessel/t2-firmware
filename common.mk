@@ -22,5 +22,4 @@ $(TARGET)_LDFLAGS += -Wl,--gc-sections --specs=nano.specs
 
 $(TARGET)_LDSCRIPT = common/samd21g15a_firmware_partition.ld
 
-$(TARGET)_DEFINE += \
-  -D __SAMD21G15A__
+$(TARGET)_DEFINE += -D __SAMD21G15A__
