@@ -2,8 +2,8 @@
 #include "DAP_config.h"
 #include "DAP.h"
 
-u8 dap_buf_in[DAP_PACKET_SIZE];
-u8 dap_buf_out[DAP_PACKET_SIZE];
+USB_ALIGN u8 dap_buf_in[DAP_PACKET_SIZE];
+USB_ALIGN u8 dap_buf_out[DAP_PACKET_SIZE];
 
 void dap_enable() {
     DAP_Setup();
