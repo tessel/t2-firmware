@@ -14,8 +14,8 @@ __attribute__((__aligned__(4))) const USB_DeviceDescriptor device_descriptor = {
 	.bDeviceProtocol        = USB_CSCP_NoDeviceProtocol,
 
 	.bMaxPacketSize0        = 64,
-	.idVendor               = 0x9999,
-	.idProduct              = 0xFFFF,
+	.idVendor               = 0x59E3,
+	.idProduct              = 0xCDA6,
 	.bcdDevice              = 0x0110,
 
 	.iManufacturer          = 0x01,
@@ -29,6 +29,9 @@ uint16_t altsetting = 0;
 
 typedef struct ConfigDesc {
 	USB_ConfigurationDescriptor Config;
+	USB_InterfaceDescriptor DAPInterface;
+	USB_EndpointDescriptor DAPInEndpoint;
+	USB_EndpointDescriptor DAPOutEndpoint;
 }  __attribute__((packed)) ConfigDesc;
 
 __attribute__((__aligned__(4))) const ConfigDesc configuration_descriptor = {
@@ -36,11 +39,38 @@ __attribute__((__aligned__(4))) const ConfigDesc configuration_descriptor = {
 		.bLength = sizeof(USB_ConfigurationDescriptor),
 		.bDescriptorType = USB_DTYPE_Configuration,
 		.wTotalLength  = sizeof(ConfigDesc),
-		.bNumInterfaces = 0,
+		.bNumInterfaces = 1,
 		.bConfigurationValue = 1,
 		.iConfiguration = 0,
 		.bmAttributes = USB_CONFIG_ATTR_BUSPOWERED,
 		.bMaxPower = USB_CONFIG_POWER_MA(500)
+	},
+	.DAPInterface = {
+		.bLength = sizeof(USB_InterfaceDescriptor),
+		.bDescriptorType = USB_DTYPE_Interface,
+		.bInterfaceNumber = 0,
+		.bAlternateSetting = 0,
+		.bNumEndpoints = 2,
+		.bInterfaceClass = 3, // HID (but not really)
+		.bInterfaceSubClass = 0x00,
+		.bInterfaceProtocol = 0x00,
+		.iInterface = 0x10,
+	},
+	.DAPInEndpoint = {
+		.bLength = sizeof(USB_EndpointDescriptor),
+		.bDescriptorType = USB_DTYPE_Endpoint,
+		.bEndpointAddress = USB_EP_DAP_HID_IN,
+		.bmAttributes = (USB_EP_TYPE_INTERRUPT | ENDPOINT_ATTR_NO_SYNC | ENDPOINT_USAGE_DATA),
+		.wMaxPacketSize = 64,
+		.bInterval = 0x00
+	},
+	.DAPOutEndpoint = {
+		.bLength = sizeof(USB_EndpointDescriptor),
+		.bDescriptorType = USB_DTYPE_Endpoint,
+		.bEndpointAddress = USB_EP_DAP_HID_OUT,
+		.bmAttributes = (USB_EP_TYPE_INTERRUPT | ENDPOINT_ATTR_NO_SYNC | ENDPOINT_USAGE_DATA),
+		.wMaxPacketSize = 64,
+		.bInterval = 0x00
 	},
 };
 
@@ -99,6 +129,9 @@ uint16_t usb_cb_get_descriptor(uint8_t type, uint8_t index, const uint8_t** ptr)
 					break;
 				case 0x03:
 					address = samd_serial_number_string_descriptor();
+					break;
+				case 0x10:
+					address = usb_string_to_descriptor("CMSIS-DAP");
 					break;
 				case 0xee:
 					address = &msft_os;
