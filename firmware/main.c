@@ -10,7 +10,7 @@ int main(void) {
         pin_out(PIN_SOC_RST);
     }
 
-    clock_init_crystal();
+    clock_init_crystal(GCLK_SYSTEM, GCLK_32K);
 
     pin_mux(PIN_USB_DM);
     pin_mux(PIN_USB_DP);
