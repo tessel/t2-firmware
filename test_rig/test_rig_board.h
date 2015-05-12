@@ -25,9 +25,10 @@ const static Pin PIN_USB_DP = {.group = 0, .pin = 25, .mux = MUX_PA25G_USB_DP };
 
 // UUT SWD
 
-const static Pin PIN_RESET = {.group = 0, .pin = 14};
-const static Pin PIN_SWDIO = {.group = 1, .pin = 10};
-const static Pin PIN_SWCLK = {.group = 1, .pin = 11};
+const static Pin PIN_RESET =        {.group = 0, .pin = 14};
+const static Pin PIN_SWDIO =        {.group = 1, .pin = 10};
+const static Pin PIN_SWCLK =        {.group = 1, .pin = 11};
+const static Pin PIN_START_BUTTON = {.group = 1, .pin = 31};
 
 
 const static Pin ANALOG_PINS[] = {
@@ -49,4 +50,36 @@ const static Pin ANALOG_PINS[] = {
     {.group = 1, .pin = 0, .mux = MUX_PB00B_ADC_AIN8,  .chan = 8},  // PIN_VOLTAGE_18
     {.group = 1, .pin = 1, .mux = MUX_PB01B_ADC_AIN9,  .chan = 9},  // PIN_VOLTAGE_33MT
     {.group = 1, .pin = 3, .mux = MUX_PB03B_ADC_AIN11, .chan = 11}, // PIN_VOLTAGE_5VUSB0
+};
+
+const static Pin DIGITAL_PINS[] = {
+    // TEST CONTROL LINES
+    {.group = 0, .pin = 8},     // SHORT_USBO
+    {.group = 0, .pin = 9},     // SHORT_USB1
+    {.group = 0, .pin = 10},    // SHORT_PORTA33
+    {.group = 0, .pin = 11},    // SHORT_PORTB33
+    {.group = 0, .pin = 22},    // LED_READY
+    {.group = 0, .pin = 23},    // LED_TESTING
+    {.group = 0, .pin = 20},    // LED_PASS
+    {.group = 0, .pin = 21},    // LED_FAIL
+    {.group = 0, .pin = 27},    // UUTPOWER_USB
+    {.group = 0, .pin = 28},    // UUTPOWER_VIN
+    // PORT A
+    {.group = 1, .pin = 30},    // PORTA_MOSI
+    {.group = 1, .pin = 22},    // PORTA_MISO
+    {.group = 1, .pin = 23},    // PORTA_SCK
+    {.group = 1, .pin = 17},    // PORTA_G3
+    {.group = 0, .pin = 16},    // PORTA_SDA
+    {.group = 0, .pin = 17},    // PORTA_SCL
+    {.group = 0, .pin = 18},    // PORTA_G1
+    {.group = 0, .pin = 19},    // PORTA_G2
+    // PORT B
+    {.group = 0, .pin = 2},     // PORTB_G3
+    {.group = 0, .pin = 12},    // PORTB_MOSI
+    {.group = 0, .pin = 13},    // PORTB_SCK
+    {.group = 0, .pin = 15},    // PORTB_MISO
+    {.group = 1, .pin = 12},    // PORTB_SDA
+    {.group = 1, .pin = 13},    // PORTB_SCL
+    {.group = 1, .pin = 14},    // PORTB_G1
+    {.group = 1, .pin = 15},    // PORTB_G2
 };
