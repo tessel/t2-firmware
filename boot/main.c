@@ -88,7 +88,7 @@ void bootloader_main() {
 		pin_out(PIN_SOC_RST);
 	}
 
-	clock_init_usb();
+	clock_init_usb(GCLK_SYSTEM);
 	init_systick();
 	nvm_init();
 

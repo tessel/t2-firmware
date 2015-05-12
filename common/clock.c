@@ -1,5 +1,4 @@
 #include <stdint.h>
-#include "firmware/firmware.h"
 #include "common/util.h"
 #include "common/board.h"
 
@@ -62,7 +61,7 @@ const uint32_t dfll_ctrl_usb
   | SYSCTRL_DFLLCTRL_USBCRM
   | SYSCTRL_DFLLCTRL_ONDEMAND;
 
-void clock_init_usb() {
+void clock_init_usb(u8 clk_system) {
   gclk_init();
 
   // Disable ONDEMAND mode while writing configurations (errata 9905)
@@ -72,11 +71,11 @@ void clock_init_usb() {
   dfll_wait_for_sync();
   SYSCTRL->DFLLCTRL.reg = dfll_ctrl_usb;
 
-  gclk_enable(GCLK_SYSTEM, GCLK_SOURCE_DFLL48M, 1);
+  gclk_enable(clk_system, GCLK_SOURCE_DFLL48M, 1);
   while (GCLK->STATUS.bit.SYNCBUSY);
 }
 
-void clock_init_crystal() {
+void clock_init_crystal(u8 clk_system, u8 clk_32k) {
   gclk_init();
 
   SYSCTRL->XOSC32K.reg
@@ -86,10 +85,10 @@ void clock_init_crystal() {
     | SYSCTRL_XOSC32K_AAMPEN
     | SYSCTRL_XOSC32K_RUNSTDBY;
 
-  gclk_enable(GCLK_32K, GCLK_SOURCE_XOSC32K, 1);
+  gclk_enable(clk_32k, GCLK_SOURCE_XOSC32K, 1);
 
   GCLK->CLKCTRL.reg = GCLK_CLKCTRL_CLKEN |
-      GCLK_CLKCTRL_GEN(2) |
+      GCLK_CLKCTRL_GEN(clk_32k) |
       GCLK_CLKCTRL_ID(SYSCTRL_GCLK_ID_DFLL48);
 
   SYSCTRL->DFLLCTRL.reg = SYSCTRL_DFLLCTRL_ENABLE;
@@ -105,6 +104,6 @@ void clock_init_crystal() {
   dfll_wait_for_sync();
   SYSCTRL->DFLLCTRL.reg = SYSCTRL_DFLLCTRL_ENABLE | SYSCTRL_DFLLCTRL_MODE | SYSCTRL_DFLLCTRL_ONDEMAND;
 
-  gclk_enable(GCLK_SYSTEM, GCLK_SOURCE_DFLL48M, 1);
+  gclk_enable(clk_system, GCLK_SOURCE_DFLL48M, 1);
   while (GCLK->STATUS.bit.SYNCBUSY);
 }

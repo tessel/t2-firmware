@@ -1,7 +1,7 @@
 #include "test_rig.h"
 
 int main(void) {
-    clock_init_usb();
+    clock_init_usb(GCLK_SYSTEM);
 
     pin_mux(PIN_USB_DM);
     pin_mux(PIN_USB_DP);
