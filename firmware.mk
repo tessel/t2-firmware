@@ -11,3 +11,6 @@ $(TARGET)_SRC += \
   firmware/port.c \
   firmware/usbpipe.c \
   firmware/usbserial.c \
+
+$(TARGET)_LDSCRIPT = common/samd21g15a_firmware_partition.ld
+$(TARGET)_DEFINE += -D __SAMD21G15A__
