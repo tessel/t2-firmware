@@ -2,6 +2,9 @@
 #include "test_rig.h"
 #include "class/cdc/cdc_standard.h"
 
+#define DIGITAL_CONTROL 1
+#define READ_ALL_DIGITAL 3
+
 USB_ENDPOINTS(5);
 
 __attribute__((__aligned__(4))) const USB_DeviceDescriptor device_descriptor = {
@@ -160,7 +163,12 @@ void usb_cb_control_setup(void) {
 	uint8_t recipient = usb_setup.bmRequestType & USB_REQTYPE_RECIPIENT_MASK;
 	if (recipient == USB_RECIPIENT_DEVICE) {
 		switch(usb_setup.bRequest) {
-			case 0xee:	  return usb_handle_msft_compatible(&msft_compatible);
+			case 0xee:	  
+				return usb_handle_msft_compatible(&msft_compatible);
+			case DIGITAL_CONTROL:
+				return usb_control_req_digital(usb_setup.wIndex, usb_setup.wValue);
+			case READ_ALL_DIGITAL:
+				return usb_control_req_digital_read_all();
 		}
 	} else if (recipient == USB_RECIPIENT_INTERFACE) {
 	}
