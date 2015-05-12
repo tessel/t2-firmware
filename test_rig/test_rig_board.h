@@ -23,8 +23,19 @@
 const static Pin PIN_USB_DM = {.group = 0, .pin = 24, .mux = MUX_PA24G_USB_DM };
 const static Pin PIN_USB_DP = {.group = 0, .pin = 25, .mux = MUX_PA25G_USB_DP };
 
-// SWD
+// UUT SWD
 
 const static Pin PIN_RESET = {.group = 0, .pin = 14};
 const static Pin PIN_SWDIO = {.group = 1, .pin = 10};
 const static Pin PIN_SWCLK = {.group = 1, .pin = 11};
+
+// CURRENT MEASUREMENT
+
+const static Pin PIN_CURRENT_UUT = {.group = 0, .pin = 6, .adc = 6};
+const static Pin PIN_CURRENT_USB0 = {.group = 1, .pin = 7, .adc = 15};
+const static Pin PIN_CURRENT_USB1 = {.group = 1, .pin = 2, .adc = 10};
+const static Pin PIN_CURRENT_PORTA33 = {.group = 1, .pin = 9, .adc = 3};
+const static Pin PIN_CURRENT_PORTB33 = {.group = 0, .pin = 7, .adc = 7};
+
+
+
