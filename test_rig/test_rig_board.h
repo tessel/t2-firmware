@@ -29,23 +29,24 @@ const static Pin PIN_RESET = {.group = 0, .pin = 14};
 const static Pin PIN_SWDIO = {.group = 1, .pin = 10};
 const static Pin PIN_SWCLK = {.group = 1, .pin = 11};
 
-// CURRENT MEASUREMENT
 
-const static Pin PIN_CURRENT_UUT = {.group = 0, .pin = 6, .adc = 6};
-const static Pin PIN_CURRENT_USB0 = {.group = 1, .pin = 7, .adc = 15};
-const static Pin PIN_CURRENT_USB1 = {.group = 1, .pin = 2, .adc = 10};
-const static Pin PIN_CURRENT_PORTA33 = {.group = 1, .pin = 9, .adc = 3};
-const static Pin PIN_CURRENT_PORTB33 = {.group = 0, .pin = 7, .adc = 7};
+const static Pin ANALOG_PINS[] = {
+    // CURRENT MEASUREMENT
+    {.group = 0, .pin = 6, .mux = MUX_PA06B_ADC_AIN6,  .chan = 6},  // PIN_CURRENT_UUT
+    {.group = 1, .pin = 7, .mux = MUX_PB07B_ADC_AIN15, .chan = 15}, // PIN_CURRENT_USB0
+    {.group = 1, .pin = 2, .mux = MUX_PB02B_ADC_AIN10, .chan = 10}, // PIN_CURRENT_USB1
+    {.group = 1, .pin = 9, .mux = MUX_PB09B_ADC_AIN3,  .chan = 3},  // PIN_CURRENT_PORTA33
+    {.group = 0, .pin = 7, .mux = MUX_PA07B_ADC_AIN7,  .chan = 7},  // PIN_CURRENT_PORTB33
 
-// VOLTAGE MEASUREMENT
-
-const static Pin PIN_VOLTAGE_VREF = {.group = 0, .pin = 3, .adc = 1};
-const static Pin PIN_VOLTAGE_5VUSB1 = {.group = 1, .pin = 4, .adc = 12};
-const static Pin PIN_VOLTAGE_5VUUT = {.group = 1, .pin = 5, .adc = 13};
-const static Pin PIN_VOLTAGE_PORTA33 = {.group = 1, .pin = 6, .adc = 14};
-const static Pin PIN_VOLTAGE_12 = {.group = 1, .pin = 8, .adc = 2};
-const static Pin PIN_VOLTAGE_33CP = {.group = 0, .pin = 4, .adc = 4};
-const static Pin PIN_VOLTAGE_PORTB33 = {.group = 0, .pin = 5, .adc = 5};
-const static Pin PIN_VOLTAGE_18 = {.group = 1, .pin = 0, .adc = 8};
-const static Pin PIN_VOLTAGE_33MT = {.group = 1, .pin = 1, .adc = 9};
-const static Pin PIN_VOLTAGE_5VUSB0 = {.group = 1, .pin = 3, .adc = 11};
+    // VOLTAGE MEASUREMENT
+    {.group = 0, .pin = 3, .mux = MUX_PA03B_ADC_AIN1,  .chan = 1},  // PIN_VOLTAGE_VREF
+    {.group = 1, .pin = 4, .mux = MUX_PB04B_ADC_AIN12, .chan = 12}, // PIN_VOLTAGE_5VUSB1
+    {.group = 1, .pin = 5, .mux = MUX_PB05B_ADC_AIN13, .chan = 13}, // PIN_VOLTAGE_5VUUT
+    {.group = 1, .pin = 6, .mux = MUX_PB06B_ADC_AIN14, .chan = 14}, // PIN_VOLTAGE_PORTA33
+    {.group = 1, .pin = 8, .mux = MUX_PB08B_ADC_AIN2,  .chan = 2},  // PIN_VOLTAGE_12
+    {.group = 0, .pin = 4, .mux = MUX_PA04B_ADC_AIN4,  .chan = 4},  // PIN_VOLTAGE_33CP
+    {.group = 0, .pin = 5, .mux = MUX_PA05B_ADC_AIN5,  .chan = 5},  // PIN_VOLTAGE_PORTB33
+    {.group = 1, .pin = 0, .mux = MUX_PB00B_ADC_AIN8,  .chan = 8},  // PIN_VOLTAGE_18
+    {.group = 1, .pin = 1, .mux = MUX_PB01B_ADC_AIN9,  .chan = 9},  // PIN_VOLTAGE_33MT
+    {.group = 1, .pin = 3, .mux = MUX_PB03B_ADC_AIN11, .chan = 11}, // PIN_VOLTAGE_5VUSB0
+};
