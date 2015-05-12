@@ -1,4 +1,6 @@
 #pragma once
+#include <parts.h>
+#include <io.h>
 #include "common/util.h"
 
 inline static void pin_mux(Pin p) {

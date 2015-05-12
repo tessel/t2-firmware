@@ -1,4 +1,4 @@
-#include "board.h"
+#include "common/hw.h"
 
 void sercom_clock_enable(SercomId id, uint32_t clock_channel, u8 divider) {
     // prevent this clock write from changing any other clocks

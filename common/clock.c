@@ -1,6 +1,5 @@
 #include <stdint.h>
-#include "common/util.h"
-#include "common/board.h"
+#include "common/hw.h"
 
 #define NVM_DFLL_COARSE_POS    58
 #define NVM_DFLL_COARSE_SIZE   6

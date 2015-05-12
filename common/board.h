@@ -1,6 +1,4 @@
 #pragma once
-#include <samd21g15a.h>
-
 #include "common/util.h"
 #include "common/hw.h"
 
