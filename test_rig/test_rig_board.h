@@ -37,5 +37,15 @@ const static Pin PIN_CURRENT_USB1 = {.group = 1, .pin = 2, .adc = 10};
 const static Pin PIN_CURRENT_PORTA33 = {.group = 1, .pin = 9, .adc = 3};
 const static Pin PIN_CURRENT_PORTB33 = {.group = 0, .pin = 7, .adc = 7};
 
+// VOLTAGE MEASUREMENT
 
-
+const static Pin PIN_VOLTAGE_VREF = {.group = 0, .pin = 3, .adc = 1};
+const static Pin PIN_VOLTAGE_5VUSB1 = {.group = 1, .pin = 4, .adc = 12};
+const static Pin PIN_VOLTAGE_5VUUT = {.group = 1, .pin = 5, .adc = 13};
+const static Pin PIN_VOLTAGE_PORTA33 = {.group = 1, .pin = 6, .adc = 14};
+const static Pin PIN_VOLTAGE_12 = {.group = 1, .pin = 8, .adc = 2};
+const static Pin PIN_VOLTAGE_33CP = {.group = 0, .pin = 4, .adc = 4};
+const static Pin PIN_VOLTAGE_PORTB33 = {.group = 0, .pin = 5, .adc = 5};
+const static Pin PIN_VOLTAGE_18 = {.group = 1, .pin = 0, .adc = 8};
+const static Pin PIN_VOLTAGE_33MT = {.group = 1, .pin = 1, .adc = 9};
+const static Pin PIN_VOLTAGE_5VUSB0 = {.group = 1, .pin = 3, .adc = 11};
