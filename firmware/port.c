@@ -21,7 +21,8 @@ typedef enum PortCmd {
     CMD_GPIO_INT = 8, // set interrupt on pin
     CMD_GPIO_INPUT = 22, // switches pin to input, does not read value
     CMD_GPIO_RAW_READ = 23, // reads pin state, does not switch between input/output
-
+    CMD_ANALOG_READ = 24,
+    CMD_ANALOG_WRITE = 25,
     CMD_ENABLE_SPI = 10,
     CMD_DISABLE_SPI = 11,
     CMD_ENABLE_I2C = 12,
@@ -159,7 +160,11 @@ int port_cmd_args(PortCmd cmd) {
         case CMD_GPIO_CFG:
         case CMD_GPIO_INPUT:
         case CMD_GPIO_RAW_READ:
+        case CMD_ANALOG_READ:
             return 1;
+
+        case CMD_ANALOG_WRITE:
+            return 2;
 
         // Config argument:
         case CMD_ENABLE_SPI:
@@ -248,6 +253,72 @@ void uart_send_data(PortData *p){
     }
 }
 
+uint16_t analog_read(Pin p) {
+    // switch pin mux to analog in
+    pin_adc(p);
+
+    // disable adc
+    ADC->CTRLA.reg &= ~ADC_CTRLA_ENABLE;
+
+    // set up clock
+    PM->APBCMASK.reg |= PM_APBCMASK_ADC;
+
+    // enable clock adc channel
+    gclk_enable(GCLK_ADC, GCLK_SOURCE_DFLL48M, 1);
+    GCLK->CLKCTRL.reg = GCLK_CLKCTRL_CLKEN |
+        GCLK_CLKCTRL_GEN(GCLK_ADC) |
+        GCLK_CLKCTRL_ID(GCLK_ADC_ID);
+
+    ADC->INPUTCTRL.reg = (ADC_INPUTCTRL_MUXPOS(p.adc) // select from proper pin
+        | ADC_INPUTCTRL_MUXNEG_GND // 0 = gnd
+        | ADC_INPUTCTRL_GAIN_DIV2); // gain of 1/2
+
+    // divide prescaler by 512 (93.75KHz), max adc freq is 2.1MHz
+    ADC->CTRLB.reg = ADC_CTRLB_PRESCALER_DIV512;
+    ADC->REFCTRL.reg = ADC_REFCTRL_REFSEL_INTVCC1; // reference voltage is 1/2 VDDANA
+    ADC->SWTRIG.reg = ADC_SWTRIG_START; // start adc
+    // wait until synced
+    while(ADC->STATUS.reg & ADC_STATUS_SYNCBUSY);
+
+    // enable
+    ADC->CTRLA.reg = ADC_CTRLA_ENABLE;
+
+    // wait until result is ready
+    while(ADC->INTFLAG.reg & ADC_INTFLAG_RESRDY);
+    ADC->INTFLAG.reg = ADC_INTFLAG_RESRDY; // clear ready flag
+    
+    // take another sample
+    // "The first conversion after the reference is changed must not be used."
+    ADC->SWTRIG.reg = ADC_SWTRIG_START;
+    while(ADC->INTFLAG.reg & ADC_INTFLAG_RESRDY);
+    
+    return ADC->RESULT.reg & 0xFFF; // get first 12 bits
+
+    // todo disable clock
+}
+
+void analog_write(u16 val) {
+    // switch dac pinmux
+    // this must be PA02, configured for pinmux B
+    PORT->Group[0].PMUX[1].bit.PMUXE = 0x1;
+    PORT->Group[0].PINCFG[2].bit.PMUXEN = 1;
+
+    // disable
+    DAC->CTRLA.reg &= ~DAC_CTRLA_ENABLE;
+    
+    // hook up clk
+    PM->APBCMASK.reg |= PM_APBCMASK_DAC;
+    GCLK->CLKCTRL.reg = GCLK_CLKCTRL_CLKEN | GCLK_CLKCTRL_GEN(GCLK_32K) | GCLK_CLKCTRL_ID(DAC_GCLK_ID);
+
+    // set vcc as reference voltage
+    DAC->CTRLB.reg = DAC_CTRLB_EOEN |DAC_CTRLB_REFSEL_AVCC;
+
+    // enable
+    DAC->CTRLA.reg = DAC_CTRLA_ENABLE;
+
+    DAC->DATA.reg = val;
+}
+
 ExecStatus port_begin_cmd(PortData *p) {
     switch (p->cmd) {
         case CMD_NOP:
@@ -309,6 +380,22 @@ ExecStatus port_begin_cmd(PortData *p) {
 
         case CMD_GPIO_WAIT:
         case CMD_GPIO_CFG:
+            return EXEC_DONE;
+
+        case CMD_ANALOG_READ: {
+            // copy analog data into reply buffer
+            u16 val = analog_read(port_selected_pin(p));
+
+            p->reply_buf[p->reply_len++] = REPLY_DATA;
+            p->reply_buf[p->reply_len++] = val & 0xFF; // lower 8 bits
+            p->reply_buf[p->reply_len++] = val >> 8;// higher 8 bits
+
+            return EXEC_DONE;
+        }
+
+        case CMD_ANALOG_WRITE:
+            // get the higher and lower args
+            analog_write((p->arg[0] << 8) + p->arg[1]);
             return EXEC_DONE;
 
         case CMD_ENABLE_SPI:

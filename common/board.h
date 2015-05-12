@@ -98,10 +98,10 @@ const static TesselPort PORT_A = {
     .sda =  {.group = 0, .pin = 12, .mux = MUX_PA12D_SERCOM4_PAD0 },
     .sck =  {.group = 1, .pin = 23, .mux = MUX_PB23D_SERCOM5_PAD3 },
     .miso = {.group = 1, .pin = 22, .mux = MUX_PB22D_SERCOM5_PAD2 },
-    .mosi = {.group = 1, .pin = 2,  .mux = MUX_PB02D_SERCOM5_PAD0 },
+    .mosi = {.group = 1, .pin = 2,  .mux = MUX_PB02D_SERCOM5_PAD0, .adc = 10},
     .tx =   {.group = 0, .pin = 14, .mux = MUX_PA14D_SERCOM4_PAD2 },
     .rx =   {.group = 0, .pin = 15, .mux = MUX_PA15D_SERCOM4_PAD3 },
-    .g3 =   {.group = 1, .pin = 8 },
+    .g3 =   {.group = 1, .pin = 8, .adc = 2},
     .pin_interrupts
         = (1 << (23 & 0xf)) // GPIO 2
         | (1 << (14 & 0xf)) // GPIO 5
@@ -117,14 +117,14 @@ const static TesselPort PORT_A = {
 };
 
 const static TesselPort PORT_B = {
-    .scl =  {.group = 0, .pin = 9,  .mux = MUX_PA09D_SERCOM2_PAD1 },
-    .sda =  {.group = 0, .pin = 8,  .mux = MUX_PA08D_SERCOM2_PAD0 },
-    .sck =  {.group = 0, .pin = 5,  .mux = MUX_PA05D_SERCOM0_PAD1 },
-    .miso = {.group = 0, .pin = 7,  .mux = MUX_PA07D_SERCOM0_PAD3 },
-    .mosi = {.group = 0, .pin = 4,  .mux = MUX_PA04D_SERCOM0_PAD0 },
-    .tx =   {.group = 0, .pin = 10, .mux = MUX_PA10D_SERCOM2_PAD2 },
-    .rx =   {.group = 0, .pin = 11, .mux = MUX_PA11D_SERCOM2_PAD3 },
-    .g3 =   {.group = 0, .pin = 2 },
+    .scl =  {.group = 0, .pin = 9,  .mux = MUX_PA09D_SERCOM2_PAD1, .adc = 17 },
+    .sda =  {.group = 0, .pin = 8,  .mux = MUX_PA08D_SERCOM2_PAD0, .adc = 16 },
+    .sck =  {.group = 0, .pin = 5,  .mux = MUX_PA05D_SERCOM0_PAD1, .adc = 5 },
+    .miso = {.group = 0, .pin = 7,  .mux = MUX_PA07D_SERCOM0_PAD3, .adc = 7 },
+    .mosi = {.group = 0, .pin = 4,  .mux = MUX_PA04D_SERCOM0_PAD0, .adc = 4 },
+    .tx =   {.group = 0, .pin = 10, .mux = MUX_PA10D_SERCOM2_PAD2, .adc = 18 },
+    .rx =   {.group = 0, .pin = 11, .mux = MUX_PA11D_SERCOM2_PAD3, .adc = 19 },
+    .g3 =   {.group = 0, .pin = 2, .adc = 0 },
     .pin_interrupts
         = (1 << (5  & 0xf)) // GPIO 2
         | (1 << (10 & 0xf)) // GPIO 5

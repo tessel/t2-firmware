@@ -11,6 +11,17 @@ inline static void pin_mux(Pin p) {
   PORT->Group[p.group].PINCFG[p.pin].bit.PMUXEN = 1;
 }
 
+// all adc functions are on peripherial B (0x01)
+inline static void pin_adc(Pin p) {
+  if (p.pin & 1) {
+    PORT->Group[p.group].PMUX[p.pin/2].bit.PMUXO = 0x1;
+  } else {
+    PORT->Group[p.group].PMUX[p.pin/2].bit.PMUXE = 0x1;
+  }
+
+  PORT->Group[p.group].PINCFG[p.pin].bit.PMUXEN = 1;
+}
+
 inline static void pin_gpio(Pin p) {
   PORT->Group[p.group].PINCFG[p.pin].bit.PMUXEN = 0;
 }
