@@ -33,4 +33,4 @@ void usb_control_req_digital_read_all() {
     }
     usb_ep0_in(sizeof(DIGITAL_PINS) / sizeof(Pin));
     usb_ep0_out();
-};
+}
