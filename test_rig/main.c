@@ -21,6 +21,8 @@ int main(void) {
     NVIC_EnableIRQ(EVSYS_IRQn);
     NVIC_SetPriority(EVSYS_IRQn, 0);
 
+    init_all_digital_pins();
+
     __enable_irq();
     SCB->SCR |= SCB_SCR_SLEEPONEXIT_Msk;
     while (1) { __WFI(); }
