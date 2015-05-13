@@ -42,7 +42,7 @@ enum Commands {
     CMD_CLOSE_STDERR = 0x33,
 };
 
-#define debug(args...)
+#define debug(args...) syslog(LOG_INFO, args)
 #define info(args...)   syslog(LOG_INFO, args)
 #define error(args...)  syslog(LOG_ERR, args)
 #define fatal(args...) ({ \
@@ -400,12 +400,6 @@ int pipebuf_in_write_to_sock(pipebuf_t* pb, size_t num_to_write) {
     // Calculate our new credit based on what was available and how much we just wrote
     pb->credit -= written;
 
-    // If we just ran out of credit
-    if (pb->credit == 0) {
-        // Stop polling stdout/stderr for more data
-        delete_pipebuf_epoll(pb);
-    }
-
     return written;
 }
 
@@ -520,8 +514,8 @@ void pipebuf_in_to_internal_buffer(pipebuf_t* pb) {
         }
     }
 
-    // If the pipe buffer is full
-    if (space_available == 0) {
+    // If the pipe buffer is full 
+    if (space_available == 0 && pb->credit > 0) {
         // pipebuf_common_debug(pb, "No more space in pipe buffer. Ending polling.");
         // Stop polling this fd for new data
         delete_pipebuf_epoll(pb);
