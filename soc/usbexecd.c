@@ -339,6 +339,9 @@ Returns: the file descriptor needed to communicate with the pipebuffer created
 int pipebuf_in_init(pipebuf_t* pb, int id, int role) {
     int fd = pipebuf_common_init(pb, id, role, EPOLLIN, 0);
 
+    // Start polling for data available to stream into the internal buf
+    add_pipebuf_epoll(pb);
+
     return fd;
 }
 
@@ -423,9 +426,9 @@ void pipebuf_in_ack(pipebuf_t* pb, size_t ack_number_size) {
         ack_size += (ack_size_bytes[i] << (i * 8));
     }
 
-    // If this pipe buffer previously had no bytes that could be written to
-    // But now has bytes available
-    if (pb->credit == 0 && ack_size > 0) {
+    // If this pipe buffer was previously full
+    // But will now be able to send out data
+    if (pb->bufcount == PIPE_BUF && ack_size > 0) {
         // Enable notifications of when the internal pipe buffer is written to
         add_pipebuf_epoll(pb);
     }
