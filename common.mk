@@ -19,8 +19,3 @@ $(TARGET)_CFLAGS += -mcpu=cortex-m0plus -mthumb
 
 $(TARGET)_LDFLAGS += -mcpu=cortex-m0plus -mthumb -flto
 $(TARGET)_LDFLAGS += -Wl,--gc-sections --specs=nano.specs
-
-$(TARGET)_LDSCRIPT = common/samd21g15a_firmware_partition.ld
-
-$(TARGET)_DEFINE += \
-  -D __SAMD21G15A__
