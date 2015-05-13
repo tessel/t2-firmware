@@ -31,6 +31,7 @@ void dap_handle_usb_out_completion();
 // digital.c
 void usb_control_req_digital(uint16_t wIndex, uint16_t wValue);
 void usb_control_req_digital_read_all();
+void init_all_digital_pins();
 
 // button.c
 void button_init();

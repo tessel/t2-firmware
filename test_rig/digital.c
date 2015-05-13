@@ -34,3 +34,9 @@ void usb_control_req_digital_read_all() {
     usb_ep0_in(sizeof(DIGITAL_PINS) / sizeof(Pin));
     usb_ep0_out();
 }
+
+void init_all_digital_pins() {
+    for (uint8_t c = 0; c < sizeof(DIGITAL_PINS) / sizeof(Pin); c++) {
+        pin_in(DIGITAL_PINS[c]);
+    }
+}
