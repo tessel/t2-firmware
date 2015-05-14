@@ -12,8 +12,10 @@
 /// USB Endpoint allocation
 #define USB_EP_DAP_HID_OUT 0x01
 #define USB_EP_DAP_HID_IN 0x82
+#define USB_EP_REPORT_IN 0x83
 
 /// Timer allocation
+#define TC_BUTTON_POLL 3
 
 // TCC allocation
 
@@ -29,3 +31,7 @@ void dap_handle_usb_out_completion();
 // digital.c
 void usb_control_req_digital(uint16_t wIndex, uint16_t wValue);
 void usb_control_req_digital_read_all();
+
+// button.c
+void button_init();
+void button_poll();

@@ -35,6 +35,8 @@ typedef struct ConfigDesc {
 	USB_InterfaceDescriptor DAPInterface;
 	USB_EndpointDescriptor DAPInEndpoint;
 	USB_EndpointDescriptor DAPOutEndpoint;
+	USB_InterfaceDescriptor EventInterface;
+	USB_EndpointDescriptor ReportInEndpoint;
 }  __attribute__((packed)) ConfigDesc;
 
 __attribute__((__aligned__(4))) const ConfigDesc configuration_descriptor = {
@@ -42,7 +44,7 @@ __attribute__((__aligned__(4))) const ConfigDesc configuration_descriptor = {
 		.bLength = sizeof(USB_ConfigurationDescriptor),
 		.bDescriptorType = USB_DTYPE_Configuration,
 		.wTotalLength  = sizeof(ConfigDesc),
-		.bNumInterfaces = 1,
+		.bNumInterfaces = 2,
 		.bConfigurationValue = 1,
 		.iConfiguration = 0,
 		.bmAttributes = USB_CONFIG_ATTR_BUSPOWERED,
@@ -74,6 +76,25 @@ __attribute__((__aligned__(4))) const ConfigDesc configuration_descriptor = {
 		.bmAttributes = (USB_EP_TYPE_BULK | ENDPOINT_ATTR_NO_SYNC | ENDPOINT_USAGE_DATA),
 		.wMaxPacketSize = 64,
 		.bInterval = 0x00
+	},
+	.EventInterface = {
+		.bLength = sizeof(USB_InterfaceDescriptor),
+		.bDescriptorType = USB_DTYPE_Interface,
+		.bInterfaceNumber = 1,
+		.bAlternateSetting = 0,
+		.bNumEndpoints = 1,
+		.bInterfaceClass = USB_CSCP_VendorSpecificClass,
+		.bInterfaceSubClass = 0x00,
+		.bInterfaceProtocol = 0x00,
+		.iInterface = 0x11,
+	},
+	.ReportInEndpoint = {
+		.bLength = sizeof(USB_EndpointDescriptor),
+		.bDescriptorType = USB_DTYPE_Endpoint,
+		.bEndpointAddress = USB_EP_REPORT_IN,
+		.bmAttributes = (USB_EP_TYPE_INTERRUPT | ENDPOINT_ATTR_NO_SYNC | ENDPOINT_USAGE_DATA),
+		.wMaxPacketSize = 8,
+		.bInterval = 10,
 	},
 };
 
@@ -136,6 +157,9 @@ uint16_t usb_cb_get_descriptor(uint8_t type, uint8_t index, const uint8_t** ptr)
 				case 0x10:
 					address = usb_string_to_descriptor("CMSIS-DAP");
 					break;
+				case 0x11:
+					address = usb_string_to_descriptor("Events");
+					break;
 				case 0xee:
 					address = &msft_os;
 					break;
@@ -154,6 +178,7 @@ void usb_cb_reset(void) {
 bool usb_cb_set_configuration(uint8_t config) {
 	if (config <= 1) {
 		dap_enable();
+		button_init();
 		return true;
 	}
 	return false;
