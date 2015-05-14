@@ -5,6 +5,10 @@
 #include "common/util.h"
 #include "common/hw.h"
 
+// Temporary configuration for the SAMD21 Xplained Pro board
+// http://www.atmel.com/Images/Atmel-42220-SAMD21-Xplained-Pro_User-Guide.pdf
+#define XPLAINED
+
 // Memory Layout
 #define FLASH_BOOT_SIZE 4096
 #define FLASH_CONFIG_SIZE 1024
@@ -28,7 +32,12 @@ const static Pin PIN_USB_DP = {.group = 0, .pin = 25, .mux = MUX_PA25G_USB_DP };
 const static Pin PIN_RESET =        {.group = 0, .pin = 14};
 const static Pin PIN_SWDIO =        {.group = 1, .pin = 10};
 const static Pin PIN_SWCLK =        {.group = 1, .pin = 11};
+
+#ifdef XPLAINED
+const static Pin PIN_START_BUTTON = {.group = 0, .pin = 15};
+#else
 const static Pin PIN_START_BUTTON = {.group = 1, .pin = 31};
+#endif
 
 
 const static Pin ANALOG_PINS[] = {
