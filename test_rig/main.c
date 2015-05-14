@@ -44,3 +44,8 @@ void EIC_Handler() {
     u32 flags = EIC->INTFLAG.reg;
     (void) flags;
 }
+
+void TC_HANDLER(TC_BUTTON_POLL) {
+    button_poll();
+    tc(TC_BUTTON_POLL)->COUNT16.INTFLAG.reg = TC_INTFLAG_OVF;
+}
