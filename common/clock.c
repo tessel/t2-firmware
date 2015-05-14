@@ -106,24 +106,3 @@ void clock_init_crystal(u8 clk_system, u8 clk_32k) {
   gclk_enable(clk_system, GCLK_SOURCE_DFLL48M, 1);
   while (GCLK->STATUS.bit.SYNCBUSY);
 }
-
-void adc_init(u8 channel) {
-  // set up clock
-  PM->APBCMASK.reg |= PM_APBCMASK_ADC;
-  
-  // divide prescaler by 512 (93.75KHz), max adc freq is 2.1MHz
-  ADC->CTRLB.reg = ADC_CTRLB_PRESCALER_DIV512;
-
-  // enable clock adc channel
-  GCLK->CLKCTRL.reg = GCLK_CLKCTRL_CLKEN |
-      GCLK_CLKCTRL_GEN(channel) |
-      GCLK_CLKCTRL_ID(ADC_GCLK_ID);
-}
-
-void dac_init(u8 channel) {
-  // hook up clk
-  PM->APBCMASK.reg |= PM_APBCMASK_DAC;
-  GCLK->CLKCTRL.reg = GCLK_CLKCTRL_CLKEN | 
-    GCLK_CLKCTRL_GEN(channel) | 
-    GCLK_CLKCTRL_ID(DAC_GCLK_ID);
-}

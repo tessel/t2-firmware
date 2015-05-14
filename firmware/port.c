@@ -253,50 +253,6 @@ void uart_send_data(PortData *p){
     }
 }
 
-uint16_t analog_read(Pin p) {
-    // disable adc
-    ADC->CTRLA.reg &= ~ADC_CTRLA_ENABLE;
-    while(ADC->STATUS.reg & ADC_STATUS_SYNCBUSY);
-
-    // switch pin mux to analog in
-    pin_analog(p);
-
-    ADC->INPUTCTRL.reg = (ADC_INPUTCTRL_MUXPOS(p.chan) // select from proper pin
-        | ADC_INPUTCTRL_MUXNEG_GND // 0 = gnd
-        | ADC_INPUTCTRL_GAIN_DIV2); // gain of 1/2
-
-    ADC->REFCTRL.reg = ADC_REFCTRL_REFSEL_INTVCC1; // reference voltage is 1/2 VDDANA
-    
-    ADC->CTRLA.reg = ADC_CTRLA_ENABLE; // enable
-    while(ADC->STATUS.reg & ADC_STATUS_SYNCBUSY);
-    
-    // flush first value in the pipeline
-    for (u8 i = 0; i<2; i++) {
-        ADC->SWTRIG.reg = ADC_SWTRIG_START;
-        while(ADC->SWTRIG.reg & ADC_SWTRIG_START); // wait until conversion has started
-        while(ADC->INTFLAG.reg & ADC_INTFLAG_RESRDY); // wait until result is ready
-        ADC->INTFLAG.reg = ADC_INTFLAG_RESRDY; // clear ready flag
-    }
-    
-    return ADC->RESULT.reg & 0xFFF;
-}
-
-void analog_write(u16 val) {
-    // switch dac pinmux. this must be PA02
-    pin_analog(PORT_B.g3);
-
-    // disable
-    DAC->CTRLA.reg &= ~DAC_CTRLA_ENABLE;
-
-    // set vcc as reference voltage
-    DAC->CTRLB.reg = DAC_CTRLB_EOEN |DAC_CTRLB_REFSEL_AVCC;
-
-    // enable
-    DAC->CTRLA.reg = DAC_CTRLA_ENABLE;
-
-    DAC->DATA.reg = val;
-}
-
 ExecStatus port_begin_cmd(PortData *p) {
     switch (p->cmd) {
         case CMD_NOP:
@@ -368,15 +324,12 @@ ExecStatus port_begin_cmd(PortData *p) {
             p->reply_buf[p->reply_len++] = val & 0xFF; // lower 8 bits
             p->reply_buf[p->reply_len++] = val >> 8;// higher 8 bits
 
-            // ADC->CTRLA.reg &= ~ADC_CTRLA_ENABLE;
-            // while(ADC->STATUS.reg & ADC_STATUS_SYNCBUSY);
-
             return EXEC_DONE;
         }
 
         case CMD_ANALOG_WRITE:
             // get the higher and lower args
-            analog_write((p->arg[0] << 8) + p->arg[1]);
+            analog_write(PORT_B.g3, (p->arg[0] << 8) + p->arg[1]);
             return EXEC_DONE;
 
         case CMD_ENABLE_SPI:

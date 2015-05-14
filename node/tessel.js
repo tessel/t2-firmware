@@ -392,7 +392,6 @@ Pin.prototype.analogRead = function (cb) {
         console.warn("analogPin.read is async, pass in a callback to get the value");
     }
 
-    this._port.cork();
     this._port.sock.write(new Buffer([CMD.ANALOG_READ, this.pin]))
     this._port.replyQueue.push({
         size: 2,
@@ -400,7 +399,6 @@ Pin.prototype.analogRead = function (cb) {
             cb(err, (data[0] + (data[1] << 8))/ANALOG_RESOLUTION * 3.3);
         },
     });
-    this._port.uncork();
 
     return this;
 }
