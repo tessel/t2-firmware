@@ -42,7 +42,7 @@ enum Commands {
     CMD_CLOSE_STDERR = 0x33,
 };
 
-#define debug(args...) 
+#define debug(args...)
 #define info(args...)   syslog(LOG_INFO, args)
 #define error(args...)  syslog(LOG_ERR, args)
 #define fatal(args...) ({ \
@@ -58,11 +58,16 @@ int sigfd  = 0;
 #define MAX_CTRL_ARGS 255
 #define MAX_WRITE_LEN 255
 
+// Flag to close a stream immediately without waiting for remaining bytes to be flushed
 #define NO_FLUSH 1
+// Flag to close a stream once the remaining internal buffer has been flushed
 #define FLUSH 0
 
+// Return value indicating a stream was successfully closed
 #define CLOSE_SUCCESS 0
+// Return value indicated that this stream has already been closed
 #define ERR_ALREADY_CLOSED -1
+// Return value indicating that data remains in the internal buffer and the NO_FLUSH flag was not passed
 #define ERR_BUFFER_NOT_EMPTY -2
 
 enum Roles {
@@ -302,9 +307,9 @@ int pipebuf_common_close(pipebuf_t* pb, int flush) {
     // Mark this buffer as ready to close
     pb->eof = true;
 
-    // If it still has data internally, don't close it
-    // If it does, go wild
-    if (pb->bufcount == 0 && flush != NO_FLUSH) {
+    // If this stream has no more data internally or we don't want to flush it
+    // close it immediately
+    if (pb->bufcount == 0 || flush == NO_FLUSH) {
         // If the file descriptor exists (which it should)
         if (pb->fd != -1) {
             // Close it
