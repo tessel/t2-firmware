@@ -2,8 +2,10 @@
 #include "test_rig.h"
 #include "class/cdc/cdc_standard.h"
 
-#define DIGITAL_CONTROL 1
+#define DIGITAL_CONTROL  1
+#define ANALOG_SAMPLE    2
 #define READ_ALL_DIGITAL 3
+
 #define REQ_INFO 0x30
 #define REQ_INFO_GIT_HASH 0x0
 
@@ -206,13 +208,15 @@ void usb_cb_control_setup(void) {
 	uint8_t recipient = usb_setup.bmRequestType & USB_REQTYPE_RECIPIENT_MASK;
 	if (recipient == USB_RECIPIENT_DEVICE) {
 		switch(usb_setup.bRequest) {
-			case 0xee:	  
+			case 0xee:
 				return usb_handle_msft_compatible(&msft_compatible);
+			case REQ_INFO: return req_info(usb_setup.wIndex);
 			case DIGITAL_CONTROL:
 				return usb_control_req_digital(usb_setup.wIndex, usb_setup.wValue);
 			case READ_ALL_DIGITAL:
 				return usb_control_req_digital_read_all();
-			case REQ_INFO: return req_info(usb_setup.wIndex);
+			case ANALOG_SAMPLE:
+				return usb_control_req_analog_read(usb_setup.wIndex, usb_setup.wValue);
 		}
 	} else if (recipient == USB_RECIPIENT_INTERFACE) {
 	}

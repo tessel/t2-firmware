@@ -40,3 +40,16 @@ void init_all_digital_pins() {
         pin_in(DIGITAL_PINS[c]);
     }
 }
+
+void usb_control_req_analog_read(uint16_t wIndex, uint16_t wValue) {
+    // wiIndex = index into the array
+    // wValue unused
+    if (wIndex >= sizeof(ANALOG_PINS) / sizeof(Pin)) {
+        return usb_ep0_stall();
+    }
+    uint16_t val = analog_read(ANALOG_PINS[wIndex]);
+    ep0_buf_in[0] = val;
+    ep0_buf_in[1] = (val >> 8);
+    usb_ep0_in(2);
+    usb_ep0_out();
+}

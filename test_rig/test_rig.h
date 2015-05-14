@@ -28,10 +28,11 @@ void dap_enable();
 void dap_handle_usb_in_completion();
 void dap_handle_usb_out_completion();
 
-// digital.c
+// pins.c
 void usb_control_req_digital(uint16_t wIndex, uint16_t wValue);
 void usb_control_req_digital_read_all();
 void init_all_digital_pins();
+void usb_control_req_analog_read(uint16_t wIndex, uint16_t wValue);
 
 // button.c
 void button_init();
