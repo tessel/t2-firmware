@@ -13,6 +13,17 @@ inline static void pin_mux(Pin p) {
   PORT->Group[p.group].PINCFG[p.pin].bit.PMUXEN = 1;
 }
 
+// all adc functions are on peripherial B (0x01)
+inline static void pin_analog(Pin p) {
+  if (p.pin & 1) {
+    PORT->Group[p.group].PMUX[p.pin/2].bit.PMUXO = 0x1;
+  } else {
+    PORT->Group[p.group].PMUX[p.pin/2].bit.PMUXE = 0x1;
+  }
+
+  PORT->Group[p.group].PINCFG[p.pin].bit.PMUXEN = 1;
+}
+
 inline static void pin_gpio(Pin p) {
   PORT->Group[p.group].PINCFG[p.pin].bit.PMUXEN = 0;
 }
@@ -142,6 +153,12 @@ inline static void evsys_config(u8 channel, u8 source, u8 user) {
 }
 
 #define EVSYS_EVD(N) ((N)<=7 ? (1<<((N) + 8)) : (1 << (24 + (N) - 8)))
+
+// analog.c
+void adc_init(u8 channel);
+void dac_init(u8 channel);
+uint16_t analog_read(Pin p);
+void analog_write(Pin p, u16 val);
 
 // clock.c
 void gclk_enable(uint32_t id, uint32_t src, uint32_t div);
