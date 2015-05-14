@@ -14,7 +14,7 @@ inline static void pin_mux(Pin p) {
 }
 
 // all adc functions are on peripherial B (0x01)
-inline static void pin_adc(Pin p) {
+inline static void pin_analog(Pin p) {
   if (p.pin & 1) {
     PORT->Group[p.group].PMUX[p.pin/2].bit.PMUXO = 0x1;
   } else {
@@ -158,6 +158,8 @@ inline static void evsys_config(u8 channel, u8 source, u8 user) {
 void gclk_enable(uint32_t id, uint32_t src, uint32_t div);
 void clock_init_usb(u8 clk_system);
 void clock_init_crystal(u8 clk_system, u8 clk_32k);
+void adc_init(u8 channel);
+void dac_init(u8 channel);
 
 // dma.c
 #define DMA_DESC_ALIGN __attribute__((aligned(16)))

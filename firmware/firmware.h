@@ -47,11 +47,6 @@
 #define GCLK_32K    2
 #define GCLK_PORT_A 3
 #define GCLK_PORT_B 4
-#define GCLK_ADC    5
-
-// GCLK adc settings
-#define GCLK_ADC_ID 0x1E
-#define GCLK_DAC_ID 0x21
 
 // flash.c
 

@@ -5,7 +5,7 @@ var val = 0;
 
 setInterval(function(){
 	console.log("dac =", val);
-	portB.analog[7].write(val);
+	portB.pin[7].analogWrite(val);
 	
 	if (val < 3.2) {
 		val += 0.1;

@@ -113,7 +113,8 @@ function Port(name, socketPath, board) {
 
     this.pin = [];
     for (var i=0; i<8; i++) {
-        this.pin.push(new Pin(i, this, [2,5,6,7].indexOf(i) != -1));
+        var adcSupported = name == 'B' || [4, 7].indexOf(i) != -1 ? true: false;
+        this.pin.push(new Pin(i, this, [2,5,6,7].indexOf(i) != -1, adcSupported));
     }
 
     // Deprecated properties for Tessel 1 backwards compatibility:
@@ -121,18 +122,6 @@ function Port(name, socketPath, board) {
     this.pin.G2 = this.pin.g2 = this.pin[6];
     this.pin.G3 = this.pin.g3 = this.pin[7];
     this.digital = [ this.pin[5], this.pin[6], this.pin[7] ];
-
-    this.analog = [];
-    if (name == 'A') {
-        // pin 4 and pin 7 are adcs
-        this.analog.push(new AnalogPin(4, this));
-        this.analog.push(new AnalogPin(7, this));
-    } else if (name == 'B') {
-        // all pins are adcs
-        for (var i = 0; i < 8; i++) {
-            this.analog.push(new AnalogPin(i, this));
-        }
-    }
 
     this.pwm = [];
 }
@@ -242,10 +231,11 @@ Port.prototype.UART = function (format) {
     return this._uart;
 };
 
-function Pin (pin, port, interruptSupported) {
+function Pin (pin, port, interruptSupported, analogSupported) {
     this.pin = pin;
     this._port = port;
-    this.interruptSupported = interruptSupported;
+    this.interruptSupported = interruptSupported || false;
+    this.analogSupported = analogSupported || false;
     this.interruptMode = null;
     this.isPWM = false;
 }
@@ -389,16 +379,15 @@ Pin.prototype.readPulse = function(type, timeout, callback) {
     throw new Error("Pin.readPulse is not yet implemented");
 }
 
-function AnalogPin(pin, port) {
-    this.pin = pin;
-    this._port = port;
-}
-
 var ANALOG_RESOLUTION = 4096;
-AnalogPin.prototype.type = 'analog';
-AnalogPin.prototype.resolution = ANALOG_RESOLUTION;
+Pin.prototype.resolution = ANALOG_RESOLUTION;
 
-AnalogPin.prototype.read = function(cb) {
+Pin.prototype.analogRead = function (cb) {
+    if (!this.analogSupported) {
+        console.warn("pin.analogRead is not supoprted on this pin. Analog read is supported on port A pins 4 and 7 and on all pins on port B");
+        return this;
+    }
+
     if (typeof cb != "function") {
         console.warn("analogPin.read is async, pass in a callback to get the value");
     }
@@ -416,7 +405,7 @@ AnalogPin.prototype.read = function(cb) {
     return this;
 }
 
-AnalogPin.prototype.write = function(val) {
+Pin.prototype.analogWrite = function (val) {
     // throw an error if this isn't the adc pin (port b, pin 7)
     if (this._port.name != 'B' || this.pin != 7) {
         throw new Error("Analog write can only be used on Pin 7 (G3) of Port B.");
