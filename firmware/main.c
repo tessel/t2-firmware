@@ -50,10 +50,6 @@ int main(void) {
     NVIC_EnableIRQ(EVSYS_IRQn);
     NVIC_SetPriority(EVSYS_IRQn, 0);
 
-    adc_init(GCLK_SYSTEM);
-
-    dac_init(GCLK_32K);
-
     bridge_init();
     usbpipe_init();
 

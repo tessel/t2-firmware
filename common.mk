@@ -11,7 +11,6 @@ $(TARGET)_SRC += \
   common/dma.c \
   common/sercom.c \
   common/timer.c \
-  common/analog.c \
 
 $(TARGET)_CFLAGS += -Wall --std=gnu99 -Os -g3 -flto
 $(TARGET)_CFLAGS += -fdata-sections -ffunction-sections
