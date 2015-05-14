@@ -2,8 +2,11 @@
 #include "test_rig.h"
 #include "class/cdc/cdc_standard.h"
 
-#define DIGITAL_CONTROL 1
+#define DIGITAL_CONTROL  1
+#define ANALOG_SAMPLE    2
 #define READ_ALL_DIGITAL 3
+#define ANALOG_MODE      4
+
 
 USB_ENDPOINTS(5);
 
