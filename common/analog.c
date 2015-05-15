@@ -34,19 +34,13 @@ uint16_t analog_read(Pin p) {
         | ADC_INPUTCTRL_GAIN_DIV2); // gain of 1/2
 
     ADC->REFCTRL.reg = ADC_REFCTRL_REFSEL_INTVCC1; // reference voltage is 1/2 VDDANA
-    
+
     ADC->CTRLA.reg = ADC_CTRLA_ENABLE; // enable
     while(ADC->STATUS.reg & ADC_STATUS_SYNCBUSY);
-    
-    // flush first value in the pipeline
-    for (u8 i = 0; i<2; i++) {
-        ADC->SWTRIG.reg = ADC_SWTRIG_START;
-        while(ADC->SWTRIG.reg & ADC_SWTRIG_START); // wait until conversion has started
-        while(ADC->INTFLAG.reg & ADC_INTFLAG_RESRDY); // wait until result is ready
-        ADC->INTFLAG.reg = ADC_INTFLAG_RESRDY; // clear ready flag
-    }
-    
-    return ADC->RESULT.reg & 0xFFF;
+
+    ADC->SWTRIG.reg = ADC_SWTRIG_START;
+    while(!(ADC->INTFLAG.reg & ADC_INTFLAG_RESRDY)); // wait until result is ready
+    return ADC->RESULT.reg;
 }
 
 void analog_write(Pin p, u16 val) {
