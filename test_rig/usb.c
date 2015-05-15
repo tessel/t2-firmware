@@ -197,6 +197,8 @@ void usb_cb_control_setup(void) {
 				return usb_control_req_digital(usb_setup.wIndex, usb_setup.wValue);
 			case READ_ALL_DIGITAL:
 				return usb_control_req_digital_read_all();
+			case ANALOG_SAMPLE:
+				return usb_control_req_analog_read(usb_setup.wIndex, usb_setup.wValue);
 		}
 	} else if (recipient == USB_RECIPIENT_INTERFACE) {
 	}
