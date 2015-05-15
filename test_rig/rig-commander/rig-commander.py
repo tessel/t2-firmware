@@ -65,14 +65,20 @@ analog_pins = [
 def pin_id (pin):
     p = pin.upper()
     if p in digital_pins:
+        print 'd', digital_pins.index(p)
         return digital_pins.index(p)
     elif p in analog_pins:
+        print 'a', analog_pins.index(p)
         return analog_pins.index(p)
     else:
+        print 'doh'
         return -1
 
 def serial_match (serial):
-    return lambda dev: usb.util.get_string(dev, index = dev.iSerialNumber) == serial
+    def inner (dev):
+        print usb.util.get_string(dev, index = dev.iSerialNumber)
+        return usb.util.get_string(dev, index = dev.iSerialNumber) == serial
+    return inner
 
 def counts_to_volts (counts):
     return counts / ADC_MAX_VALUE * ADC_REFERENCE
@@ -91,26 +97,26 @@ class testalator (object):
             raise ValueError('device is not connected')
 
 
-    def digital (pin, state):
+    def digital (self, pin, state):
         return self.dev.ctrl_transfer(0xC0, REQ_DIGITAL, state, pin_id(pin), 64)
 
-    def read_all_digital ():
+    def read_all_digital (self):
         states = self.dev.ctrl_transfer(0xC0, REQ_READALLDIGITAL, 0, 0, 64)    
         return zip(digital_pins, states)
 
-    def analog (pin):
+    def analog (self, pin):
         return self.dev.ctrl_transfer(0xC0, REQ_ANALOG, 0, pin_id(pin), 64)
 
-    def set_analog_mode (pin, mode):
+    def set_analog_mode (self, pin, mode):
         return self.dev.ctrl_transfer(0xC0, REQ_SETANALOGMODE, mode, pin_id(pin), 64)
 
 
     # wrappers
 
-    def power_helper (usb, vin):
+    def power_helper (self, usb, vin):
         return (digital('UUTPOWER_USB', usb)[0], digital('UUTPOWER_VIN', vin)[0])
 
-    def power (source = 'USB'):
+    def power (self, source = 'USB'):
         if str(source).upper() == 'VIN':
             return power_helper(False, True)
         elif (str(source).upper() in ('USB', 'ON', '1', 'TRUE')):
@@ -118,23 +124,23 @@ class testalator (object):
         else:
             return power_helper(False, False)
 
-    def test_pass ():
+    def test_pass (self):
         digital('LED_TESTING', 0)
         digital('LED_FAIL', 0)
         digital('LED_PASS', 1)
 
-    def test_fail ():
+    def test_fail (self):
         digital('LED_TESTING', 0)
         digital('LED_PASS', 0)
         digital('LED_FAIL', 1)
 
-    def measure_current (pin):
+    def measure_current (self, pin):
         # configure the pin's ADC
 
         # return the converted value
         return counts_to_amps(read_adc(pin))
 
-    def measure_voltage (pin):
+    def measure_voltage (self, pin):
         # configure the pin's ADC
 
         # return the converted value
@@ -142,5 +148,8 @@ class testalator (object):
 
 
 if __name__ == '__main__':
-    pass
+    testy = testalator('0PXZ34P8PLXWLX42QM8C73N70X')
+    while True:
+        print testy.analog('VOLTAGE_PORTA33')
+
     

@@ -1,5 +1,6 @@
 #include "hw.h"
 
+
 void adc_init(u8 channel) {
   // set up clock
   PM->APBCMASK.reg |= PM_APBCMASK_ADC;
@@ -38,15 +39,17 @@ uint16_t analog_read(Pin p) {
     ADC->CTRLA.reg = ADC_CTRLA_ENABLE; // enable
     while(ADC->STATUS.reg & ADC_STATUS_SYNCBUSY);
     
+    uint16_t result = 1;
     // flush first value in the pipeline
     for (u8 i = 0; i<2; i++) {
         ADC->SWTRIG.reg = ADC_SWTRIG_START;
         while(ADC->SWTRIG.reg & ADC_SWTRIG_START); // wait until conversion has started
         while(ADC->INTFLAG.reg & ADC_INTFLAG_RESRDY); // wait until result is ready
         ADC->INTFLAG.reg = ADC_INTFLAG_RESRDY; // clear ready flag
+        result = ADC->RESULT.reg;
     }
     
-    return ADC->RESULT.reg & 0xFFF;
+    return result;
 }
 
 void analog_write(Pin p, u16 val) {
@@ -63,17 +66,4 @@ void analog_write(Pin p, u16 val) {
     DAC->CTRLA.reg = DAC_CTRLA_ENABLE;
 
     DAC->DATA.reg = val;
-}
-
-void usb_control_req_analog_read(uint16_t wIndex, uint16_t wValue) {
-    // wiIndex = index into the array
-    // wValue unused
-    if (wIndex >= sizeof(ANALOG_PINS) / sizeof(Pin)) {
-        return usb_ep0_stall();
-    }
-    uint16_t val = analog_read(ANALOG_PINS[wIndex]);
-    ep0_buf_in[0] = val;
-    ep0_buf_in[1] = (val >> 8);
-    usb_ep0_in(2);
-    usb_ep0_out();
 }
