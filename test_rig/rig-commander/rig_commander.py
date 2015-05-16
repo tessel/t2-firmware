@@ -73,7 +73,6 @@ def pin_id (pin):
 
 def serial_match (serial):
     def inner (dev):
-        print usb.util.get_string(dev, index = dev.iSerialNumber)
         return usb.util.get_string(dev, index = dev.iSerialNumber) == serial
     return inner
 
