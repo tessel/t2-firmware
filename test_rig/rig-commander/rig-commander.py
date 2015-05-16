@@ -65,13 +65,10 @@ analog_pins = [
 def pin_id (pin):
     p = pin.upper()
     if p in digital_pins:
-        print 'd', digital_pins.index(p)
         return digital_pins.index(p)
     elif p in analog_pins:
-        print 'a', analog_pins.index(p)
         return analog_pins.index(p)
     else:
-        print 'doh'
         return -1
 
 def serial_match (serial):
