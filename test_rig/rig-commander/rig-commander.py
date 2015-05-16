@@ -78,7 +78,7 @@ def serial_match (serial):
     return inner
 
 def counts_to_volts (counts):
-    return counts / ADC_MAX_VALUE * ADC_REFERENCE
+    return counts * 1.0 / ADC_MAX_VALUE * ADC_REFERENCE
 
 def counts_to_amps (counts):
     return counts_to_volts(counts) * CSA_GAIN / R_CSA
@@ -136,18 +136,17 @@ class testalator (object):
         # configure the pin's ADC
 
         # return the converted value
-        return counts_to_amps(read_adc(pin))
+        return counts_to_amps(self.analog(pin))
 
     def measure_voltage (self, pin):
         # configure the pin's ADC
 
         # return the converted value
-        return counts_to_volts(read_adc(pin))
+        return counts_to_volts(self.analog(pin))
 
 
 if __name__ == '__main__':
     testy = testalator('0PXZ34P8PLXWLX42QM8C73N70X')
     while True:
-        print testy.analog('VOLTAGE_PORTA33')
-
+        print testy.measure_voltage('VOLTAGE_PORTA33')
     
