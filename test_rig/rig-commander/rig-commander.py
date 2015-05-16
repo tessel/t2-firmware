@@ -102,7 +102,8 @@ class testalator (object):
         return zip(digital_pins, states)
 
     def analog (self, pin):
-        return self.dev.ctrl_transfer(0xC0, REQ_ANALOG, 0, pin_id(pin), 64)
+        data = self.dev.ctrl_transfer(0xC0, REQ_ANALOG, 0, pin_id(pin), 64)
+        return data[0] + (data[1] << 8)
 
     def set_analog_mode (self, pin, mode):
         return self.dev.ctrl_transfer(0xC0, REQ_SETANALOGMODE, mode, pin_id(pin), 64)
