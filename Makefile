@@ -14,7 +14,8 @@ SIZE = arm-none-eabi-size
 
 include $(addsuffix .mk,$(TARGETS))
 
-version.c: .git/HEAD .git/index
+$(BUILD)/version.c: .git/HEAD .git/index
+	@mkdir -p $(BUILD)
 	echo "const char *git_version = \"$(shell git describe --long)\";" > $@
 
 define each_target
@@ -31,14 +32,12 @@ $$($(1)_OBJS): $(BUILD)/$(1)/%.o: %.c
 $(BUILD)/$(1).bin $(BUILD)/$(1).elf: $$($(1)_OBJS)
 	$(Q)$(CC) $$($(1)_CFLAGS) $$($(1)_LDFLAGS) $$($(1)_OBJS) -Wl,-T$$($(1)_LDSCRIPT) -o $(BUILD)/$(1).elf
 	$(Q)$(OBJCOPY) -O binary -R .eeprom $(BUILD)/$(1).elf $(BUILD)/$(1).bin
-
 endef
 
 $(foreach t,$(TARGETS),$(eval $(call each_target,$(t))))
 
 clean:
 	@-rm -rf $(BUILD)
-	@-rm version.c
 
 update:
 	git submodule update --init --recursive
