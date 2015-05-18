@@ -285,6 +285,8 @@ bool usb_cb_set_configuration(uint8_t config) {
 #define REQ_PWR_PORT_A 0x10
 #define REQ_PWR_PORT_B 0x11
 #define REQ_PWR_LED 0x20
+#define REQ_INFO 0x30
+#define REQ_INFO_GIT_HASH 0x0
 
 void req_gpio(uint16_t wIndex, uint16_t wValue) {
 	switch (wIndex) {
@@ -312,12 +314,29 @@ void req_gpio(uint16_t wIndex, uint16_t wValue) {
 	return usb_ep0_in(0);
 }
 
+void req_info(uint16_t wIndex) {
+    const char* str = 0;
+    switch (wIndex) {
+        case REQ_INFO_GIT_HASH:
+            str = git_version;
+            break;
+        default:
+            return usb_ep0_stall();
+    }
+    uint16_t len = strlen(str);
+    if (len > USB_EP0_SIZE) len = USB_EP0_SIZE;
+    memcpy(ep0_buf_in, str, len);
+    usb_ep0_out();
+    return usb_ep0_in(len);
+}
+
 void usb_cb_control_setup(void) {
 	uint8_t recipient = usb_setup.bmRequestType & USB_REQTYPE_RECIPIENT_MASK;
 	if (recipient == USB_RECIPIENT_DEVICE) {
 		switch(usb_setup.bRequest) {
 			case 0xee:	  return usb_handle_msft_compatible(&msft_compatible);
 			case REQ_PWR: return req_gpio(usb_setup.wIndex, usb_setup.wValue);
+			case REQ_INFO: return req_info(usb_setup.wIndex);
 		}
 	} else if (recipient == USB_RECIPIENT_INTERFACE) {
 	}

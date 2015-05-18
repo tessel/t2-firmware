@@ -3,6 +3,8 @@
 #include <io.h>
 #include "common/util.h"
 
+const extern char *git_version;
+
 inline static void pin_mux(Pin p) {
   if (p.pin & 1) {
     PORT->Group[p.group].PMUX[p.pin/2].bit.PMUXO = p.mux;

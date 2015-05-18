@@ -14,6 +14,10 @@ SIZE = arm-none-eabi-size
 
 include $(addsuffix .mk,$(TARGETS))
 
+$(BUILD)/version.c: .git/HEAD .git/index
+	@mkdir -p $(BUILD)
+	echo "const char *git_version = \"$(shell git describe --long)\";" > $@
+
 define each_target
 $(1): $(BUILD)/$(1).elf $(BUILD)/$(1).bin
 .PHONY: $(1)
