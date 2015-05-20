@@ -106,17 +106,16 @@ typedef struct UartBuf {
 } UartBuf;
 
 typedef struct PortData {
-    u8 chan;
     const TesselPort* port;
+    USB_ALIGN u8 cmd_buf[BRIDGE_BUF_SIZE];
+    USB_ALIGN u8 reply_buf[BRIDGE_BUF_SIZE];
+    u8 chan;
     DmaChan dma_tx;
     DmaChan dma_rx;
-
     u8 state;
     u8 mode;
-    u8 cmd_buf[BRIDGE_BUF_SIZE];
     u8 cmd_len;
     u8 cmd_pos;
-    u8 reply_buf[BRIDGE_BUF_SIZE];
     u8 reply_len;
     u8 cmd;
     u8 arg[BRIDGE_ARG_SIZE];
