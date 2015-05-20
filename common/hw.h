@@ -189,7 +189,9 @@ inline static Sercom* sercom(SercomId id) {
   return (Sercom*) (0x42000800U + id * 1024);
 }
 
-#define SERCOM_SPI_BAUD_10MHZ 2
+#define SERCOM_SPI_BAUD_8MHZ 2
+#define SERCOM_SPI_BAUD_12MHZ 1
+#define SERCOM_SPI_BAUD_24MHZ 0
 void sercom_clock_enable(SercomId id, uint32_t clock_channel, u8 div);
 void sercom_reset(SercomId id);
 void sercom_spi_slave_init(SercomId id, u32 dipo, u32 dopo, bool cpol, bool cpha);

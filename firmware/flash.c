@@ -59,7 +59,7 @@ void flash_init() {
     usb_enable_ep(USB_EP_FLASH_OUT, USB_EP_TYPE_BULK, 64);
     usb_enable_ep(USB_EP_FLASH_IN, USB_EP_TYPE_BULK, 64);
 
-    sercom_spi_master_init(SERCOM_BRIDGE, FLASH_DIPO, FLASH_DOPO, 0, 0, SERCOM_SPI_BAUD_10MHZ);
+    sercom_spi_master_init(SERCOM_BRIDGE, FLASH_DIPO, FLASH_DOPO, 0, 0, SERCOM_SPI_BAUD_12MHZ);
     dma_sercom_configure_tx(DMA_FLASH_TX, SERCOM_BRIDGE);
     dma_sercom_configure_rx(DMA_FLASH_RX, SERCOM_BRIDGE);
     DMAC->CHINTENSET.reg = DMAC_CHINTENSET_TCMPL | DMAC_CHINTENSET_TERR; // ID depends on prev call
