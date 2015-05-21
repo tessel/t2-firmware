@@ -82,6 +82,16 @@ def counts_to_volts (counts):
 def counts_to_amps (counts):
     return counts_to_volts(counts) * CSA_GAIN / R_CSA
 
+def log_test_start(test_name):
+    print '--> Starting test:\t' + test_name
+
+def log_test_end(test_name, verdict):
+    if (verdict):
+        verdict = 'Passed'
+    else:
+        verdict = 'FAILED'
+    print '--> Test complete:\t' + verdict + test_name
+
 
 class testalator (object):
     """docstring for testalator"""
@@ -142,6 +152,10 @@ class testalator (object):
 
         # return the converted value
         return counts_to_volts(self.analog(pin))
+
+
+class test_fail_exception (Exception):
+    pass
 
 
 if __name__ == '__main__':
