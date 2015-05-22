@@ -101,6 +101,9 @@ void port_enable(PortData* p) {
     NVIC_EnableIRQ(TCC0_IRQn + p->tcc_channel);
 
     pin_high(p->port->power);
+    pin_high(PIN_EN_A);
+    pin_high(PIN_EN_B);
+
     for (int i = 0; i<8; i++) {
         pin_pull_up(p->port->gpio[i]);
     }
@@ -124,6 +127,8 @@ void port_disable(PortData* p) {
     EIC->INTFLAG.reg = p->port->pin_interrupts;
 
     pin_low(p->port->power);
+    pin_low(PIN_EN_A);
+    pin_low(PIN_EN_B);
 }
 
 void port_send_status(PortData* p, u8 d) {

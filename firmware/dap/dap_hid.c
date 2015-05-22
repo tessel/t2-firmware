@@ -10,10 +10,14 @@ void dap_enable() {
     usb_enable_ep(USB_EP_DAP_HID_OUT, USB_EP_TYPE_BULK, 64);
     usb_enable_ep(USB_EP_DAP_HID_IN, USB_EP_TYPE_BULK, 64);
     usb_ep_start_out(USB_EP_DAP_HID_OUT, dap_buf_out, DAP_PACKET_SIZE);
+
+    pin_high(PIN_EN_A);
+    pin_high(PIN_EN_B);
 }
 
 void dap_disable() {
-
+    pin_low(PIN_EN_A);
+    pin_low(PIN_EN_B);
 }
 
 void dap_handle_usb_in_completion() {
