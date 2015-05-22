@@ -1,4 +1,4 @@
-#include "test_rig.h"
+#include "firmware/firmware.h"
 #include "DAP_config.h"
 #include "DAP.h"
 
@@ -10,6 +10,10 @@ void dap_enable() {
     usb_enable_ep(USB_EP_DAP_HID_OUT, USB_EP_TYPE_BULK, 64);
     usb_enable_ep(USB_EP_DAP_HID_IN, USB_EP_TYPE_BULK, 64);
     usb_ep_start_out(USB_EP_DAP_HID_OUT, dap_buf_out, DAP_PACKET_SIZE);
+}
+
+void dap_disable() {
+
 }
 
 void dap_handle_usb_in_completion() {

@@ -11,9 +11,15 @@
 /// EVSYS allocation
 
 /// USB Endpoint allocation
-#define USB_EP_PORT_OUT 0x02
-#define USB_EP_PORT_IN 0x81
 
+#define INTERFACE_VENDOR 0
+	#define ALTSETTING_PORT 1
+        #define USB_EP_PORT_OUT 0x02
+        #define USB_EP_PORT_IN 0x81
+
+    #define ALTSETTING_DAP 2
+        #define USB_EP_DAP_HID_OUT 0x02
+        #define USB_EP_DAP_HID_IN 0x81
 /// Timer allocation
 
 // TCC allocation
@@ -77,3 +83,9 @@ void bridge_handle_sercom_uart_i2c(PortData* p);
 void port_handle_extint(PortData *p, u32 flags);
 void port_disable(PortData *p);
 void uart_send_data(PortData *p);
+
+// dap_hid.c
+void dap_enable();
+void dap_disable();
+void dap_handle_usb_in_completion();
+void dap_handle_usb_out_completion();

@@ -17,8 +17,12 @@
 #ifndef __DAP_CONFIG_H__
 #define __DAP_CONFIG_H__
 
-#include "test_rig.h"
+#include "firmware/firmware.h"
 #include "stdint.h"
+
+#define PIN_SWCLK (PORT_A.sck)
+#define PIN_SWDIO (PORT_A.g3)
+#define PIN_RESET (PORT_A.sda)
 
 #define __forceinline inline
 //**************************************************************************************************

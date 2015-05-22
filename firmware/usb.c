@@ -27,9 +27,6 @@ __attribute__((__aligned__(4))) const USB_DeviceDescriptor device_descriptor = {
 
 uint16_t altsetting = 0;
 
-#define INTERFACE_VENDOR 0
-	#define ALTSETTING_PORT 1
-
 typedef struct ConfigDesc {
 	USB_ConfigurationDescriptor Config;
 	USB_InterfaceDescriptor OffInterface;
@@ -37,6 +34,10 @@ typedef struct ConfigDesc {
 	USB_InterfaceDescriptor PortInterface;
 	USB_EndpointDescriptor PortInEndpoint;
 	USB_EndpointDescriptor PortOutEndpoint;
+
+	USB_InterfaceDescriptor DAPInterface;
+	USB_EndpointDescriptor DAPInEndpoint;
+	USB_EndpointDescriptor DAPOutEndpoint;
 
 }  __attribute__((packed)) ConfigDesc;
 
@@ -71,7 +72,7 @@ __attribute__((__aligned__(4))) const ConfigDesc configuration_descriptor = {
 		.bInterfaceClass = USB_CSCP_VendorSpecificClass,
 		.bInterfaceSubClass = 0x00,
 		.bInterfaceProtocol = 0x00,
-		.iInterface = 0,
+		.iInterface = 0x10,
 	},
 	.PortInEndpoint = {
 		.bLength = sizeof(USB_EndpointDescriptor),
@@ -85,6 +86,33 @@ __attribute__((__aligned__(4))) const ConfigDesc configuration_descriptor = {
 		.bLength = sizeof(USB_EndpointDescriptor),
 		.bDescriptorType = USB_DTYPE_Endpoint,
 		.bEndpointAddress = USB_EP_PORT_OUT,
+		.bmAttributes = (USB_EP_TYPE_BULK | ENDPOINT_ATTR_NO_SYNC | ENDPOINT_USAGE_DATA),
+		.wMaxPacketSize = 64,
+		.bInterval = 0x00
+	},
+	.DAPInterface = {
+		.bLength = sizeof(USB_InterfaceDescriptor),
+		.bDescriptorType = USB_DTYPE_Interface,
+		.bInterfaceNumber = 0,
+		.bAlternateSetting = ALTSETTING_DAP,
+		.bNumEndpoints = 2,
+		.bInterfaceClass = 3, // HID (but not really)
+		.bInterfaceSubClass = 0x00,
+		.bInterfaceProtocol = 0x00,
+		.iInterface = 0x11,
+	},
+	.DAPInEndpoint = {
+		.bLength = sizeof(USB_EndpointDescriptor),
+		.bDescriptorType = USB_DTYPE_Endpoint,
+		.bEndpointAddress = USB_EP_DAP_HID_IN,
+		.bmAttributes = (USB_EP_TYPE_BULK | ENDPOINT_ATTR_NO_SYNC | ENDPOINT_USAGE_DATA),
+		.wMaxPacketSize = 64,
+		.bInterval = 0x00
+	},
+	.DAPOutEndpoint = {
+		.bLength = sizeof(USB_EndpointDescriptor),
+		.bDescriptorType = USB_DTYPE_Endpoint,
+		.bEndpointAddress = USB_EP_DAP_HID_OUT,
 		.bmAttributes = (USB_EP_TYPE_BULK | ENDPOINT_ATTR_NO_SYNC | ENDPOINT_USAGE_DATA),
 		.wMaxPacketSize = 64,
 		.bInterval = 0x00
@@ -146,6 +174,12 @@ uint16_t usb_cb_get_descriptor(uint8_t type, uint8_t index, const uint8_t** ptr)
 					break;
 				case 0x03:
 					address = samd_serial_number_string_descriptor();
+					break;
+				case 0x10:
+					address = usb_string_to_descriptor("TMPort");
+					break;
+				case 0x11:
+					address = usb_string_to_descriptor("CMSIS-DAP");
 					break;
 				case 0xee:
 					address = &msft_os;
@@ -258,7 +292,17 @@ void usb_cb_completion(void) {
 			port_bridge_in_completion(&port_a);
             usb_ep_handled(USB_EP_PORT_IN);
         }
-    }
+    } else if (altsetting == ALTSETTING_DAP) {
+		if (usb_ep_pending(USB_EP_DAP_HID_OUT)) {
+			dap_handle_usb_out_completion();
+			usb_ep_handled(USB_EP_DAP_HID_OUT);
+		}
+
+		if (usb_ep_pending(USB_EP_DAP_HID_IN)) {
+			dap_handle_usb_in_completion();
+			usb_ep_handled(USB_EP_DAP_HID_IN);
+		}
+	}
 }
 
 bool usb_cb_set_interface(uint16_t interface, uint16_t new_altsetting) {
@@ -267,10 +311,16 @@ bool usb_cb_set_interface(uint16_t interface, uint16_t new_altsetting) {
 			return false;
 		}
 
+		if (altsetting == ALTSETTING_PORT){
+			port_disable(&port_a);
+		} else if (altsetting == ALTSETTING_DAP) {
+			dap_disable();
+		}
+
 		if (new_altsetting == ALTSETTING_PORT) {
 			port_enable(&port_a);
-		} else {
-			port_disable(&port_a);
+		} else if (new_altsetting == ALTSETTING_DAP) {
+			dap_enable();
 		}
 
 		altsetting = new_altsetting;
