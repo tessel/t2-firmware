@@ -12,6 +12,14 @@ void adc_init(u8 channel, u8 refctrl) {
         GCLK_CLKCTRL_GEN(channel) |
         GCLK_CLKCTRL_ID(ADC_GCLK_ID);
 
+    ADC->CALIB.reg =
+        ADC_CALIB_BIAS_CAL(
+            (*(uint32_t *)ADC_FUSES_BIASCAL_ADDR >> ADC_FUSES_BIASCAL_Pos)
+        ) |
+        ADC_CALIB_LINEARITY_CAL(
+            (*(uint64_t *)ADC_FUSES_LINEARITY_0_ADDR >> ADC_FUSES_LINEARITY_0_Pos)
+        );
+
     ADC->REFCTRL.reg = refctrl;
 
     ADC->CTRLA.reg = ADC_CTRLA_ENABLE; // enable
