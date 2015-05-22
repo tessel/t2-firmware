@@ -98,9 +98,16 @@ function Tessel() {
 
     this.ports = {'A': new Port('A', self.stream)};
     this.port = this.ports;
+
+    // tessel v1 does not have this version number
+    // this is useful for libraries to adapt to changes
+    // such as all pin reads/writes becoming async in version 2
+    this.version = 2;
 }
 
-function Port(name, sock) {
+function Port(name, sock, board) {
+    this.name = name;
+    this.board = board;
     // Connection to the SPI daemon
     this.sock = sock;
 
@@ -192,7 +199,7 @@ function Port(name, sock) {
 
     this.pin = [];
     for (var i=0; i<8; i++) {
-        this.pin.push(new Pin(i, this, [2,5,6,7].indexOf(i) != -1));
+        this.pin.push(new Pin(i, this, [2,5,6,7].indexOf(i) != -1, false));
     }
 
     // Deprecated properties for Tessel 1 backwards compatibility:
@@ -200,7 +207,7 @@ function Port(name, sock) {
     this.pin.G2 = this.pin.g2 = this.pin[6];
     this.pin.G3 = this.pin.g3 = this.pin[7];
     this.digital = [ this.pin[5], this.pin[6], this.pin[7] ];
-    this.analog = [];
+
     this.pwm = [];
 }
 
@@ -309,10 +316,11 @@ Port.prototype.UART = function (format) {
     return this._uart;
 };
 
-function Pin (pin, port, interruptSupported) {
+function Pin (pin, port, interruptSupported, analogSupported) {
     this.pin = pin;
     this._port = port;
-    this.interruptSupported = interruptSupported;
+    this.interruptSupported = interruptSupported || false;
+    this.analogSupported = analogSupported || false;
     this.interruptMode = null;
     this.isPWM = false;
 }
@@ -407,6 +415,92 @@ Pin.prototype.output = function output(initialValue, cb) {
     } else {
         this.low(cb);
     }
+    return this;
+}
+
+Pin.prototype.write = function (value, cb) {
+    // same as .output
+    return this.output(value, cb);
+};
+
+Pin.prototype.rawDirection = function (isOutput, cb) {
+    throw new Error("Pin.rawDirection is deprecated. Use Pin.input or .output instead.");
+};
+
+Pin.prototype._readPin = function (cmd, cb){
+    this._port.cork();
+    this._port.sock.write(new Buffer([cmd, this.pin]))
+    this._port.replyQueue.push({
+        size: 0,
+        callback: function(err, data){
+            cb(err, data == REPLY.HIGH ? 1 : 0);
+        },
+    });
+    this._port.uncork();
+}
+
+Pin.prototype.rawRead = function rawRead(cb) {
+    if (typeof cb != "function") {
+        console.warn("pin.rawRead is async, pass in a callback to get the value");
+    }
+    this._readPin(CMD.GPIO_RAW_READ, cb);
+    return this;
+};
+
+Pin.prototype.input = function input(cb) {
+    this._port._simple_cmd([CMD.GPIO_INPUT, this.pin], cb);
+    return this;
+};
+
+Pin.prototype.read = function (cb) {
+    if (typeof cb != "function") {
+        console.warn("pin.read is async, pass in a callback to get the value");
+    }
+    this._readPin(CMD.GPIO_IN, cb);
+  return this;
+};
+
+Pin.prototype.readPulse = function(type, timeout, callback) {
+    throw new Error("Pin.readPulse is not yet implemented");
+}
+
+var ANALOG_RESOLUTION = 4096;
+Pin.prototype.resolution = ANALOG_RESOLUTION;
+
+Pin.prototype.analogRead = function (cb) {
+    if (!this.analogSupported) {
+        console.warn("pin.analogRead is not supoprted on this pin. Analog read is supported on port A pins 4 and 7 and on all pins on port B");
+        return this;
+    }
+
+    if (typeof cb != "function") {
+        console.warn("analogPin.read is async, pass in a callback to get the value");
+    }
+
+    this._port.sock.write(new Buffer([CMD.ANALOG_READ, this.pin]))
+    this._port.replyQueue.push({
+        size: 2,
+        callback: function(err, data){
+            cb(err, (data[0] + (data[1] << 8))/ANALOG_RESOLUTION * 3.3);
+        },
+    });
+
+    return this;
+}
+
+Pin.prototype.analogWrite = function (val) {
+    // throw an error if this isn't the adc pin (port b, pin 7)
+    if (this._port.name != 'B' || this.pin != 7) {
+        throw new Error("Analog write can only be used on Pin 7 (G3) of Port B.");
+    }
+
+    // v_dac = data/(0x3ff)*reference voltage
+    var data = val/(3.3)*0x3ff;
+    if (data > 1023 || data < 0) {
+        throw new Error("Analog write must be between 0 and 3.3");
+    }
+
+    this._port.sock.write(new Buffer([CMD.ANALOG_WRITE, data >> 8, data & 0xff]));
     return this;
 }
 
@@ -590,6 +684,10 @@ var CMD = {
     GPIO_CFG: 6,
     GPIO_WAIT: 7,
     GPIO_INT: 8,
+    GPIO_INPUT: 22,
+    GPIO_RAW_READ: 23,
+    ANALOG_READ: 24,
+    ANALOG_WRITE: 25,
     ENABLE_SPI: 10,
     DISABLE_SPI: 11,
     ENABLE_I2C: 12,

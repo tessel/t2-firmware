@@ -1,8 +1,8 @@
-TARGETS = firmware boot
+TARGETS = firmware boot test_rig
 BUILD = build
 
 all: $(TARGETS)
-.PHONY: all clean
+.PHONY: all clean update
 
 ATMEL_PATH = deps/sam0
 CMSIS_PATH = $(ATMEL_PATH)/cmsis/samd21
@@ -13,6 +13,10 @@ OBJCOPY = arm-none-eabi-objcopy
 SIZE = arm-none-eabi-size
 
 include $(addsuffix .mk,$(TARGETS))
+
+$(BUILD)/version.c: .git/HEAD .git/index
+	@mkdir -p $(BUILD)
+	echo "const char *git_version = \"$(shell git describe --long)\";" > $@
 
 define each_target
 $(1): $(BUILD)/$(1).elf $(BUILD)/$(1).bin
@@ -34,5 +38,8 @@ $(foreach t,$(TARGETS),$(eval $(call each_target,$(t))))
 
 clean:
 	@-rm -rf $(BUILD)
+
+update:
+	git submodule update --init --recursive
 
 print-%	: ; @echo $* = $($*)

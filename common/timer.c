@@ -1,4 +1,4 @@
-#include "board.h"
+#include "common/hw.h"
 
 void timer_clock_enable(TimerId id) {
     PM->APBCMASK.reg |= 1 << (PM_APBCMASK_TCC0_Pos + id);

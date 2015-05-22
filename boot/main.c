@@ -82,7 +82,7 @@ void led_task() {
 }
 
 void bootloader_main() {
-	clock_init_usb();
+	clock_init_usb(GCLK_SYSTEM);
 	init_systick();
 	nvm_init();
 

@@ -11,5 +11,6 @@
 #include "class/dfu/dfu.h"
 #include "common/board.h"
 
+#define GCLK_SYSTEM 0
 #define DFU_INTF 0
 #define DFU_TRANSFER_SIZE (FLASH_PAGE_SIZE * 4)

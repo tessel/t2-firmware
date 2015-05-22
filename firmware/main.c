@@ -3,7 +3,7 @@
 PortData port_a;
 
 int main(void) {
-    clock_init_usb();
+    clock_init_usb(GCLK_SYSTEM);
 
     pin_mux(PIN_USB_DM);
     pin_mux(PIN_USB_DP);
@@ -27,14 +27,6 @@ int main(void) {
     pin_mux(PIN_ADC_U);
     pin_mux(PIN_DAC);
 
-    PM->APBCMASK.reg |= PM_APBCMASK_DAC | PM_APBCMASK_ADC;
-    GCLK->CLKCTRL.reg = GCLK_CLKCTRL_CLKEN | GCLK_CLKCTRL_GEN(GCLK_32K) | GCLK_CLKCTRL_ID(DAC_GCLK_ID);
-    GCLK->CLKCTRL.reg = GCLK_CLKCTRL_CLKEN | GCLK_CLKCTRL_GEN(GCLK_SYSTEM) | GCLK_CLKCTRL_ID(ADC_GCLK_ID);
-
-    DAC->CTRLB.reg = DAC_CTRLB_EOEN | DAC_CTRLB_REFSEL_AVCC;
-    DAC->DATA.reg = 380; // 3.3V
-    DAC->CTRLA.reg = DAC_CTRLA_ENABLE;
-
     dma_init();
     NVIC_EnableIRQ(DMAC_IRQn);
     NVIC_SetPriority(DMAC_IRQn, 0xff);
@@ -46,6 +38,13 @@ int main(void) {
     evsys_init();
     NVIC_EnableIRQ(EVSYS_IRQn);
     NVIC_SetPriority(EVSYS_IRQn, 0);
+
+    adc_init(GCLK_SYSTEM);
+    dac_init(GCLK_32K);
+
+    DAC->CTRLB.reg = DAC_CTRLB_EOEN | DAC_CTRLB_REFSEL_AVCC;
+    DAC->DATA.reg = 380; // 3.3V
+    DAC->CTRLA.reg = DAC_CTRLA_ENABLE;
 
     port_init(&port_a, 1, &PORT_A, GCLK_PORT_A,
         TCC_PORT_A, DMA_PORT_A_TX, DMA_PORT_A_RX);

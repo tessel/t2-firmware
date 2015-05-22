@@ -58,8 +58,17 @@ int sigfd  = 0;
 #define MAX_CTRL_ARGS 255
 #define MAX_WRITE_LEN 255
 
+// Flag to close a stream immediately without waiting for remaining bytes to be flushed
 #define NO_FLUSH 1
+// Flag to close a stream once the remaining internal buffer has been flushed
 #define FLUSH 0
+
+// Return value indicating a stream was successfully closed
+#define CLOSE_SUCCESS 0
+// Return value indicated that this stream has already been closed
+#define ERR_ALREADY_CLOSED -1
+// Return value indicating that data remains in the internal buffer and the NO_FLUSH flag was not passed
+#define ERR_BUFFER_NOT_EMPTY -2
 
 enum Roles {
     ROLE_CTRL = 0,
@@ -293,14 +302,14 @@ void delete_pipebuf_epoll(pipebuf_t* pb) {
 Param: pb - the pipebuffer to close
 Param: flush - whether or not to allow the buffer to flush before closing
 */
-void pipebuf_common_close(pipebuf_t* pb, int flush) {
+int pipebuf_common_close(pipebuf_t* pb, int flush) {
     pipebuf_common_debug(pb, "Attempting to close");
     // Mark this buffer as ready to close
     pb->eof = true;
 
-    // If it still has data internally, don't close it
-    // If it does, go wild
-    if (pb->bufcount == 0 && flush != NO_FLUSH) {
+    // If this stream has no more data internally or we don't want to flush it
+    // close it immediately
+    if (pb->bufcount == 0 || flush == NO_FLUSH) {
         // If the file descriptor exists (which it should)
         if (pb->fd != -1) {
             // Close it
@@ -314,10 +323,15 @@ void pipebuf_common_close(pipebuf_t* pb, int flush) {
             // Reset other fields
             pb->startpos = pb->endpos = pb->bufcount = 0;
             pipebuf_common_debug(pb, "Successfully closed");
+            return CLOSE_SUCCESS;
+        }
+        else {
+            return ERR_ALREADY_CLOSED;
         }
     }
     else {
         pipebuf_common_debug(pb, "Requested Close but it has remaining bytes...");
+        return ERR_BUFFER_NOT_EMPTY;
     }
 }
 
@@ -339,6 +353,9 @@ Returns: the file descriptor needed to communicate with the pipebuffer created
 int pipebuf_in_init(pipebuf_t* pb, int id, int role) {
     int fd = pipebuf_common_init(pb, id, role, EPOLLIN, 0);
 
+    // Start polling for data available to stream into the internal buf
+    add_pipebuf_epoll(pb);
+
     return fd;
 }
 
@@ -349,11 +366,11 @@ Param: flush - whether or not to allow the buffer to flush before closing
 void pipebuf_in_close(pipebuf_t* pb, int flush) {
 
     // Close the pipebuf
-    pipebuf_common_close(pb, flush);
+    int res = pipebuf_common_close(pb, flush);
 
     // If this pipebuf was closed successfully
     // (it could have bytes remaining in the pipe buffer)
-    if (pb->fd == -1) {
+    if (res == CLOSE_SUCCESS) {
         // Tell the other end of the pipe that this fd has been closed
         send_header(CMD_CLOSE_CONTROL + pb->role, pb->id, 0, 0);
     }
@@ -395,16 +412,10 @@ int pipebuf_in_write_to_sock(pipebuf_t* pb, size_t num_to_write) {
         written += write_from_pipebuf(pb, sock, packet_write_size);
     }
 
-    debug("{%d in total", written);
+    debug("{%d in total}", written);
 
     // Calculate our new credit based on what was available and how much we just wrote
     pb->credit -= written;
-
-    // If we just ran out of credit
-    if (pb->credit == 0) {
-        // Stop polling stdout/stderr for more data
-        delete_pipebuf_epoll(pb);
-    }
 
     return written;
 }
@@ -429,9 +440,9 @@ void pipebuf_in_ack(pipebuf_t* pb, size_t ack_number_size) {
         ack_size += (ack_size_bytes[i] << (i * 8));
     }
 
-    // If this pipe buffer previously had no bytes that could be written to
-    // But now has bytes available
-    if (pb->credit == 0 && ack_size > 0) {
+    // If this pipe buffer was previously full
+    // But will now be able to send out data
+    if (pb->bufcount == PIPE_BUF && ack_size > 0) {
         // Enable notifications of when the internal pipe buffer is written to
         add_pipebuf_epoll(pb);
     }
@@ -439,21 +450,18 @@ void pipebuf_in_ack(pipebuf_t* pb, size_t ack_number_size) {
     // Add this ack size to the credit count
     pb->credit += ack_size;
 
-    // Expect to write to the entire space available
-    int num_to_write = ack_size;
-
-    // If there is data ready to write
-    if (pb->bufcount >= 0 && pb->bufcount <= ack_size) {
-
-        // If the amount of data to write is less than the ack size
-        // only write what is available
-        if ( pb->bufcount <= ack_size) {
-            // Only write whatever data is available
-            num_to_write = pb->bufcount;
-        }
+    // If there is data ready to write to the CLI
+    if (pb->bufcount > 0) {
 
         // Write from STDOUT/STDERR Buffer ----> CLI
-        pipebuf_in_write_to_sock(pb, num_to_write);
+        // (the smaller of ack_size of the remaining bytes in the internal buffer)
+        pipebuf_in_write_to_sock(pb, (pb->bufcount < ack_size ? pb->bufcount : ack_size));
+    }
+
+    // If we just finished sending the rest of the data
+    if (pb->eof && pb->bufcount == 0) {
+        // Close the stream
+        pipebuf_in_close(pb, FLUSH);
     }
 }
 
@@ -513,6 +521,8 @@ void pipebuf_in_to_internal_buffer(pipebuf_t* pb) {
             pipebuf_common_debug(pb, "Read has returned EOF");
             // Close the file descriptor
             pb->eof = true;
+            // Remove this file descriptor from the epoll
+            delete_pipebuf_epoll(pb);
             break;
         }
         else {
@@ -520,24 +530,22 @@ void pipebuf_in_to_internal_buffer(pipebuf_t* pb) {
         }
     }
 
+    // If this stream has remaining credit and data to send
+    if (pb->credit && pb->bufcount > 0) {
+        // Send up to the number of bytes stored in the internal buffer to the CLI
+        pipebuf_in_write_to_sock(pb, pb->bufcount);
+
+    }
+
     // If the pipe buffer is full
-    if (space_available == 0) {
-        // pipebuf_common_debug(pb, "No more space in pipe buffer. Ending polling.");
-        // Stop polling this fd for new data
+    if (pb->bufcount == PIPE_BUF) {
+        // remove it from the epoll
         delete_pipebuf_epoll(pb);
     }
 
-    // If this stream has remaining credit
-    // And data to send
-    if (pb->credit && pb->bufcount > 0) {
-        // pipebuf_common_debug(pb, "Data available to write after ack. Sending now...");
-        // Send up to the number of bytes stored in the internal buffer
-        // Write from STDOUT/STDERR Buffer ----> CLI
-        pipebuf_in_write_to_sock(pb, pb->bufcount);
-    }
-
-    if (pb->eof && pb->bufcount == 0) {
-        pipebuf_common_debug(pb, "EOF Flag is set and all data has been sent.");
+    // If the eof flag is set and there is no more data to send
+    else if (pb->eof && pb->bufcount == 0) {
+        // we can completely close down the buffer
         pipebuf_in_close(pb, FLUSH);
     }
 }
