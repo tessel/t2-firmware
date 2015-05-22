@@ -39,6 +39,7 @@ const static Pin PIN_START_BUTTON = {.group = 0, .pin = 15};
 const static Pin PIN_START_BUTTON = {.group = 1, .pin = 31};
 #endif
 
+const static Pin VREFA = {.group = 0, .pin = 3, .mux = MUX_PA03B_ADC_AIN1,  .chan = 1};
 
 const static Pin ANALOG_PINS[] = {
     // CURRENT MEASUREMENT
