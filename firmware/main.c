@@ -50,16 +50,15 @@ int main(void) {
     NVIC_EnableIRQ(EVSYS_IRQn);
     NVIC_SetPriority(EVSYS_IRQn, 0);
 
-    adc_init(GCLK_SYSTEM);
-
+    adc_init(GCLK_SYSTEM, ADC_REFCTRL_REFSEL_INTVCC1);
     dac_init(GCLK_32K);
 
     bridge_init();
     usbpipe_init();
 
-    port_init(&port_a, 1, &PORT_A, GCLK_PORT_A, 
+    port_init(&port_a, 1, &PORT_A, GCLK_PORT_A,
         TCC_PORT_A, DMA_PORT_A_TX, DMA_PORT_A_RX);
-    port_init(&port_b, 2, &PORT_B, GCLK_PORT_B, 
+    port_init(&port_b, 2, &PORT_B, GCLK_PORT_B,
         TCC_PORT_B, DMA_PORT_B_TX, DMA_PORT_B_RX);
 
     __enable_irq();

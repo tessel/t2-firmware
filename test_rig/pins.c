@@ -47,7 +47,7 @@ void usb_control_req_analog_read(uint16_t wIndex, uint16_t wValue) {
     if (wIndex >= sizeof(ANALOG_PINS) / sizeof(Pin)) {
         return usb_ep0_stall();
     }
-    uint16_t val = analog_read(ANALOG_PINS[wIndex]);
+    uint16_t val = adc_read(ANALOG_PINS[wIndex], ADC_INPUTCTRL_GAIN_1X);
     ep0_buf_in[0] = val;
     ep0_buf_in[1] = (val >> 8);
     usb_ep0_in(2);

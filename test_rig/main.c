@@ -22,8 +22,10 @@ int main(void) {
     NVIC_SetPriority(EVSYS_IRQn, 0);
 
     init_all_digital_pins();
-    adc_init(GCLK_SYSTEM);
-    
+
+    pin_analog(VREFA);
+    adc_init(GCLK_SYSTEM, ADC_REFCTRL_REFSEL_AREFA);
+
     __enable_irq();
     SCB->SCR |= SCB_SCR_SLEEPONEXIT_Msk;
     while (1) { __WFI(); }

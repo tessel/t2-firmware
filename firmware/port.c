@@ -318,7 +318,7 @@ ExecStatus port_begin_cmd(PortData *p) {
 
         case CMD_ANALOG_READ: {
             // copy analog data into reply buffer
-            u16 val = analog_read(port_selected_pin(p));
+            u16 val = adc_read(port_selected_pin(p), ADC_INPUTCTRL_GAIN_DIV2);
 
             p->reply_buf[p->reply_len++] = REPLY_DATA;
             p->reply_buf[p->reply_len++] = val & 0xFF; // lower 8 bits
@@ -329,7 +329,7 @@ ExecStatus port_begin_cmd(PortData *p) {
 
         case CMD_ANALOG_WRITE:
             // get the higher and lower args
-            analog_write(PORT_B.g3, (p->arg[0] << 8) + p->arg[1]);
+            dac_write(PORT_B.g3, (p->arg[0] << 8) + p->arg[1]);
             return EXEC_DONE;
 
         case CMD_ENABLE_SPI:
