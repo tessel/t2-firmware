@@ -11,7 +11,7 @@ ANALOGMODE_SINGLE   = 0
 ANALOGMODE_STREAM   = 1
 
 ADC_MAX_VALUE       = 4095
-ADC_REFERENCE       = 2.5
+ADC_REFERENCE       = 3.3
 CSA_GAIN            = 45
 R_CSA               = 0.02
 
@@ -80,7 +80,7 @@ def counts_to_volts (counts):
     return counts * 1.0 / ADC_MAX_VALUE * ADC_REFERENCE
 
 def counts_to_amps (counts):
-    return counts_to_volts(counts) * CSA_GAIN / R_CSA
+    return counts_to_volts(counts) * 1.0 / CSA_GAIN / R_CSA
 
 def log_test_start(test_name):
     print '--> Starting test:\t' + test_name
@@ -159,7 +159,18 @@ class test_fail_exception (Exception):
 
 
 if __name__ == '__main__':
-    testy = testalator('0PXZ34P8PLXWLX42QM8C73N70X')
+    # xplained board:   0PXZ34P8PLXWLX42QM8C73N70X
+    # rig 3:            KDYXL8WFQ98SJP9HD0K493YPYS
+    testy = testalator('KDYXL8WFQ98SJP9HD0K493YPYS')
+    val = True
+    counter = 0
+    # index = int(sys.argv[1])
+    # p = digital_pins[index]
     while True:
-        print testy.measure_voltage('VOLTAGE_PORTA33')
-    
+        # print testy.measure_voltage('VOLTAGE_PORTA33')
+        if counter % 50 == 0:
+            print 'SHORT_USB1', testy.digital('SHORT_USB1', val)
+            val = not val
+        time.sleep(0.25)
+        print counts_to_amps(testy.analog('CURRENT_USB1'))
+        counter = counter + 1
