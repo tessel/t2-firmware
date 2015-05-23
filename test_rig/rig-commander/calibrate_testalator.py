@@ -3,7 +3,7 @@ import sys
 import time
 import json
 
-iterations = 100
+iterations = 1000
 
 def mean(l):
     return sum(l) * 1.0 / len(l)
@@ -31,7 +31,7 @@ def calibrate(testy):
         offset = measure_analog_pin(p)
         calibration[p]['2.5'] = offset
 
-    print calibration
+    print json.dumps(calibration)
 
     print 'Done!'
 
