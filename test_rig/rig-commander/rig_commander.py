@@ -11,7 +11,7 @@ ANALOGMODE_SINGLE   = 0
 ANALOGMODE_STREAM   = 1
 
 ADC_MAX_VALUE       = 4095
-ADC_REFERENCE       = 3.3
+ADC_REFERENCE       = 2.5
 CSA_GAIN            = 45
 R_CSA               = 0.02
 
