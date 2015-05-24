@@ -101,6 +101,7 @@ class testalator (object):
         self.dev = usb.core.find(idVendor = 0x59E3, idProduct = 0xCDA6, custom_match = serial_match(serial))
         if self.dev is None:
             raise ValueError('device is not connected')
+        self.calibration = {"VOLTAGE_VREF": {"0": 4092.608, "2.5": 4092.626}, "VOLTAGE_12": {"0": 40.712, "2.5": 43.633}, "VOLTAGE_5VUSB0": {"0": 40.62, "2.5": 2046.812}, "VOLTAGE_5VUSB1": {"0": 40.495, "2.5": 2045.701}, "VOLTAGE_33CP": {"0": 40.122, "2.5": 2045.072}, "VOLTAGE_18": {"0": 40.644, "2.5": 43.738}, "CURRENT_PORTA33": {"0": 15.081, "2.5": 14.997}, "VOLTAGE_PORTB33": {"0": 40.537, "2.5": 2046.906}, "CURRENT_USB0": {"0": 15.485, "2.5": 15.239}, "CURRENT_USB1": {"0": 15.315, "2.5": 18.036}, "CURRENT_UUT": {"0": 21.458, "2.5": 21.335}, "VOLTAGE_PORTA33": {"0": 41.344, "2.5": 2047.37}, "serial": "KDYXL8WFQ98SJP9HD0K493YPYS", "VOLTAGE_5VUUT": {"0": 40.907, "2.5": 2046.387}, "VOLTAGE_33MT": {"0": 40.761, "2.5": 2046.685}, "CURRENT_PORTB33": {"0": 15.507, "2.5": 23.523}}
 
 
     def digital (self, pin, state):
