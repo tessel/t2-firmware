@@ -3,33 +3,37 @@
 PortData port_a;
 PortData port_b;
 
-// int flagCount = 0;
-
 int main(void) {
     clock_init_crystal(GCLK_SYSTEM, GCLK_32K);
+
+    // pin_high(PORT_A.power);
+    // pin_out(PORT_A.power);
 
     if (PM->RCAUSE.reg & PM_RCAUSE_POR) {
         // On powerup, force a clean reset of the MT7620
         pin_low(PIN_SOC_RST);
         pin_out(PIN_SOC_RST);
-    
+
+        // pin_high(PORT_A.g3);
+        // pin_out(PORT_A.g3);
         // do while delay
         // 50 milliseconds
         timer_clock_enable(TC_BOOT);
 
         tc(TC_BOOT)->COUNT16.CTRLA.reg
         = TC_CTRLA_WAVEGEN_MPWM
-        | TC_CTRLA_PRESCALER_DIV256; // 32kHz * 256 prescale = 8miliseconds per tick
-
-        tc(TC_BOOT)->COUNT16.CC[0].reg = 7; // 8*7 = 56ms
+        | TC_CTRLA_PRESCALER_DIV1024; 
+        tc(TC_BOOT)->COUNT16.CC[0].reg = 2500; //  ~50ms
 
         while (tc(TC_BOOT)->COUNT16.STATUS.bit.SYNCBUSY);
         tc(TC_BOOT)->COUNT16.CTRLA.bit.ENABLE = 1;
+        // pin_low(PORT_A.g3);
 
         while(!tc(TC_BOOT)->COUNT16.INTFLAG.bit.MC0) {
-            // flagCount = tc(TC_BOOT)->COUNT16.COUNT.reg;
             // hold off on booting
         }
+        // pin_high(PORT_A.g3);
+        
         // disable timer
         tc(TC_BOOT)->COUNT16.CTRLA.bit.ENABLE = 0;
     }
