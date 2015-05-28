@@ -3,40 +3,71 @@
 PortData port_a;
 PortData port_b;
 
+void boot_delay_ms(int delay){
+    tc(TC_BOOT)->COUNT16.CTRLA.reg
+    = TC_CTRLA_WAVEGEN_MPWM
+    | TC_CTRLA_PRESCALER_DIV1024; 
+    tc(TC_BOOT)->COUNT16.CC[0].reg = delay*50;
+
+    while (tc(TC_BOOT)->COUNT16.STATUS.bit.SYNCBUSY);
+    tc(TC_BOOT)->COUNT16.CTRLA.bit.ENABLE = 1;
+    // pin_low(PORT_A.g3);
+
+    while(!tc(TC_BOOT)->COUNT16.INTFLAG.bit.MC0) {
+        // hold off on booting
+    }
+
+    // clear match flag
+    tc(TC_BOOT)->COUNT16.INTFLAG.bit.MC0 = 1;
+    
+    tc(TC_BOOT)->COUNT16.CTRLA.bit.ENABLE = 0;
+}
+
 int main(void) {
-    clock_init_crystal(GCLK_SYSTEM, GCLK_32K);
+    
+    pin_high(PORT_A.power);
+    pin_out(PORT_A.power);
 
-    // pin_high(PORT_A.power);
-    // pin_out(PORT_A.power);
+    pin_high(PORT_A.g3);
+    pin_out(PORT_A.g3);
 
-    if (PM->RCAUSE.reg & PM_RCAUSE_POR) {
+    // if (PM->RCAUSE.reg & PM_RCAUSE_POR) {
         // On powerup, force a clean reset of the MT7620
         pin_low(PIN_SOC_RST);
         pin_out(PIN_SOC_RST);
 
-        // pin_high(PORT_A.g3);
-        // pin_out(PORT_A.g3);
-        // do while delay
-        // 50 milliseconds
+        // turn off 3.3V to SoC
+        pin_low(PIN_SOC_PWR);
+        pin_out(PIN_SOC_PWR);
+
+        // pull 1.8V low
+        pin_low(PIN_18_V);
+        pin_out(PIN_18_V);
+
+        pin_low(PORT_A.g3);
+        clock_init_crystal(GCLK_SYSTEM, GCLK_32K);
         timer_clock_enable(TC_BOOT);
 
-        tc(TC_BOOT)->COUNT16.CTRLA.reg
-        = TC_CTRLA_WAVEGEN_MPWM
-        | TC_CTRLA_PRESCALER_DIV1024; 
-        tc(TC_BOOT)->COUNT16.CC[0].reg = 2500; //  ~50ms
+        pin_high(PORT_A.g3);
+        pin_low(PORT_A.g3);
+        pin_high(PIN_SOC_PWR);
 
-        while (tc(TC_BOOT)->COUNT16.STATUS.bit.SYNCBUSY);
-        tc(TC_BOOT)->COUNT16.CTRLA.bit.ENABLE = 1;
-        // pin_low(PORT_A.g3);
+        pin_high(PORT_A.g3);
+        pin_low(PORT_A.g3);
+        boot_delay_ms(2);
 
-        while(!tc(TC_BOOT)->COUNT16.INTFLAG.bit.MC0) {
-            // hold off on booting
-        }
-        // pin_high(PORT_A.g3);
+
+        pin_high(PIN_18_V);
+        pin_high(PORT_A.g3);
+        pin_low(PORT_A.g3);
+
+        boot_delay_ms(50); // 50ms before soc rst comes on
         
-        // disable timer
-        tc(TC_BOOT)->COUNT16.CTRLA.bit.ENABLE = 0;
-    }
+        pin_high(PORT_A.g3);
+        
+    // } else {
+    //     clock_init_crystal(GCLK_SYSTEM, GCLK_32K);
+    // }
 
     pin_mux(PIN_USB_DM);
     pin_mux(PIN_USB_DP);

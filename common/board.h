@@ -27,6 +27,7 @@ const static Pin PIN_USB_DP = {.group = 0, .pin = 25, .mux = MUX_PA25G_USB_DP };
 // Power
 
 const static Pin PIN_SOC_RST = {.group = 0, .pin = 3};
+const static Pin PIN_18_V = {.group = 1, .pin = 3}; // pin for 1.8V line
 const static Pin PIN_SOC_PWR = {.group = 0, .pin = 27};
 
 const static Pin PIN_LED = {.group = 0, .pin = 6};
