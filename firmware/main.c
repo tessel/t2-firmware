@@ -33,6 +33,7 @@ int main(void) {
 
     // if (PM->RCAUSE.reg & PM_RCAUSE_POR) {
         // On powerup, force a clean reset of the MT7620
+        
         pin_low(PIN_SOC_RST);
         pin_out(PIN_SOC_RST);
 
@@ -44,9 +45,14 @@ int main(void) {
         pin_low(PIN_18_V);
         pin_out(PIN_18_V);
 
-        pin_low(PORT_A.g3);
         clock_init_crystal(GCLK_SYSTEM, GCLK_32K);
         timer_clock_enable(TC_BOOT);
+
+        // hold everything low
+
+        pin_low(PORT_A.g3);
+        pin_high(PORT_A.g3);
+        boot_delay_ms(200); // power off for 200ms
 
         pin_high(PORT_A.g3);
         pin_low(PORT_A.g3);
