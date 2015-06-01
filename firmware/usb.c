@@ -286,30 +286,88 @@ bool usb_cb_set_configuration(uint8_t config) {
 #define REQ_PWR_PORT_B 0x11
 #define REQ_PWR_LED 0x20
 #define REQ_INFO 0x30
+#define REQ_PWR_PORT_A_IO 0x40
+#define REQ_PWR_PORT_B_IO 0x50
 #define REQ_INFO_GIT_HASH 0x0
 
 void req_gpio(uint16_t wIndex, uint16_t wValue) {
-	switch (wIndex) {
-		case REQ_PWR_RST:
-			pin_low(PIN_SOC_RST);
-			pin_dir(PIN_SOC_RST, !wValue);
-			break;
-		case REQ_PWR_SOC:
-			pin_set(PIN_SOC_PWR, wValue);
-			break;
-		case REQ_PWR_PORT_A:
-			pin_set(PORT_A.power, wValue);
-			break;
-		case REQ_PWR_PORT_B:
-			pin_set(PORT_B.power, wValue);
-			break;
-		case REQ_PWR_LED:
-			pin_set(PIN_LED, wValue);
-			break;
-		default:
-			return usb_ep0_stall();
+	if ( (wIndex ^ REQ_PWR_PORT_A_IO) < 8 ) {
+		switch (wIndex ^ REQ_PWR_PORT_A_IO) {
+			case 0x0:
+				pin_set(PORT_A.scl, wValue);
+				break;
+			case 0x1:
+				pin_set(PORT_A.sda, wValue);
+				break;
+			case 0x2:
+				pin_set(PORT_A.sck, wValue);
+				break;
+			case 0x3:
+				pin_set(PORT_A.miso, wValue);
+				break;
+			case 0x4:
+				pin_set(PORT_A.mosi, wValue);
+				break;
+			case 0x5:
+				pin_set(PORT_A.tx, wValue);
+				break;
+			case 0x6:
+				pin_set(PORT_A.rx, wValue);
+				break;
+			case 0x7:
+				pin_set(PORT_A.g3, wValue);
+				break;
+		}
+	} else if ((wIndex ^ REQ_PWR_PORT_B_IO) < 8) {
+		switch (wIndex ^ REQ_PWR_PORT_B_IO) {
+			case 0x0:
+				pin_set(PORT_B.scl, wValue);
+				break;
+			case 0x1:
+				pin_set(PORT_B.sda, wValue);
+				break;
+			case 0x2:
+				pin_set(PORT_B.sck, wValue);
+				break;
+			case 0x3:
+				pin_set(PORT_B.miso, wValue);
+				break;
+			case 0x4:
+				pin_set(PORT_B.mosi, wValue);
+				break;
+			case 0x5:
+				pin_set(PORT_B.tx, wValue);
+				break;
+			case 0x6:
+				pin_set(PORT_B.rx, wValue);
+				break;
+			case 0x7:
+				pin_set(PORT_B.g3, wValue);
+				break;
+		}
+	} else {
+		switch (wIndex) {
+			case REQ_PWR_RST:
+				pin_low(PIN_SOC_RST);
+				pin_dir(PIN_SOC_RST, !wValue);
+				break;
+			case REQ_PWR_SOC:
+				pin_set(PIN_SOC_PWR, wValue);
+				break;
+			case REQ_PWR_PORT_A:
+				pin_set(PORT_A.power, wValue);
+				break;
+			case REQ_PWR_PORT_B:
+				pin_set(PORT_B.power, wValue);
+				break;
+			case REQ_PWR_LED:
+				pin_set(PIN_LED, wValue);
+				break;
+			default:
+				return usb_ep0_stall();
+		}
 	}
-
+	
 	usb_ep0_out();
 	return usb_ep0_in(0);
 }
