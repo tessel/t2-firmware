@@ -291,60 +291,13 @@ bool usb_cb_set_configuration(uint8_t config) {
 #define REQ_INFO_GIT_HASH 0x0
 
 void req_gpio(uint16_t wIndex, uint16_t wValue) {
-	if ( (wIndex ^ REQ_PWR_PORT_A_IO) < 8 ) {
-		switch (wIndex ^ REQ_PWR_PORT_A_IO) {
-			case 0x0:
-				pin_set(PORT_A.scl, wValue);
-				break;
-			case 0x1:
-				pin_set(PORT_A.sda, wValue);
-				break;
-			case 0x2:
-				pin_set(PORT_A.sck, wValue);
-				break;
-			case 0x3:
-				pin_set(PORT_A.miso, wValue);
-				break;
-			case 0x4:
-				pin_set(PORT_A.mosi, wValue);
-				break;
-			case 0x5:
-				pin_set(PORT_A.tx, wValue);
-				break;
-			case 0x6:
-				pin_set(PORT_A.rx, wValue);
-				break;
-			case 0x7:
-				pin_set(PORT_A.g3, wValue);
-				break;
-		}
-	} else if ((wIndex ^ REQ_PWR_PORT_B_IO) < 8) {
-		switch (wIndex ^ REQ_PWR_PORT_B_IO) {
-			case 0x0:
-				pin_set(PORT_B.scl, wValue);
-				break;
-			case 0x1:
-				pin_set(PORT_B.sda, wValue);
-				break;
-			case 0x2:
-				pin_set(PORT_B.sck, wValue);
-				break;
-			case 0x3:
-				pin_set(PORT_B.miso, wValue);
-				break;
-			case 0x4:
-				pin_set(PORT_B.mosi, wValue);
-				break;
-			case 0x5:
-				pin_set(PORT_B.tx, wValue);
-				break;
-			case 0x6:
-				pin_set(PORT_B.rx, wValue);
-				break;
-			case 0x7:
-				pin_set(PORT_B.g3, wValue);
-				break;
-		}
+	if ( (wIndex & 0xF0) == REQ_PWR_PORT_A_IO 
+		&& (wIndex & 0x0F) < 8 ) {
+		pin_set(PORT_A.gpio[wIndex & 0x7], wValue);
+	} else if (
+		(wIndex & 0xF0) == REQ_PWR_PORT_B_IO 
+		&& (wIndex & 0x0F) < 8 ){
+		pin_set(PORT_B.gpio[wIndex & 0x7], wValue);
 	} else {
 		switch (wIndex) {
 			case REQ_PWR_RST:
