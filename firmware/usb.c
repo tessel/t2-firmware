@@ -293,13 +293,21 @@ bool usb_cb_set_configuration(uint8_t config) {
 void req_gpio(uint16_t wIndex, uint16_t wValue) {
 	if ( (wIndex & 0xF0) == REQ_PWR_PORT_A_IO 
 		&& (wIndex & 0x0F) < 8 ) {
-		pin_dir(PORT_A.gpio[wIndex & 0x7], 1);
-		pin_set(PORT_A.gpio[wIndex & 0x7], wValue);
+		if (wValue == 2) {
+			pin_in(PORT_A.gpio[wIndex & 0x7]);
+		} else {
+			pin_dir(PORT_A.gpio[wIndex & 0x7], 1);
+			pin_set(PORT_A.gpio[wIndex & 0x7], wValue);
+		}
 	} else if (
 		(wIndex & 0xF0) == REQ_PWR_PORT_B_IO 
 		&& (wIndex & 0x0F) < 8 ){
-		pin_dir(PORT_B.gpio[wIndex & 0x7], 1);
-		pin_set(PORT_B.gpio[wIndex & 0x7], wValue);
+		if (wValue == 2) {
+			pin_in(PORT_B.gpio[wIndex & 0x7]);
+		} else {
+			pin_dir(PORT_B.gpio[wIndex & 0x7], 1);
+			pin_set(PORT_B.gpio[wIndex & 0x7], wValue);
+		}
 	} else {
 		switch (wIndex) {
 			case REQ_PWR_RST:
