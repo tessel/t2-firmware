@@ -7,7 +7,7 @@
 
 // Temporary configuration for the SAMD21 Xplained Pro board
 // http://www.atmel.com/Images/Atmel-42220-SAMD21-Xplained-Pro_User-Guide.pdf
-#define XPLAINED
+// #define XPLAINED
 
 // Memory Layout
 #define FLASH_BOOT_SIZE 4096
