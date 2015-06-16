@@ -82,8 +82,8 @@ void led_task() {
 }
 
 void bootloader_main() {
-	if (PM->RCAUSE.reg & PM_RCAUSE_POR) {
-		// On powerup, force a clean reset of the MT7620
+	if (PM->RCAUSE.reg & (PM_RCAUSE_POR | PM_RCAUSE_BOD12 | PM_RCAUSE_BOD33)) {
+		// On powerup, power off MT7620
 		pin_low(PIN_SOC_RST);
 		pin_out(PIN_SOC_RST);
 	}

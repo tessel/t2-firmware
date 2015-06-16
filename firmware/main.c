@@ -25,7 +25,7 @@ void boot_delay_ms(int delay){
 }
 
 int main(void) {
-    if (PM->RCAUSE.reg & PM_RCAUSE_POR) {
+    if (PM->RCAUSE.reg & (PM_RCAUSE_POR | PM_RCAUSE_BOD12 | PM_RCAUSE_BOD33)) {
         // On powerup, force a clean reset of the MT7620
         pin_low(PIN_SOC_RST);
         pin_out(PIN_SOC_RST);
