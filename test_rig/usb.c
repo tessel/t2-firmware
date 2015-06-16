@@ -36,6 +36,7 @@ uint16_t altsetting = 0;
 
 typedef struct ConfigDesc {
 	USB_ConfigurationDescriptor Config;
+	USB_InterfaceDescriptor DAPInterfaceOff;
 	USB_InterfaceDescriptor DAPInterface;
 	USB_EndpointDescriptor DAPInEndpoint;
 	USB_EndpointDescriptor DAPOutEndpoint;
@@ -54,13 +55,24 @@ __attribute__((__aligned__(4))) const ConfigDesc configuration_descriptor = {
 		.bmAttributes = USB_CONFIG_ATTR_BUSPOWERED,
 		.bMaxPower = USB_CONFIG_POWER_MA(500)
 	},
-	.DAPInterface = {
+	.DAPInterfaceOff = {
 		.bLength = sizeof(USB_InterfaceDescriptor),
 		.bDescriptorType = USB_DTYPE_Interface,
 		.bInterfaceNumber = 0,
 		.bAlternateSetting = 0,
+		.bNumEndpoints = 0,
+		.bInterfaceClass = USB_CSCP_VendorSpecificClass,
+		.bInterfaceSubClass = 0x00,
+		.bInterfaceProtocol = 0x00,
+		.iInterface = 0x10,
+	},
+	.DAPInterface = {
+		.bLength = sizeof(USB_InterfaceDescriptor),
+		.bDescriptorType = USB_DTYPE_Interface,
+		.bInterfaceNumber = 0,
+		.bAlternateSetting = 1,
 		.bNumEndpoints = 2,
-		.bInterfaceClass = 3, // HID (but not really)
+		.bInterfaceClass = USB_CSCP_VendorSpecificClass,
 		.bInterfaceSubClass = 0x00,
 		.bInterfaceProtocol = 0x00,
 		.iInterface = 0x10,
@@ -181,7 +193,6 @@ void usb_cb_reset(void) {
 
 bool usb_cb_set_configuration(uint8_t config) {
 	if (config <= 1) {
-		dap_enable();
 		button_init();
 		return true;
 	}
@@ -243,10 +254,13 @@ void usb_cb_completion(void) {
 
 bool usb_cb_set_interface(uint16_t interface, uint16_t new_altsetting) {
 	if (interface == 0) {
-		if (new_altsetting > 0) {
+		if (new_altsetting == 0) {
+			dap_disable();
+		} else if (new_altsetting == 1){
+			dap_enable();
+		} else {
 			return false;
 		}
-
 		return true;
 	}
 	return false;
