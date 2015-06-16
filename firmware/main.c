@@ -3,14 +3,57 @@
 PortData port_a;
 PortData port_b;
 
+void boot_delay_ms(int delay){
+    tc(TC_BOOT)->COUNT16.CTRLA.reg
+        = TC_CTRLA_WAVEGEN_MPWM
+        | TC_CTRLA_PRESCALER_DIV1024; 
+
+    tc(TC_BOOT)->COUNT16.CC[0].reg = delay*50;
+    while (tc(TC_BOOT)->COUNT16.STATUS.bit.SYNCBUSY);
+
+    tc(TC_BOOT)->COUNT16.CTRLA.bit.ENABLE = 1;
+
+    while(!tc(TC_BOOT)->COUNT16.INTFLAG.bit.MC0) {
+        // hold off until timer has been hit
+    }
+
+    // clear match flag
+    tc(TC_BOOT)->COUNT16.INTFLAG.bit.MC0 = 1;
+    
+    // disable boot counter
+    tc(TC_BOOT)->COUNT16.CTRLA.bit.ENABLE = 0;
+}
+
 int main(void) {
-    if (PM->RCAUSE.reg & PM_RCAUSE_POR) {
+    if (PM->RCAUSE.reg & (PM_RCAUSE_POR | PM_RCAUSE_BOD12 | PM_RCAUSE_BOD33)) {
         // On powerup, force a clean reset of the MT7620
         pin_low(PIN_SOC_RST);
         pin_out(PIN_SOC_RST);
-    }
 
-    clock_init_crystal(GCLK_SYSTEM, GCLK_32K);
+        // turn off 3.3V to SoC
+        pin_low(PIN_SOC_PWR);
+        pin_out(PIN_SOC_PWR);
+
+        // pull 1.8V low
+        pin_low(PIN_18_V);
+        pin_out(PIN_18_V);
+
+        clock_init_crystal(GCLK_SYSTEM, GCLK_32K);
+        timer_clock_enable(TC_BOOT);
+
+        // hold everything low
+        boot_delay_ms(50); // power off for 50ms
+
+        pin_high(PIN_SOC_PWR);
+
+        boot_delay_ms(2); // 2ms until 1.8 rail comes on
+
+        pin_high(PIN_18_V);
+
+        boot_delay_ms(50); // 50ms before soc rst comes on
+    } else {
+        clock_init_crystal(GCLK_SYSTEM, GCLK_32K);
+    }
 
     pin_mux(PIN_USB_DM);
     pin_mux(PIN_USB_DP);

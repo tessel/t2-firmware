@@ -286,30 +286,51 @@ bool usb_cb_set_configuration(uint8_t config) {
 #define REQ_PWR_PORT_B 0x11
 #define REQ_PWR_LED 0x20
 #define REQ_INFO 0x30
+#define REQ_PWR_PORT_A_IO 0x40
+#define REQ_PWR_PORT_B_IO 0x50
 #define REQ_INFO_GIT_HASH 0x0
 
 void req_gpio(uint16_t wIndex, uint16_t wValue) {
-	switch (wIndex) {
-		case REQ_PWR_RST:
-			pin_low(PIN_SOC_RST);
-			pin_dir(PIN_SOC_RST, !wValue);
-			break;
-		case REQ_PWR_SOC:
-			pin_set(PIN_SOC_PWR, wValue);
-			break;
-		case REQ_PWR_PORT_A:
-			pin_set(PORT_A.power, wValue);
-			break;
-		case REQ_PWR_PORT_B:
-			pin_set(PORT_B.power, wValue);
-			break;
-		case REQ_PWR_LED:
-			pin_set(PIN_LED, wValue);
-			break;
-		default:
-			return usb_ep0_stall();
+	if ( (wIndex & 0xF0) == REQ_PWR_PORT_A_IO 
+		&& (wIndex & 0x0F) < 8 ) {
+		if (wValue == 2) {
+			pin_in(PORT_A.gpio[wIndex & 0x7]);
+		} else {
+			pin_dir(PORT_A.gpio[wIndex & 0x7], 1);
+			pin_set(PORT_A.gpio[wIndex & 0x7], wValue);
+		}
+	} else if (
+		(wIndex & 0xF0) == REQ_PWR_PORT_B_IO 
+		&& (wIndex & 0x0F) < 8 ){
+		if (wValue == 2) {
+			pin_in(PORT_B.gpio[wIndex & 0x7]);
+		} else {
+			pin_dir(PORT_B.gpio[wIndex & 0x7], 1);
+			pin_set(PORT_B.gpio[wIndex & 0x7], wValue);
+		}
+	} else {
+		switch (wIndex) {
+			case REQ_PWR_RST:
+				pin_low(PIN_SOC_RST);
+				pin_dir(PIN_SOC_RST, !wValue);
+				break;
+			case REQ_PWR_SOC:
+				pin_set(PIN_SOC_PWR, wValue);
+				break;
+			case REQ_PWR_PORT_A:
+				pin_set(PORT_A.power, wValue);
+				break;
+			case REQ_PWR_PORT_B:
+				pin_set(PORT_B.power, wValue);
+				break;
+			case REQ_PWR_LED:
+				pin_set(PIN_LED, wValue);
+				break;
+			default:
+				return usb_ep0_stall();
+		}
 	}
-
+	
 	usb_ep0_out();
 	return usb_ep0_in(0);
 }
