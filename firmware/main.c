@@ -42,7 +42,7 @@ int main(void) {
         timer_clock_enable(TC_BOOT);
 
         // hold everything low
-        boot_delay_ms(200); // power off for 200ms
+        boot_delay_ms(50); // power off for 50ms
 
         pin_high(PIN_SOC_PWR);
 
