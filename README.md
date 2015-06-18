@@ -1,3 +1,19 @@
+# Tessel 2 Firmware
+
+* [About the T2 Firmware](#about-the-t2-firmware)
+  * [SAM D21 Overview](#sam-d21-overview)
+  * [Directory structure](#directory-structure)
+  * [Bridge](#bridge)
+   * [Signals](#signals)
+  * [Port command queue](#port-command-queue)
+  * [Compiling](#compiling)
+   * [Dependencies](#dependencies)
+   * [Building](#building)
+* [T2 Hardware API](#t2-hardware-api)
+
+# About the T2 Firmware
+
+## SAM D21 Overview
 
 The Atmel SAM D21 microcontroller on Tessel 2 serves several purposes:
 
@@ -92,3 +108,7 @@ git clone https://github.com/tessel/v2-firmware --recursive
 cd v2-firmware
 make
 ```
+
+# T2 Hardware API
+
+When you `require('tessel')` within a script which is executed on Tessel 2, this loads a library which interfaces with the Tessel 2 hardware, including pins, ports, and LEDs, just like Tessel 1 ([Tessel 1 hardware documentation](https://tessel.io/docs/hardwareAPI)). The code for Tessel 2's hardware object can be found [here](https://github.com/tessel/t2-firmware/blob/master/node/tessel.js).
