@@ -25,6 +25,7 @@
 
 // dap_hid.c
 void dap_enable();
+void dap_disable();
 void dap_handle_usb_in_completion();
 void dap_handle_usb_out_completion();
 
