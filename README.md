@@ -4,12 +4,21 @@
   * [SAM D21 Overview](#sam-d21-overview)
   * [Directory structure](#directory-structure)
   * [Bridge](#bridge)
-   * [Signals](#signals)
+    * [Signals](#signals)
   * [Port command queue](#port-command-queue)
   * [Compiling](#compiling)
-   * [Dependencies](#dependencies)
-   * [Building](#building)
+    * [Dependencies](#dependencies)
+    * [Building](#building)
 * [T2 Hardware API](#t2-hardware-api)
+  * [Ports and pins](#ports-and-pins)
+    * [Modules](#modules)
+    * [Pin mapping](#pin-mapping)
+    * [Digital pins](#digital-pins)
+    * [SPI](#spi)
+    * [I2C](#i2c)
+    * [UART/Serial](#uart-serial)
+  * [Button and LEDs](#button-and-leds)
+  * [USB ports](#usb-ports)
 
 # About the T2 Firmware
 
@@ -112,3 +121,128 @@ make
 # T2 Hardware API
 
 When you `require('tessel')` within a script which is executed on Tessel 2, this loads a library which interfaces with the Tessel 2 hardware, including pins, ports, and LEDs, just like Tessel 1 ([Tessel 1 hardware documentation](https://tessel.io/docs/hardwareAPI)). The code for Tessel 2's hardware object can be found [here](https://github.com/tessel/t2-firmware/blob/master/node/tessel.js).
+
+## Ports and pins
+
+Tessel has two ports, A and B. They are referred to as `tessel.port['A']`.
+
+Tessel's ports can be used as module ports as in Tessel 1 (e.g. `accelerometer.use(tessel.port['B'])`), or used as flexible GPIO pins (e.g. `myPin = tessel.port['A'].pins[0]`).
+
+### Modules
+
+Tessel 2's module ports can be used with [Tessel modules](//tessel.io/modules) much as in [Tessel 1](http://start.tessel.io/modules).
+
+Here is an example of using the Tessel Climate module on Tessel's port B:
+
+```js
+var tessel = require('tessel');
+var climatelib = require('climate-si7020');
+var climate = climatelib.use(tessel.port['B']);
+```
+
+### Pin mapping
+
+The module ports are not just for modules! They can also be used as flexible, simply addressable GPIO pins.
+
+The pin layout for ports A and B is as follows:
+
+| Index | Function |
+|-------|----------|
+| 0     | SCL      |
+| 1     | SDA      |
+| 2     | SCK      |
+| 3     | MISO     |
+| 4     | MOSI     |
+| 5     | TX/G1    |
+| 6     | RX/G2    |
+| 7     | G3       |
+
+G1, G2, and G3 are general purpose digital pins.
+
+If you're newer to hardware and these functions look like alphabet soup to you, take a look at our [communication protocols documentation](https://tessel.io/docs/communicationProtocols) to get an idea of how these pins should be used.
+
+### Digital pins
+
+A digital pin (5, 6, and 7 on Tessel 2) is either high (on/3.3V) or low (off/0V). If unset, Tessel's pins are pulled high by default.
+
+Here is an example usage of a digital pin on Tessel:
+
+```js
+var tessel = require('tessel'); // import tessel
+var myPort = tessel.port['A']; // select the GPIO port
+var myPin = myPort.pin[7]; // select pin 7
+myPin.output(1);  // turn pin high (on)
+console.log(myPin.read()); // print the pin value to the console
+myPin.output(0);  // turn pin low (off)
+```
+
+### SPI
+
+A SPI channel uses the SCK, MISO, and MOSI pins (2, 3, and 4 on Tessel 2). If you are unfamiliar with the SPI protocol, please see the [communication protocols tutorial](https://tessel.io/docs/communicationProtocols#spi).
+
+Here is an example using Tessel's SPI protocol:
+
+```js
+var port = tessel.port['A'];
+var spi = new port.SPI({
+  clockSpeed: 4*1000*1000, // 4MHz
+  cpol: 1, // polarity
+  cpha: 0, // clock phase
+});
+
+spi.transfer(new Buffer([0xde, 0xad, 0xbe, 0xef]), function (err, rx) {
+  console.log('buffer returned by SPI slave:', rx);
+});
+
+spi.transferBatch(new Buffer([0xc0, 0xd0, 0xc1, 0xd1]), {chunkSize:2}, function (err, rx) {
+// Equivalent to
+//    spi.transfer(new Buffer[0xc0, 0xd0]);
+//    spi.transfer(new Buffer[0xc1, 0xd1]);
+// Faster than doing separate transfers because only 1 JS call is made
+});
+```
+
+### I2C
+
+An I2C channel uses the SCL and SDA pins (0 and 1 on Tessel 2). If you are unfamiliar with the I2C protocol, please see the [communication protocols tutorial](https://tessel.io/docs/communicationProtocols#i2c).
+
+Here is an example using Tessel's I2C protocol:
+
+```js
+var port = tessel.port['A'];
+var slaveAddress = 0xDE;
+var i2c = new port.I2C(slaveAddress)
+i2c.transfer(new Buffer([0xde, 0xad, 0xbe, 0xef]), function (err, rx) {
+  console.log('buffer returned by I2C slave ('+slaveAddress.toString(16)+'):', rx);
+})
+```
+
+### UART/Serial
+
+A UART (serial) channel uses the TX and RX pins (5 and 6 on Tessel 2). If you are unfamiliar with the UART protocol, please see the [communication protocols tutorial](https://tessel.io/docs/communicationProtocols#uart).
+
+Here is an example using Tessel's UART protocol:
+
+```js
+var port = tessel.port['A'];
+var uart = new port.UART({
+  baudrate: 115200
+});
+
+uart.write('ahoy hoy\n')
+uart.on('data', function (data) {
+  console.log('received:', data);
+})
+
+// UART objects are streams!
+// pipe all incoming data to stdout:
+uart.pipe(process.stdout);
+```
+
+## Button and LEDs
+
+Tessel 2's button and LEDs are not yet exposed in the API – but you can change that! See [#15](https://github.com/tessel/t2-firmware/issues/15) for a description of what needs to be done.
+
+## USB Ports
+
+USB modules do not need to be accessed through the Tessel object. See [node-audiovideo](https://github.com/tessel/node-audiovideo) for an example USB module.
