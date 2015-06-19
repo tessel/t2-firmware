@@ -153,24 +153,24 @@ The pin layout for ports A and B is as follows:
 | 2     | SCK      |
 | 3     | MISO     |
 | 4     | MOSI     |
-| 5     | TX/G1    |
-| 6     | RX/G2    |
-| 7     | G3       |
+| 5     | TX       |
+| 6     | RX       |
+| 7     | digital  |
 
-G1, G2, and G3 are general purpose digital pins.
+All pins (0-7) can be used as digital pins.
 
 If you're newer to hardware and these functions look like alphabet soup to you, take a look at our [communication protocols documentation](https://tessel.io/docs/communicationProtocols) to get an idea of how these pins should be used.
 
 ### Digital pins
 
-A digital pin (5, 6, and 7 on Tessel 2) is either high (on/3.3V) or low (off/0V). If unset, Tessel's pins are pulled high by default.
+A digital pin (any pin other than 3.3V and GND on Tessel 2) is either high (on/3.3V) or low (off/0V). If unset, Tessel's pins are pulled high by default.
 
 Here is an example usage of a digital pin on Tessel:
 
 ```js
 var tessel = require('tessel'); // import tessel
 var myPort = tessel.port['A']; // select the GPIO port
-var myPin = myPort.pin[7]; // select pin 7
+var myPin = myPort.pin[2]; // select pin 2
 myPin.output(1);  // turn pin high (on)
 console.log(myPin.read()); // print the pin value to the console
 myPin.output(0);  // turn pin low (off)
@@ -192,13 +192,6 @@ var spi = new port.SPI({
 
 spi.transfer(new Buffer([0xde, 0xad, 0xbe, 0xef]), function (err, rx) {
   console.log('buffer returned by SPI slave:', rx);
-});
-
-spi.transferBatch(new Buffer([0xc0, 0xd0, 0xc1, 0xd1]), {chunkSize:2}, function (err, rx) {
-// Equivalent to
-//    spi.transfer(new Buffer[0xc0, 0xd0]);
-//    spi.transfer(new Buffer[0xc1, 0xd1]);
-// Faster than doing separate transfers because only 1 JS call is made
 });
 ```
 
