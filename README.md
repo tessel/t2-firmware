@@ -155,9 +155,9 @@ The pin layout for ports A and B is as follows:
 | 4     | MOSI     |
 | 5     | TX       |
 | 6     | RX       |
-| 7     | digital  |
+| 7     | I/O      |
 
-All pins (0-7) can be used as digital pins.
+All pins (0-7) can be used as digital pins. All pins on port B and pin 7 on port A can be used as analog pins.
 
 If you're newer to hardware and these functions look like alphabet soup to you, take a look at our [communication protocols documentation](https://tessel.io/docs/communicationProtocols) to get an idea of how these pins should be used.
 
@@ -175,6 +175,23 @@ myPin.output(1);  // turn pin high (on)
 console.log(myPin.read()); // print the pin value to the console
 myPin.output(0);  // turn pin low (off)
 ```
+
+### Analog pins
+
+An analog pin is a pin that can vary in the range between 3.3V and 0V. Pin 7 on port A and all pins on port B can read and write analog values (though pins 0 and 1 are not recommended for this purpose).
+
+Here is an example usage of an analog pin on Tessel:
+```js
+var tessel = require('tessel'); // import tessel
+var myPort = tessel.port['A']; // select the GPIO port
+var myPin = myPort.pin[7]; // select pin 2
+myPin.output(.6);  // turn pin to 60% of high
+console.log(myPin.read()); // print the pin value to the console
+```
+
+### PWM pins
+
+PWM pins are not yet implemented. See [#21](https://github.com/tessel/t2-firmware/issues/21).
 
 ### SPI
 
