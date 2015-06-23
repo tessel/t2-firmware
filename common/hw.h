@@ -236,3 +236,13 @@ void timer_clock_enable(TimerId id);
 void tcc_delay_start(TimerId id, u32 ticks);
 void tcc_delay_disable(TimerId id);
 void tcc_delay_enable(TimerId id);
+
+// wdt
+
+inline static void wdt_reset(u32 clock_channel) {
+  GCLK->CLKCTRL.reg = GCLK_CLKCTRL_CLKEN |
+      GCLK_CLKCTRL_GEN(clock_channel) |
+      GCLK_CLKCTRL_ID(WDT_GCLK_ID);
+  WDT->CONFIG.reg = 0x7; // 31ms
+  WDT->CTRL.reg = WDT_CTRL_ENABLE;
+}
