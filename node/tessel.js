@@ -37,31 +37,29 @@ function Port(name, socketPath, board) {
         throw new Error("Port socket closed");
     })
 
-    this.sock.on('readable', function() {
-        while (true) {
-            var d = this.sock.read(1);
+    var replyBuf = new Buffer(0);
 
-            if (!d) break;
-            var byte = d[0];
+    this.sock.on('readable', function() {
+        replyBuf = Buffer.concat([replyBuf, this.sock.read()])
+
+        while (replyBuf.length != 0) {
+            var byte = replyBuf[0];
             if (byte == REPLY.ASYNC_UART_RX) {
                 // get the next byte which is the number of bytes
-                var rxNum = this.sock.read(1)[0];
-                var rxData = this.sock.read(rxNum);
+                var rxNum = replyBuf[1];
 
-                // if rxNum is bad or if we don't have enough data, wait until next cycle
-                if (!rxNum || !rxData) {
-                    this.sock.unshift(rxNum);
-                    this.sock.unshift(d);
-                    continue;
+                if (rxNum !== undefined && replyBuf.length >= 2 + rxNum) {
+                    var rxData = replyBuf.slice(2, 2 + rxNum);
+                    replyBuf = replyBuf.slice(2 + rxNum);
+
+                    if (this._uart) {
+                        this._uart.push(rxData.toString());
+                    }
+
+                } else {
+                    break;
                 }
-
-                if (this._uart) {
-                    this._uart.push(rxData.toString());
-                }
-                continue;
-            }
-
-            if (byte >= REPLY.MIN_ASYNC) {
+            } else if (byte >= REPLY.MIN_ASYNC) {
                 if (byte >= REPLY.ASYNC_PIN_CHANGE_N && byte < REPLY.ASYNC_PIN_CHANGE_N+8) {
                     var pin = this.pin[byte - REPLY.ASYNC_PIN_CHANGE_N];
 
@@ -74,33 +72,30 @@ function Port(name, socketPath, board) {
                 } else {
                     this.emit('async-event', byte);
                 }
-
-                continue;
-            }
-
-            if (this.replyQueue.length == 0) {
-                throw new Error("Received an unexpected response with no commands pending: " + byte);
-            }
-
-            var data = null;
-            var data_size = this.replyQueue[0].size;
-
-            if (byte == REPLY.DATA) {
-                if (!data_size) {
-                    throw new Error("Received unexpected data packet");
+            } else {
+                if (this.replyQueue.length == 0) {
+                    throw new Error("Received an unexpected response with no commands pending: " + byte);
                 }
-                data = this.sock.read(data_size);
-                if (!data) {
-                    // if there's a partial reply, 
-                    // wait until we get the full data
-                    this.sock.unshift(d);
-                    break;
-                }
-            }
 
-            var q = this.replyQueue.shift();
-            if (q.callback) {
-                q.callback.call(this, null, q.size ? data : byte);
+                var data_size = this.replyQueue[0].size;
+
+                if (byte == REPLY.DATA) {
+                    if (!data_size) {
+                        throw new Error("Received unexpected data packet");
+                    }
+
+                    if (replyBuf.length >= 1 + data_size) {
+                        var data = replyBuf.slice(1, 1 + data_size);
+                        replyBuf = replyBuf.slice(1 + data_size);
+
+                        var q = this.replyQueue.shift();
+                        if (q.callback) {
+                            q.callback.call(this, null, q.size ? data : byte);
+                        }
+                    } else {
+                        break;
+                    }
+                }
             }
         }
     }.bind(this));
