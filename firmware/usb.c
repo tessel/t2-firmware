@@ -14,8 +14,8 @@ __attribute__((__aligned__(4))) const USB_DeviceDescriptor device_descriptor = {
 	.bDeviceProtocol        = USB_CSCP_NoDeviceProtocol,
 
 	.bMaxPacketSize0        = 64,
-	.idVendor               = 0x9999,
-	.idProduct              = 0xFFFF,
+	.idVendor               = 0x1209,
+	.idProduct              = 0x7551,
 	.bcdDevice              = 0x0110,
 
 	.iManufacturer          = 0x01,
@@ -292,7 +292,7 @@ bool usb_cb_set_configuration(uint8_t config) {
 #define REQ_BOOT 0xBB
 
 void req_gpio(uint16_t wIndex, uint16_t wValue) {
-	if ( (wIndex & 0xF0) == REQ_PWR_PORT_A_IO 
+	if ( (wIndex & 0xF0) == REQ_PWR_PORT_A_IO
 		&& (wIndex & 0x0F) < 8 ) {
 		if (wValue == 2) {
 			pin_in(PORT_A.gpio[wIndex & 0x7]);
@@ -301,7 +301,7 @@ void req_gpio(uint16_t wIndex, uint16_t wValue) {
 			pin_set(PORT_A.gpio[wIndex & 0x7], wValue);
 		}
 	} else if (
-		(wIndex & 0xF0) == REQ_PWR_PORT_B_IO 
+		(wIndex & 0xF0) == REQ_PWR_PORT_B_IO
 		&& (wIndex & 0x0F) < 8 ){
 		if (wValue == 2) {
 			pin_in(PORT_B.gpio[wIndex & 0x7]);
@@ -331,7 +331,7 @@ void req_gpio(uint16_t wIndex, uint16_t wValue) {
 				return usb_ep0_stall();
 		}
 	}
-	
+
 	usb_ep0_out();
 	return usb_ep0_in(0);
 }

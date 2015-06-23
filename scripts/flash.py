@@ -123,7 +123,7 @@ def randbyte():
     return random.randint(0, 255)
 
 if __name__ == '__main__':
-    dev = usb.core.find(idVendor=0x9999, idProduct=0xffff)
+    dev = usb.core.find(idVendor=0x1209, idProduct=0x7551)
     if dev is None:
         raise ValueError('Our device is not connected')
 

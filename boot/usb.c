@@ -23,8 +23,8 @@ const USB_DeviceDescriptor device_descriptor = {
 	.bDeviceProtocol        = USB_CSCP_NoDeviceProtocol,
 
 	.bMaxPacketSize0        = 64,
-	.idVendor               = 0x1d50,
-	.idProduct              = 0x6097,
+	.idVendor               = 0x1209,
+	.idProduct              = 0x7551,
 	.bcdDevice              = 0x0002,
 
 	.iManufacturer          = 0x01,
