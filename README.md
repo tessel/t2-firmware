@@ -143,7 +143,7 @@ var climatelib = require('climate-si7020').use(tessel.port.B);
 
 The module ports are not just for modules! They can also be used as flexible, simply addressable GPIO pins.
 
-The pin layout for ports A and B is as follows:
+The pin capabilities for ports A and B are as follows:
 
 | Port | Pin | Digital I/O | SCL | SDA | SCK | MISO | MOSI | TX | RX | Analog In | Analog Out |
 |------|-----|-------------|-----|-----|-----|------|------|----|----|-----------|------------|
@@ -163,8 +163,6 @@ The pin layout for ports A and B is as follows:
 |B     | 5   | ✓           |     |     |     |      |      | ✓  |    | ✓         |            |
 |B     | 6   | ✓           |     |     |     |      |      |    | ✓  | ✓         |            |
 |B     | 7   | ✓           |     |     |     |      |      |    |    | ✓         | ✓          |
-
-All pins (0-7) can be used as digital pins. All pins on port B and pin 7 on port A can be used as analog pins.
 
 If you're newer to hardware and these functions look like alphabet soup to you, take a look at our [communication protocols documentation](https://tessel.io/docs/communicationProtocols) to get an idea of how these pins should be used.
 
@@ -190,8 +188,8 @@ Here is an example usage of an analog pin on Tessel:
 
 ```js
 var tessel = require('tessel'); // import tessel
-var myPin = tessel.port.B.pin[7]; // select pin 2 on port A
-myPin.analogWrite(.6);  // turn pin to 60% of high
+var myPin = tessel.port.B.pin[7]; // select pin 7 on port B
+myPin.analogWrite(0.6);  // turn pin to 60% of high
 myPin.analogRead(function (val) {
   console.log(val);
 }); // print the pin value to the console
