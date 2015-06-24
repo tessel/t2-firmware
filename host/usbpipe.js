@@ -26,7 +26,7 @@ UsbStream.prototype._write = function(chunk, encoding, callback) {
 }
 
 function Tessel2() {
-    this.usb = usb.findByIds(0x9999, 0xffff);
+    this.usb = usb.findByIds(0x1209, 0x7551);
     if (!this.usb) throw new Error("Device not found");
 }
 

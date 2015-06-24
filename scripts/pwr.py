@@ -11,7 +11,7 @@ pins = {
     'led': 0x20,
 }
 
-dev = usb.core.find(idVendor=0x9999, idProduct=0xffff)
+dev = usb.core.find(idVendor=0x1209, idProduct=0x7551)
 if dev is None:
     raise ValueError('device is not connected')
 
