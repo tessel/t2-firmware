@@ -124,9 +124,9 @@ When you `require('tessel')` within a script which is executed on Tessel 2, this
 
 ## Ports and pins
 
-Tessel has two ports, A and B. They are referred to as `tessel.port['A']`.
+Tessel has two ports, A and B. They are referred to as `tessel.port.B`. `tessel.port['B']` is also an acceptable reference style.
 
-Tessel's ports can be used as module ports as in Tessel 1 (e.g. `accelerometer.use(tessel.port['B'])`), or used as flexible GPIO pins (e.g. `myPin = tessel.port['A'].pins[0]`).
+Tessel's ports can be used as module ports as in Tessel 1 (e.g. `accelerometer.use(tessel.port.B)`), or used as flexible GPIO pins (e.g. `myPin = tessel.port.A.pins[0]`).
 
 ### Modules
 
@@ -136,8 +136,7 @@ Here is an example of using the Tessel Climate module on Tessel's port B:
 
 ```js
 var tessel = require('tessel');
-var climatelib = require('climate-si7020');
-var climate = climatelib.use(tessel.port['B']);
+var climatelib = require('climate-si7020').use(tessel.port.B);
 ```
 
 ### Pin mapping
@@ -146,16 +145,24 @@ The module ports are not just for modules! They can also be used as flexible, si
 
 The pin layout for ports A and B is as follows:
 
-| Index | Function |
-|-------|----------|
-| 0     | SCL      |
-| 1     | SDA      |
-| 2     | SCK      |
-| 3     | MISO     |
-| 4     | MOSI     |
-| 5     | TX       |
-| 6     | RX       |
-| 7     | I/O      |
+| Port | Pin | Digital I/O | SCL | SDA | SCK | MISO | MOSI | TX | RX | Analog In | Analog Out |
+|------|-----|-------------|-----|-----|-----|------|------|----|----|-----------|------------|
+|A     | 0   | ✓           | ✓   |     |     |      |      |    |    |           |            |
+|A     | 1   | ✓           |     | ✓   |     |      |      |    |    |           |            |
+|A     | 2   | ✓           |     |     | ✓   |      |      |    |    |           |            |
+|A     | 3   | ✓           |     |     |     | ✓    |      |    |    |           |            |
+|A     | 4   | ✓           |     |     |     |      | ✓    |    |    | ✓         |            |
+|A     | 5   | ✓           |     |     |     |      |      | ✓  |    |           |            |
+|A     | 6   | ✓           |     |     |     |      |      |    | ✓  |           |            |
+|A     | 7   | ✓           |     |     |     |      |      |    |    | ✓         |            |
+|B     | 0   | ✓           | ✓   |     |     |      |      |    |    | ✓         |            |
+|B     | 1   | ✓           |     | ✓   |     |      |      |    |    | ✓         |            |
+|B     | 2   | ✓           |     |     | ✓   |      |      |    |    | ✓         |            |
+|B     | 3   | ✓           |     |     |     | ✓    |      |    |    | ✓         |            |
+|B     | 4   | ✓           |     |     |     |      | ✓    |    |    | ✓         |            |
+|B     | 5   | ✓           |     |     |     |      |      | ✓  |    | ✓         |            |
+|B     | 6   | ✓           |     |     |     |      |      |    | ✓  | ✓         |            |
+|B     | 7   | ✓           |     |     |     |      |      |    |    | ✓         | ✓          |
 
 All pins (0-7) can be used as digital pins. All pins on port B and pin 7 on port A can be used as analog pins.
 
@@ -163,14 +170,13 @@ If you're newer to hardware and these functions look like alphabet soup to you, 
 
 ### Digital pins
 
-A digital pin (any pin other than 3.3V and GND on Tessel 2) is either high (on/3.3V) or low (off/0V). If unset, Tessel's pins are pulled high by default.
+A digital pin (any pin other than 3.3V and GND on Tessel 2) is either high (on/3.3V) or low (off/0V). On both of ports A and B, pins 0 and 1 are pulled high to 3.3V by default.
 
 Here is an example usage of a digital pin on Tessel:
 
 ```js
 var tessel = require('tessel'); // import tessel
-var myPort = tessel.port['A']; // select the GPIO port
-var myPin = myPort.pin[2]; // select pin 2
+var myPin = tessel.port.A.pin[2]; // select pin 2 on port A
 myPin.output(1);  // turn pin high (on)
 console.log(myPin.read()); // print the pin value to the console
 myPin.output(0);  // turn pin low (off)
@@ -178,20 +184,37 @@ myPin.output(0);  // turn pin low (off)
 
 ### Analog pins
 
-An analog pin is a pin that can vary in the range between 3.3V and 0V. Pin 7 on port A and all pins on port B can read and write analog values (though pins 0 and 1 are not recommended for this purpose).
+An analog pin is a pin whose value can vary in the range between 0V and 3.3V. Pins 4 and 7 on port A and all pins on port B can read analog values (though pins 0 and 1 are pulled to 3.3V by default and are thus not recommended for this purpose). Pin 7 on port B can write an analog value.
 
 Here is an example usage of an analog pin on Tessel:
+
 ```js
 var tessel = require('tessel'); // import tessel
-var myPort = tessel.port['A']; // select the GPIO port
-var myPin = myPort.pin[7]; // select pin 2
-myPin.output(.6);  // turn pin to 60% of high
-console.log(myPin.read()); // print the pin value to the console
+var myPin = tessel.port.B.pin[7]; // select pin 2 on port A
+myPin.analogWrite(.6);  // turn pin to 60% of high
+myPin.analogRead(function (val) {
+  console.log(val);
+}); // print the pin value to the console
 ```
 
 ### PWM pins
 
 PWM pins are not yet implemented. See [#21](https://github.com/tessel/t2-firmware/issues/21).
+
+### I2C
+
+An I2C channel uses the SCL and SDA pins (0 and 1 on Tessel 2). If you are unfamiliar with the I2C protocol, please see the [communication protocols tutorial](https://tessel.io/docs/communicationProtocols#i2c).
+
+Here is an example using Tessel's I2C protocol:
+
+```js
+var port = tessel.port.A;
+var slaveAddress = 0xDE;
+var i2c = new port.I2C(slaveAddress)
+i2c.transfer(new Buffer([0xde, 0xad, 0xbe, 0xef]), function (err, rx) {
+  console.log('buffer returned by I2C slave ('+slaveAddress.toString(16)+'):', rx);
+})
+```
 
 ### SPI
 
@@ -200,7 +223,7 @@ A SPI channel uses the SCK, MISO, and MOSI pins (2, 3, and 4 on Tessel 2). If yo
 Here is an example using Tessel's SPI protocol:
 
 ```js
-var port = tessel.port['A'];
+var port = tessel.port.A;
 var spi = new port.SPI({
   clockSpeed: 4*1000*1000, // 4MHz
   cpol: 1, // polarity
@@ -212,21 +235,6 @@ spi.transfer(new Buffer([0xde, 0xad, 0xbe, 0xef]), function (err, rx) {
 });
 ```
 
-### I2C
-
-An I2C channel uses the SCL and SDA pins (0 and 1 on Tessel 2). If you are unfamiliar with the I2C protocol, please see the [communication protocols tutorial](https://tessel.io/docs/communicationProtocols#i2c).
-
-Here is an example using Tessel's I2C protocol:
-
-```js
-var port = tessel.port['A'];
-var slaveAddress = 0xDE;
-var i2c = new port.I2C(slaveAddress)
-i2c.transfer(new Buffer([0xde, 0xad, 0xbe, 0xef]), function (err, rx) {
-  console.log('buffer returned by I2C slave ('+slaveAddress.toString(16)+'):', rx);
-})
-```
-
 ### UART/Serial
 
 A UART (serial) channel uses the TX and RX pins (5 and 6 on Tessel 2). If you are unfamiliar with the UART protocol, please see the [communication protocols tutorial](https://tessel.io/docs/communicationProtocols#uart).
@@ -234,7 +242,7 @@ A UART (serial) channel uses the TX and RX pins (5 and 6 on Tessel 2). If you ar
 Here is an example using Tessel's UART protocol:
 
 ```js
-var port = tessel.port['A'];
+var port = tessel.port.A;
 var uart = new port.UART({
   baudrate: 115200
 });
