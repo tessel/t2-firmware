@@ -9,7 +9,14 @@
 
 #pragma once
 #include "class/dfu/dfu.h"
+
+#ifdef TEST_RIG_BOOTLOADER
+#include "test_rig/test_rig_board.h"
+#define PIN_BTN PIN_START_BUTTON
+#define PIN_LED DIGITAL_PINS[4]
+#else
 #include "common/board.h"
+#endif
 
 #define GCLK_SYSTEM 0
 #define DFU_INTF 0

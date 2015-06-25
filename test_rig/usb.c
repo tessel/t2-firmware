@@ -8,6 +8,7 @@
 
 #define REQ_INFO 0x30
 #define REQ_INFO_GIT_HASH 0x0
+#define REQ_BOOT 0xBB
 
 USB_ENDPOINTS(5);
 
@@ -215,6 +216,12 @@ void req_info(uint16_t wIndex) {
     return usb_ep0_in(len);
 }
 
+void req_boot() {
+    wdt_reset(GCLK_32K);
+    usb_ep0_out();
+    return usb_ep0_in(0);
+}
+
 void usb_cb_control_setup(void) {
 	uint8_t recipient = usb_setup.bmRequestType & USB_REQTYPE_RECIPIENT_MASK;
 	if (recipient == USB_RECIPIENT_DEVICE) {
@@ -228,6 +235,7 @@ void usb_cb_control_setup(void) {
 				return usb_control_req_digital_read_all();
 			case ANALOG_SAMPLE:
 				return usb_control_req_analog_read(usb_setup.wIndex, usb_setup.wValue);
+			case REQ_BOOT: return req_boot();
 		}
 	} else if (recipient == USB_RECIPIENT_INTERFACE) {
 	}

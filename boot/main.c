@@ -82,21 +82,25 @@ void led_task() {
 }
 
 void bootloader_main() {
+	#ifndef TEST_RIG_BOOTLOADER
 	if (PM->RCAUSE.reg & (PM_RCAUSE_POR | PM_RCAUSE_BOD12 | PM_RCAUSE_BOD33)) {
 		// On powerup, power off MT7620
 		pin_low(PIN_SOC_RST);
 		pin_out(PIN_SOC_RST);
 	}
+	#endif
 
 	clock_init_usb(GCLK_SYSTEM);
 	init_systick();
 	nvm_init();
 
+	#ifndef TEST_RIG_BOOTLOADER
 	pin_low(PORT_A.power);
 	pin_out(PORT_A.power);
 
 	pin_low(PORT_B.power);
 	pin_out(PORT_B.power);
+	#endif
 
 	pin_out(PIN_LED);
 
