@@ -9,6 +9,7 @@
   * [Compiling](#compiling)
     * [Dependencies](#dependencies)
     * [Building](#building)
+    * [Flashing](#flashing)
 * [T2 Hardware API](#t2-hardware-api)
   * [Ports and pins](#ports-and-pins)
     * [Modules](#modules)
