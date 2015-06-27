@@ -2,6 +2,7 @@ var util = require('util');
 var EventEmitter = require('events').EventEmitter;
 var Duplex = require('stream').Duplex;
 var net = require('net');
+var fs = require('fs');
 
 function Tessel() {
     if (Tessel.instance) {
@@ -14,6 +15,13 @@ function Tessel() {
         B: new Port('B', '/var/run/tessel/port_b', this)
     };
     this.port = this.ports;
+
+    this.led = [
+        new LED('red', '/sys/devices/leds/leds/tessel:red:error/brightness'),
+        new LED('amber', '/sys/devices/leds/leds/tessel:amber:wlan/brightness'),
+        new LED('green', '/sys/devices/leds/leds/tessel:green:user1/brightness'),
+        new LED('blue', '/sys/devices/leds/leds/tessel:blue:user2/brightness')
+    ]
 
     // tessel v1 does not have this version number
     // this is useful for libraries to adapt to changes 
@@ -627,5 +635,73 @@ var SPISettings = {
     CPOL: 1,
     CPHA: 2
 };
+
+function LED(color, path) {
+    this.color = color;
+    this._path = path;
+}
+
+LED.prototype.high = function(callback) {
+    this.write(true, callback);
+}
+
+LED.prototype.low = function(callback) {
+    this.write(false, callback);
+}
+
+LED.prototype.output = function(value, callback) {
+    this.write(value, callback);
+}
+
+LED.prototype.input = function(callback) {
+    if (typeof callback === 'function') {
+        callback(new Error("Cannot make LEDs an input."));
+    }
+}
+
+LED.prototype.toggle = function(callback) {
+    var self = this;
+    self.read(function(err, value) {
+        if (err) {
+            if (typeof callback === 'function') {
+                callback(err);
+            }
+            return;
+        }
+        else {
+            self.write(!value, callback);
+        }
+    })
+}
+
+LED.prototype.write = function(value, callback) {
+    fs.writeFile(this._path, value ? '1' : '0', callback);
+}
+
+LED.prototype.read = function(callback) {
+    fs.readFile(this._path, function(err, value) {
+        if (typeof callback !== 'function') {
+            return;
+        }
+        if (err) {
+            callback(err);
+            return;
+        }
+        else {
+            value = value.toString().trim();
+            if (value === '1') {
+                callback(null, true);
+                return
+            }
+            else if (value === '0') {
+                callback(null, false);
+                return
+            }
+            else {
+                throw new Error("Invalid state returned by LED:" + value);
+            }
+        }
+    })
+}
 
 module.exports = new Tessel();
