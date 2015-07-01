@@ -653,12 +653,6 @@ LED.prototype.output = function(value, callback) {
     this.write(value, callback);
 }
 
-LED.prototype.input = function(callback) {
-    if (typeof callback === 'function') {
-        callback(new Error("Cannot make LEDs an input."));
-    }
-}
-
 LED.prototype.toggle = function(callback) {
     var self = this;
     self.read(function(err, value) {
