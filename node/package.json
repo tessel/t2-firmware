@@ -5,7 +5,16 @@
   "main": "tessel.js",
   "dependencies": {
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "grunt": "^0.4.5",
+    "grunt-cli": "^0.1.13",
+    "grunt-contrib-jshint": "^0.11.2",
+    "grunt-contrib-nodeunit": "^0.4.1",
+    "grunt-contrib-watch": "^0.6.1",
+    "grunt-jsbeautifier": "^0.2.10",
+    "grunt-jscs": "^1.8.0",
+    "sinon": "^1.14.1"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
