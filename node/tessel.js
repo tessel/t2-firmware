@@ -24,9 +24,9 @@ function Tessel() {
     ]
 
     // tessel v1 does not have this version number
-    // this is useful for libraries to adapt to changes 
+    // this is useful for libraries to adapt to changes
     // such as all pin reads/writes becoming async in version 2
-    this.version = 2; 
+    this.version = 2;
 }
 
 function Port(name, socketPath, board) {
@@ -214,8 +214,7 @@ Port.prototype._txrx = function(buf, cb) {
 
 Port.prototype.I2C = function (addr, mode) {
     if (!this._i2c) {
-        params = {addr: addr, mode:mode};
-        this._i2c = new I2C(params, this);
+        this._i2c = new I2C({addr: addr, mode:mode}, this);
     }
     return this._i2c;
 };
@@ -411,7 +410,7 @@ Pin.prototype.analogWrite = function (val) {
     if (this._port.name != 'B' || this.pin != 7) {
         throw new Error("Analog write can only be used on Pin 7 (G3) of Port B.");
     }
-    
+
     // v_dac = data/(0x3ff)*reference voltage
     var data = val/(3.3)*0x3ff;
     if (data > 1023 || data < 0) {
@@ -434,7 +433,7 @@ function I2C(params, port) {
         // restrict to between 400khz and 90khz. can actually go up to 4mhz without clk modification
         throw new Error('I2C frequency should be between 400khz and 90khz');
     }
-    // enable i2c 
+    // enable i2c
     this._port._simple_cmd([CMD.ENABLE_I2C, this._baud]);
 }
 
@@ -503,7 +502,7 @@ function SPI(params, port) {
 
         // if the speed is still too low, set the clock divider to max and set baud accordingly
         if (this._clockDiv > 255) {
-            this.clockReg = Math.floor(this.clockReg/255) || 1; 
+            this.clockReg = Math.floor(this.clockReg/255) || 1;
             this._clockDiv = 255;
         } else {
             // if we can set a clock divider <255, max out clockReg
@@ -512,7 +511,7 @@ function SPI(params, port) {
     } else {
         this._clockDiv = 1;
     }
-    
+
     if (typeof params.dataMode == 'number') {
         params.cpol = params.dataMode & 0x1;
         params.cpha = params.dataMode & 0x2;
@@ -556,7 +555,7 @@ function UART(port, options) {
     Duplex.call(this, {});
 
     this._port = port;
-    
+
     // baud is given by the following:
     // baud = 65536*(1-(samples_per_bit)*(f_wanted/f_ref))
     // samples_per_bit = 16, 8, or 3
