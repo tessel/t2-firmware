@@ -9,6 +9,7 @@
   * [Compiling](#compiling)
     * [Dependencies](#dependencies)
     * [Building](#building)
+    * [Flashing](#flashing)
 * [T2 Hardware API](#t2-hardware-api)
   * [Ports and pins](#ports-and-pins)
     * [Modules](#modules)
@@ -117,6 +118,38 @@ git clone https://github.com/tessel/v2-firmware --recursive
 cd v2-firmware
 make
 ```
+
+### Flashing
+`dfu-util` is a command line utility to update the firmware on T2. See [their website](http://dfu-util.sourceforge.net/) for installation instructions. Plug the USB port your T2 into your computer while holding down the button by the Tessel 2 logo - this will put T2 into bootloader mode. Then (after running through the build steps above!) run `dfu-util -l` to make sure T2 is detected:
+```
+➜  dfu-util --list
+...
+Found DFU: [1d50:6097] ver=0002, devnum=13, cfg=1, intf=0, alt=1, name="SRAM", serial="UNKNOWN"
+Found DFU: [1d50:6097] ver=0002, devnum=13, cfg=1, intf=0, alt=0, name="Flash", serial="UNKNOWN"
+```
+Note the vendor id and product id within the brackets (`1d50:6097` in this case). You'll need to substitute those numbers in the command below to flash the device:
+```
+➜  dfu-util -aFlash -d 1d50:6097 -D build/firmware.bin
+...
+dfu-util: Invalid DFU suffix signature
+dfu-util: A valid DFU suffix will be required in a future dfu-util release!!!
+Opening DFU capable USB device...
+ID 1d50:6097
+Run-time device DFU version 0101
+Claiming USB DFU Interface...
+Setting Alternate Setting #0 ...
+Determining device status: state = dfuIDLE, status = 0
+dfuIDLE, continuing
+DFU mode device DFU version 0101
+Device returned transfer size 256
+Copying data from PC to DFU device
+Download	[=========================] 100%        12524 bytes
+Download done.
+state(7) = dfuMANIFEST, status(0) = No error condition is present
+dfu-util: unable to read DFU status after completion
+```
+
+That should be it! Don't worry about the final warning at the bottom - it doesn't seem to affect anything.
 
 # T2 Hardware API
 
