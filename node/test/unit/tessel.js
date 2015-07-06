@@ -100,6 +100,12 @@ exports['Tessel'] = {
     test.expect(1);
     test.equal(this.tessel.version, version);
     test.done();
+  },
+
+  capabilitiesEnabledFlags: function(test) {
+    test.expect(1);
+    test.equal(this.tessel.version, version);
+    test.done();
   }
 };
 
@@ -120,7 +126,7 @@ exports['Tessel.Port'] = {
   },
 
   instanceProperties: function(test) {
-    test.expect(10);
+    test.expect(11);
 
     var port = new Tessel.Port('foo', '/foo/bar/baz', this.tessel);
 
@@ -134,6 +140,12 @@ exports['Tessel.Port'] = {
     test.ok(Array.isArray(port.pwm));
     test.equal(port.pwm.length, 0);
     test.ok(port.sock);
+    test.deepEqual(port.enabled, {
+      i2c: false,
+      spi: false,
+      uart: false,
+    });
+
     test.done();
   },
 
@@ -216,7 +228,6 @@ exports['Tessel.Port'] = {
 
     test.done();
   },
-
   /*
   TODO:
   readable: function(test) {
@@ -328,24 +339,6 @@ exports['Tessel.Port.prototype'] = {
     test.done();
   },
 
-  _i2c: function(test) {
-    test.expect(5);
-
-    test.equal(this.port._i2c, undefined);
-
-    this.port.I2C(0x00);
-
-    test.notEqual(this.port._i2c, undefined);
-    test.equal(Tessel.I2C.callCount, 1);
-    test.deepEqual(Tessel.I2C.lastCall.args[0], {
-      addr: 0x00,
-      mode: undefined
-    });
-    test.equal(this.port._i2c instanceof Tessel.I2C, true);
-
-    test.done();
-  },
-
   _spi: function(test) {
     test.expect(5);
 
@@ -377,21 +370,197 @@ exports['Tessel.Port.prototype'] = {
 
     test.done();
   },
-  /*
-  TODO:
 
-  _tx: function(test) {
-    test.expect();
+  I2C: function(test) {
+    test.expect(4);
+
+    var device1 = this.port.I2C(0x00);
+    var device2 = this.port.I2C(0x01);
+
+    test.notEqual(device1, device2);
+    test.equal(device1 instanceof Tessel.I2C, true);
+    test.equal(device2 instanceof Tessel.I2C, true);
+    test.equal(Tessel.I2C.callCount, 2);
+
     test.done();
+  }
+
+};
+/*
+TODO:
+
+_tx: function(test) {
+  test.expect();
+  test.done();
+},
+_rx: function(test) {
+  test.expect();
+  test.done();
+},
+_txrx: function(test) {
+  test.expect();
+  test.done();
+},
+
+*/
+
+
+exports['Tessel.I2C'] = {
+  setUp: function(done) {
+    this.socket = new EventEmitter();
+
+    this.createConnection = sandbox.stub(net, 'createConnection', function() {
+      this.socket.cork = sandbox.spy();
+      this.socket.uncork = sandbox.spy();
+      this.socket.write = sandbox.spy();
+      return this.socket;
+    }.bind(this));
+
+    this.tessel = factory();
+
+    this.cork = sandbox.stub(Tessel.Port.prototype, 'cork');
+    this.uncork = sandbox.stub(Tessel.Port.prototype, 'uncork');
+    this._tx = sandbox.stub(Tessel.Port.prototype, '_tx');
+    this._rx = sandbox.stub(Tessel.Port.prototype, '_rx');
+    this._simple_cmd = sandbox.stub(Tessel.Port.prototype, '_simple_cmd');
+
+    this.port = new Tessel.Port('foo', '/foo/bar/baz', this.tessel);
+
+    done();
   },
-  _rx: function(test) {
-    test.expect();
-    test.done();
+
+  tearDown: function(done) {
+    Tessel.instance = null;
+    sandbox.restore();
+    done();
   },
-  _txrx: function(test) {
-    test.expect();
+
+  enableOnceOnly: function(test) {
+    test.expect(3);
+
+    new Tessel.I2C({
+      address: 0x01,
+      mode: undefined,
+      port: this.port
+    });
+
+    new Tessel.I2C({
+      address: 0x01,
+      mode: undefined,
+      port: this.port
+    });
+
+    test.equal(this.port.enabled.i2c, true);
+    test.equal(this._simple_cmd.callCount, 1);
+    test.deepEqual(this._simple_cmd.lastCall.args[0], [CMD.ENABLE_I2C, 234]);
+
     test.done();
   },
 
-  */
+  explicitFreqChangesBaud: function(test) {
+    test.expect(1);
+
+    new Tessel.I2C({
+      address: 0x01,
+      freq: 400000, // 400khz
+      mode: undefined,
+      port: this.port
+    });
+
+    test.deepEqual(this._simple_cmd.lastCall.args[0], [CMD.ENABLE_I2C, 54]);
+
+    test.done();
+  },
+
+  read: function(test) {
+    test.expect(8);
+
+    var device = new Tessel.I2C({
+      address: 0x01,
+      port: this.port
+    });
+
+    var handler = function() {};
+
+    // Avoid including the ENABLE_I2C command in
+    // the tested calls below.
+    this._simple_cmd.reset();
+
+    device.read(4, handler);
+
+    test.equal(device._port.cork.callCount, 1);
+    test.equal(device._port._simple_cmd.callCount, 2);
+    test.equal(device._port._rx.callCount, 1);
+    test.equal(device._port.uncork.callCount, 1);
+
+    test.deepEqual(device._port._rx.firstCall.args[0], 4);
+    test.equal(device._port._rx.firstCall.args[1], handler);
+
+    test.deepEqual(device._port._simple_cmd.firstCall.args[0], [CMD.START, 0x01]);
+    test.deepEqual(device._port._simple_cmd.lastCall.args[0], [CMD.STOP]);
+
+    test.done();
+  },
+
+  send: function(test) {
+    test.expect(7);
+
+    var device = new Tessel.I2C({
+      address: 0x01,
+      port: this.port
+    });
+
+    // Avoid including the ENABLE_I2C command in
+    // the tested calls below.
+    this._simple_cmd.reset();
+
+    device.send([0, 1, 2, 3], function() {});
+
+    test.equal(device._port.cork.callCount, 1);
+    test.equal(device._port._simple_cmd.callCount, 2);
+    test.equal(device._port._tx.callCount, 1);
+    test.equal(device._port.uncork.callCount, 1);
+
+    test.deepEqual(device._port._tx.firstCall.args[0], [0, 1, 2, 3]);
+
+    // TODO: Find out why pre-_tx is `this.addr << 1` vs pre-_rx: `this.addr << 1 | 1`
+    test.deepEqual(device._port._simple_cmd.firstCall.args[0], [CMD.START, 0x00]);
+    test.deepEqual(device._port._simple_cmd.lastCall.args[0], [CMD.STOP]);
+
+    test.done();
+  },
+
+  transfer: function(test) {
+    test.expect(11);
+
+    var device = new Tessel.I2C({
+      address: 0x01,
+      port: this.port
+    });
+
+    var handler = function() {};
+
+    // Avoid including the ENABLE_I2C command in
+    // the tested calls below.
+    this._simple_cmd.reset();
+
+    device.transfer([0, 1, 2, 3], 4, handler);
+
+    test.equal(device._port.cork.callCount, 1);
+    test.equal(device._port._simple_cmd.callCount, 3);
+    test.equal(device._port._tx.callCount, 1);
+    test.equal(device._port._rx.callCount, 1);
+    test.equal(device._port.uncork.callCount, 1);
+
+    test.deepEqual(device._port._tx.firstCall.args[0], [0, 1, 2, 3]);
+    test.deepEqual(device._port._rx.firstCall.args[0], 4);
+    test.equal(device._port._rx.firstCall.args[1], handler);
+
+    test.deepEqual(device._port._simple_cmd.firstCall.args[0], [CMD.START, 0x00]);
+    test.deepEqual(device._port._simple_cmd.secondCall.args[0], [CMD.START, 0x01]);
+    test.deepEqual(device._port._simple_cmd.lastCall.args[0], [CMD.STOP]);
+
+    test.done();
+  },
+
 };
