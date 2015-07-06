@@ -101,12 +101,6 @@ exports['Tessel'] = {
     test.equal(this.tessel.version, version);
     test.done();
   },
-
-  capabilitiesEnabledFlags: function(test) {
-    test.expect(1);
-    test.equal(this.tessel.version, version);
-    test.done();
-  }
 };
 
 exports['Tessel.Port'] = {
@@ -126,7 +120,7 @@ exports['Tessel.Port'] = {
   },
 
   instanceProperties: function(test) {
-    test.expect(11);
+    test.expect(14);
 
     var port = new Tessel.Port('foo', '/foo/bar/baz', this.tessel);
 
@@ -140,11 +134,10 @@ exports['Tessel.Port'] = {
     test.ok(Array.isArray(port.pwm));
     test.equal(port.pwm.length, 0);
     test.ok(port.sock);
-    test.deepEqual(port.enabled, {
-      i2c: false,
-      spi: false,
-      uart: false,
-    });
+    test.ok(port.I2C);
+    test.equal(port.I2C.enabled, false);
+    test.ok(port.SPI);
+    test.ok(port.UART);
 
     test.done();
   },
@@ -259,6 +252,8 @@ exports['Tessel.Port.prototype'] = {
     this.UART = sandbox.stub(Tessel, 'UART');
 
     this.port = new Tessel.Port('foo', '/foo/bar/baz', this.tessel);
+    this.a = new Tessel.Port('A', '/foo/bar/a', this.tessel);
+    this.b = new Tessel.Port('A', '/foo/bar/b', this.tessel);
     done();
   },
 
@@ -372,15 +367,46 @@ exports['Tessel.Port.prototype'] = {
   },
 
   I2C: function(test) {
-    test.expect(4);
+    test.expect(6);
 
-    var device1 = this.port.I2C(0x00);
-    var device2 = this.port.I2C(0x01);
+    var device1 = new this.port.I2C(0x00);
+    var device2 = new this.port.I2C(0x01);
 
     test.notEqual(device1, device2);
     test.equal(device1 instanceof Tessel.I2C, true);
     test.equal(device2 instanceof Tessel.I2C, true);
     test.equal(Tessel.I2C.callCount, 2);
+
+    test.equal(Tessel.I2C.firstCall.args[0].port, this.port);
+    test.equal(Tessel.I2C.lastCall.args[0].port, this.port);
+
+    test.done();
+  },
+
+  multiplePortsI2C: function(test) {
+    test.expect(11);
+
+    var aDevice1 = new this.a.I2C(0x00);
+    var aDevice2 = new this.a.I2C(0x01);
+
+    var bDevice1 = new this.b.I2C(0x00);
+    var bDevice2 = new this.b.I2C(0x01);
+
+    test.notEqual(aDevice1, aDevice2);
+    test.notEqual(bDevice1, bDevice2);
+
+    test.equal(aDevice1 instanceof Tessel.I2C, true);
+    test.equal(aDevice2 instanceof Tessel.I2C, true);
+    test.equal(bDevice1 instanceof Tessel.I2C, true);
+    test.equal(bDevice2 instanceof Tessel.I2C, true);
+
+    test.equal(Tessel.I2C.callCount, 4);
+
+    test.equal(Tessel.I2C.firstCall.args[0].port, this.a);
+    test.equal(Tessel.I2C.secondCall.args[0].port, this.a);
+
+    test.equal(Tessel.I2C.thirdCall.args[0].port, this.b);
+    test.equal(Tessel.I2C.lastCall.args[0].port, this.b);
 
     test.done();
   }
@@ -436,7 +462,9 @@ exports['Tessel.I2C'] = {
   },
 
   enableOnceOnly: function(test) {
-    test.expect(3);
+    test.expect(4);
+
+    test.equal(this.port.I2C.enabled, false);
 
     new Tessel.I2C({
       address: 0x01,
@@ -450,7 +478,7 @@ exports['Tessel.I2C'] = {
       port: this.port
     });
 
-    test.equal(this.port.enabled.i2c, true);
+    test.equal(this.port.I2C.enabled, true);
     test.equal(this._simple_cmd.callCount, 1);
     test.deepEqual(this._simple_cmd.lastCall.args[0], [CMD.ENABLE_I2C, 234]);
 

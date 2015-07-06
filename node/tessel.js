@@ -32,6 +32,8 @@ function Tessel() {
 }
 
 Tessel.Port = function(name, socketPath, board) {
+  var port = this;
+
   this.name = name;
   this.board = board;
   // Connection to the SPI daemon
@@ -134,11 +136,28 @@ Tessel.Port = function(name, socketPath, board) {
 
   this.pwm = [];
 
-  // Capability flags
-  this.enabled = {
-    i2c: false,
-    spi: false,
-    uart: false,
+  this.I2C = function I2C(address, mode) {
+    return new Tessel.I2C({
+      addr: address,
+      mode: mode,
+      port: port
+    });
+  };
+
+  this.I2C.enabled = false;
+
+  this.SPI = function(format) {
+    if (!port._spi) {
+      port._spi = new Tessel.SPI(format === null ? {} : format, port);
+    }
+    return port._spi;
+  };
+
+  this.UART = function(format) {
+    if (!port._uart) {
+      port._uart = new Tessel.UART(port, format || {});
+    }
+    return port._uart;
   };
 };
 
@@ -221,28 +240,6 @@ Tessel.Port.prototype._txrx = function(buf, cb) {
     callback: cb,
   });
   this.uncork();
-};
-
-Tessel.Port.prototype.I2C = function(address, mode) {
-  return new Tessel.I2C({
-    addr: address,
-    mode: mode,
-    port: this
-  });
-};
-
-Tessel.Port.prototype.SPI = function(format) {
-  if (!this._spi) {
-    this._spi = new Tessel.SPI(format === null ? {} : format, this);
-  }
-  return this._spi;
-};
-
-Tessel.Port.prototype.UART = function(format) {
-  if (!this._uart) {
-    this._uart = new Tessel.UART(this, format || {});
-  }
-  return this._uart;
 };
 
 Tessel.Pin = function(pin, port, interruptSupported, analogSupported) {
@@ -437,7 +434,6 @@ Tessel.I2C = function(params) {
   this.addr = params.addr;
   this._port = params.port;
   this._freq = params.freq ? params.freq : 100000; // 100khz
-
   // 15ns is max scl rise time
   // f = (48e6)/(2*(5+baud)+48e6*1.5e-8)
   this._baud = Math.floor(((48e6 / this._freq) - 48e6 * (1.5e-8)) / 2 - 5);
@@ -447,9 +443,9 @@ Tessel.I2C = function(params) {
   }
 
   // Send the ENABLE_I2C command when the first I2C device is instantiated
-  if (!this._port.enabled.i2c) {
+  if (!this._port.I2C.enabled) {
     this._port._simple_cmd([CMD.ENABLE_I2C, this._baud]);
-    this._port.enabled.i2c = true;
+    this._port.I2C.enabled = true;
   }
 };
 
