@@ -434,19 +434,27 @@ Tessel.I2C = function(params) {
   this.addr = params.addr;
   this._port = params.port;
   this._freq = params.freq ? params.freq : 100000; // 100khz
-  // 15ns is max scl rise time
-  // f = (48e6)/(2*(5+baud)+48e6*1.5e-8)
-  this._baud = Math.floor(((48e6 / this._freq) - 48e6 * (1.5e-8)) / 2 - 5);
-  if (this._baud > 255 || this._baud <= 0 || this._freq > 4e5) {
-    // restrict to between 400khz and 90khz. can actually go up to 4mhz without clk modification
+
+  // Restrict to between 400khz and 90khz. can actually go up to 4mhz without clk modification
+  if (this._freq > 4e5 || this._freq < 9e4) {
     throw new Error('I2C frequency should be between 400khz and 90khz');
   }
+
+  this._baud = Tessel.I2C.computeBaud(this._freq);
 
   // Send the ENABLE_I2C command when the first I2C device is instantiated
   if (!this._port.I2C.enabled) {
     this._port._simple_cmd([CMD.ENABLE_I2C, this._baud]);
     this._port.I2C.enabled = true;
   }
+};
+
+Tessel.I2C.computeBaud = function(frequency) {
+  // 15ns is max scl rise time
+  // f = (48e6)/(2*(5+baud)+48e6*1.5e-8)
+  var baud = Math.floor(((48e6 / frequency) - 48e6 * (1.5e-8)) / 2 - 5);
+
+  return Math.max(0, Math.min(baud, 255));
 };
 
 Tessel.I2C.prototype.send = function(data, callback) {

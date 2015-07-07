@@ -488,6 +488,10 @@ exports['Tessel.I2C'] = {
   explicitFreqChangesBaud: function(test) {
     test.expect(1);
 
+    this.computeBaud = sandbox.stub(Tessel.I2C, 'computeBaud', function() {
+      return 255;
+    });
+
     new Tessel.I2C({
       address: 0x01,
       freq: 400000, // 400khz
@@ -495,7 +499,7 @@ exports['Tessel.I2C'] = {
       port: this.port
     });
 
-    test.deepEqual(this._simple_cmd.lastCall.args[0], [CMD.ENABLE_I2C, 54]);
+    test.deepEqual(this._simple_cmd.lastCall.args[0], [CMD.ENABLE_I2C, 255]);
 
     test.done();
   },
@@ -591,4 +595,21 @@ exports['Tessel.I2C'] = {
     test.done();
   },
 
+};
+
+exports['Tessel.I2C.computeBaud'] = {
+  enforceBaudRateCalculationAlgorithm: function(test) {
+    test.expect(4);
+
+    test.equal(Tessel.I2C.computeBaud(4e5), 54);
+    test.equal(Tessel.I2C.computeBaud(9e4), 255);
+
+    // Max frequency of 400khz
+    test.equal(Tessel.I2C.computeBaud(4e5 + 1), 54);
+
+    // Min frequency of 90khz
+    test.equal(Tessel.I2C.computeBaud(9e4 - 1), 255);
+
+    test.done();
+  },
 };
