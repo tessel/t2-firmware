@@ -32,6 +32,8 @@ function Tessel() {
 }
 
 Tessel.Port = function(name, socketPath, board) {
+  var port = this;
+
   this.name = name;
   this.board = board;
   // Connection to the SPI daemon
@@ -133,6 +135,30 @@ Tessel.Port = function(name, socketPath, board) {
   this.digital = [this.pin[5], this.pin[6], this.pin[7]];
 
   this.pwm = [];
+
+  this.I2C = function I2C(address, mode) {
+    return new Tessel.I2C({
+      addr: address,
+      mode: mode,
+      port: port
+    });
+  };
+
+  this.I2C.enabled = false;
+
+  this.SPI = function(format) {
+    if (!port._spi) {
+      port._spi = new Tessel.SPI(format === null ? {} : format, port);
+    }
+    return port._spi;
+  };
+
+  this.UART = function(format) {
+    if (!port._uart) {
+      port._uart = new Tessel.UART(port, format || {});
+    }
+    return port._uart;
+  };
 };
 
 Tessel.Port.prototype.cork = function() {
@@ -214,30 +240,6 @@ Tessel.Port.prototype._txrx = function(buf, cb) {
     callback: cb,
   });
   this.uncork();
-};
-
-Tessel.Port.prototype.I2C = function(addr, mode) {
-  if (!this._i2c) {
-    this._i2c = new Tessel.I2C({
-      addr: addr,
-      mode: mode
-    }, this);
-  }
-  return this._i2c;
-};
-
-Tessel.Port.prototype.SPI = function(format) {
-  if (!this._spi) {
-    this._spi = new Tessel.SPI(format === null ? {} : format, this);
-  }
-  return this._spi;
-};
-
-Tessel.Port.prototype.UART = function(format) {
-  if (!this._uart) {
-    this._uart = new Tessel.UART(this, format || {});
-  }
-  return this._uart;
 };
 
 Tessel.Pin = function(pin, port, interruptSupported, analogSupported) {
@@ -428,20 +430,31 @@ Tessel.Pin.prototype.analogWrite = function(val) {
   return this;
 };
 
-Tessel.I2C = function(params, port) {
+Tessel.I2C = function(params) {
   this.addr = params.addr;
-  this._port = port;
+  this._port = params.port;
   this._freq = params.freq ? params.freq : 100000; // 100khz
 
-  // 15ns is max scl rise time
-  // f = (48e6)/(2*(5+baud)+48e6*1.5e-8)
-  this._baud = Math.floor(((48e6 / this._freq) - 48e6 * (1.5e-8)) / 2 - 5);
-  if (this._baud > 255 || this._baud <= 0 || this._freq > 4e5) {
-    // restrict to between 400khz and 90khz. can actually go up to 4mhz without clk modification
+  // Restrict to between 400khz and 90khz. can actually go up to 4mhz without clk modification
+  if (this._freq > 4e5 || this._freq < 9e4) {
     throw new Error('I2C frequency should be between 400khz and 90khz');
   }
-  // enable i2c
-  this._port._simple_cmd([CMD.ENABLE_I2C, this._baud]);
+
+  this._baud = Tessel.I2C.computeBaud(this._freq);
+
+  // Send the ENABLE_I2C command when the first I2C device is instantiated
+  if (!this._port.I2C.enabled) {
+    this._port._simple_cmd([CMD.ENABLE_I2C, this._baud]);
+    this._port.I2C.enabled = true;
+  }
+};
+
+Tessel.I2C.computeBaud = function(frequency) {
+  // 15ns is max scl rise time
+  // f = (48e6)/(2*(5+baud)+48e6*1.5e-8)
+  var baud = Math.floor(((48e6 / frequency) - 48e6 * (1.5e-8)) / 2 - 5);
+
+  return Math.max(0, Math.min(baud, 255));
 };
 
 Tessel.I2C.prototype.send = function(data, callback) {
