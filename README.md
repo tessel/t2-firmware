@@ -114,8 +114,8 @@ sudo apt-get install git gcc-arm-none-eabi
 ### Building
 
 ```
-git clone https://github.com/tessel/v2-firmware --recursive
-cd v2-firmware
+git clone https://github.com/tessel/t2-firmware --recursive
+cd t2-firmware
 make
 ```
 
