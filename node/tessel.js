@@ -93,24 +93,30 @@ Tessel.Port = function(name, socketPath, board) {
           throw new Error('Received an unexpected response with no commands pending: ' + byte);
         }
 
-        var data_size = this.replyQueue[0].size;
+        var queued = this.replyQueue.shift();
+        var size = queued.size;
+        var data;
 
         if (byte === REPLY.DATA) {
-          if (!data_size) {
+          if (!size) {
             throw new Error('Received unexpected data packet');
           }
 
-          if (replyBuf.length >= 1 + data_size) {
-            var data = replyBuf.slice(1, 1 + data_size);
-            replyBuf = replyBuf.slice(1 + data_size);
-
-            var q = this.replyQueue.shift();
-            if (q.callback) {
-              q.callback.call(this, null, q.size ? data : byte);
-            }
+          if (replyBuf.length >= 1 + size) {
+            data = replyBuf.slice(1, 1 + size);
+            replyBuf = replyBuf.slice(1 + size);
           } else {
             break;
           }
+        } else {
+          if (byte === REPLY.HIGH || byte === REPLY.LOW) {
+            data = byte;
+            replyBuf = replyBuf.slice(1);
+          }
+        }
+
+        if (queued.callback) {
+          queued.callback.call(this, null, data);
         }
       }
     }
