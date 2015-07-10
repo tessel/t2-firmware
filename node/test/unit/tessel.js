@@ -504,6 +504,98 @@ exports['Tessel.Port Commands (handling incoming socket stream)'] = {
     this.port.sock.emit('readable');
   },
 
+  replydatapartial: function(test) {
+    test.expect(4);
+
+    this.port.replyQueue.push({
+      size: 4,
+      callback: function(err, data) {
+        test.equal(data[0], 0xff);
+        test.equal(data[1], 0x7f);
+        test.equal(data[2], 0x3f);
+        test.equal(data[3], 0x1f);
+        test.done();
+      },
+    });
+
+    this.port.sock.read.returns(new Buffer([REPLY.DATA, 0xff, 0x7f]));
+    this.port.sock.emit('readable');
+
+    this.port.sock.read.returns(new Buffer([0x3f, 0x1f]));
+    this.port.sock.emit('readable');
+  },
+
+  noregisteredreplyhandler: function(test) {
+    test.expect(1);
+
+    test.throws(function() {
+      this.port.replyQueue.length = 0;
+      this.port.sock.read.returns(new Buffer([REPLY.HIGH]));
+      this.port.sock.emit('readable');
+    }.bind(this));
+
+    test.done();
+  },
+
+  replydataunexpected: function(test) {
+    test.expect(2);
+
+    var spy = sandbox.spy();
+
+    test.throws(function() {
+      this.port.replyQueue.push({
+        size: 0,
+        callback: spy,
+      });
+
+      this.port.sock.read.returns(new Buffer([REPLY.DATA, 0xff, 0x7f]));
+      this.port.sock.emit('readable');
+    }.bind(this));
+
+    test.equal(spy.callCount, 0);
+    test.done();
+  },
+
+
+  replyasyncpinchange: function(test) {
+    test.expect(4);
+
+    var low = sandbox.spy();
+    var high = sandbox.spy();
+
+    this.port.pin[2].once('low', low);
+    this.port.pin[5].once('high', high);
+
+    this.port.sock.read.returns(new Buffer([REPLY.ASYNC_PIN_CHANGE_N + 2]));
+    this.port.sock.emit('readable');
+
+    this.port.sock.read.returns(new Buffer([REPLY.ASYNC_PIN_CHANGE_N + 5]));
+    this.port.sock.emit('readable');
+
+    test.equal(low.callCount, 1);
+    test.equal(high.callCount, 1);
+
+    test.equal(this.port.pin[2].interruptMode, null);
+    test.equal(this.port.pin[5].interruptMode, null);
+
+    test.done();
+  },
+  //
+  //
+  // // According to the 'readable' handler, this should work.
+  // // It currently does not work because Port is not a
+  // // subclass of Emitter.
+  // replyminasync: function(test) {
+  //   test.expect(1);
+
+  //   this.port.once('async-event', function(data) {
+  //     test.equal(data, REPLY.MIN_ASYNC);
+  //     test.done();
+  //   });
+
+  //   this.port.sock.read.returns(new Buffer([REPLY.MIN_ASYNC]));
+  //   this.port.sock.emit('readable');
+  // },
 };
 
 exports['Tessel.I2C'] = {
