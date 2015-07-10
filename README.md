@@ -207,10 +207,13 @@ Here is an example usage of a digital pin on Tessel:
 
 ```js
 var tessel = require('tessel'); // import tessel
-var myPin = tessel.port.A.pin[2]; // select pin 2 on port A
-myPin.output(1);  // turn pin high (on)
-console.log(myPin.read()); // print the pin value to the console
-myPin.output(0);  // turn pin low (off)
+var pin = tessel.port.A.pin[2]; // select pin 2 on port A
+pin.output(1);  // turn pin high (on)
+pin.read(function(error, value) {
+  // print the pin value to the console
+  console.log(value);
+  pin.output(0);  // turn pin low (off)
+});
 ```
 
 ### Analog pins
@@ -221,11 +224,12 @@ Here is an example usage of an analog pin on Tessel:
 
 ```js
 var tessel = require('tessel'); // import tessel
-var myPin = tessel.port.B.pin[7]; // select pin 7 on port B
-myPin.analogWrite(0.6);  // turn pin to 60% of high
-myPin.analogRead(function (val) {
-  console.log(val);
-}); // print the pin value to the console
+var pin = tessel.port.B.pin[7]; // select pin 7 on port B
+pin.analogWrite(0.6);  // turn pin to 60% of high
+pin.analogRead(function(error, value) {
+  // print the pin value to the console
+  console.log(value);
+});
 ```
 
 ### PWM pins
