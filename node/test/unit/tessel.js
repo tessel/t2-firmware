@@ -119,6 +119,16 @@ exports['Tessel.Port'] = {
     done();
   },
 
+  emitter: function(test) {
+    test.expect(1);
+
+    var port = new Tessel.Port('foo', '/foo/bar/baz', this.tessel);
+
+    test.ok(port instanceof EventEmitter);
+
+    test.done();
+  },
+
   instanceProperties: function(test) {
     test.expect(14);
 
@@ -580,22 +590,18 @@ exports['Tessel.Port Commands (handling incoming socket stream)'] = {
 
     test.done();
   },
-  //
-  //
-  // // According to the 'readable' handler, this should work.
-  // // It currently does not work because Port is not a
-  // // subclass of Emitter.
-  // replyminasync: function(test) {
-  //   test.expect(1);
 
-  //   this.port.once('async-event', function(data) {
-  //     test.equal(data, REPLY.MIN_ASYNC);
-  //     test.done();
-  //   });
+  replyminasync: function(test) {
+    test.expect(1);
 
-  //   this.port.sock.read.returns(new Buffer([REPLY.MIN_ASYNC]));
-  //   this.port.sock.emit('readable');
-  // },
+    this.port.on('async-event', function(data) {
+      test.equal(data, REPLY.MIN_ASYNC);
+      test.done();
+    });
+
+    this.port.sock.read.returns(new Buffer([REPLY.MIN_ASYNC]));
+    this.port.sock.emit('readable');
+  },
 };
 
 exports['Tessel.I2C'] = {
