@@ -56,6 +56,8 @@ Tessel.Port = function(name, socketPath, board) {
   var replyBuf = new Buffer(0);
 
   this.sock.on('readable', function() {
+    var queued;
+
     replyBuf = Buffer.concat([replyBuf, this.sock.read()]);
 
     while (replyBuf.length !== 0) {
@@ -88,28 +90,41 @@ Tessel.Port = function(name, socketPath, board) {
         } else {
           this.emit('async-event', byte);
         }
+
+        replyBuf = replyBuf.slice(1);
       } else {
         if (this.replyQueue.length === 0) {
           throw new Error('Received an unexpected response with no commands pending: ' + byte);
         }
 
-        var data_size = this.replyQueue[0].size;
+        var size = this.replyQueue[0].size;
 
         if (byte === REPLY.DATA) {
-          if (!data_size) {
+          if (!size) {
             throw new Error('Received unexpected data packet');
           }
 
-          if (replyBuf.length >= 1 + data_size) {
-            var data = replyBuf.slice(1, 1 + data_size);
-            replyBuf = replyBuf.slice(1 + data_size);
+          if (replyBuf.length >= 1 + size) {
+            // The number of data bytes expected have been received.
+            var data = replyBuf.slice(1, 1 + size);
+            replyBuf = replyBuf.slice(1 + size);
+            queued = this.replyQueue.shift();
 
-            var q = this.replyQueue.shift();
-            if (q.callback) {
-              q.callback.call(this, null, q.size ? data : byte);
+            if (queued.callback) {
+              queued.callback.call(this, null, queued.size ? data : byte);
             }
           } else {
+            // The buffer does not have the correct number of
+            // date bytes to fulfill the requirements of the
+            // reply queue's next registered handler.
             break;
+          }
+        } else if (byte === REPLY.HIGH || byte === REPLY.LOW) {
+          replyBuf = replyBuf.slice(1);
+          queued = this.replyQueue.shift();
+
+          if (queued.callback) {
+            queued.callback.call(this, null, byte);
           }
         }
       }
@@ -254,11 +269,11 @@ Tessel.Pin = function(pin, port, interruptSupported, analogSupported) {
 util.inherits(Tessel.Pin, EventEmitter);
 
 Tessel.Pin.interruptModes = {
-  'rise': 1,
-  'fall': 2,
-  'change': 3,
-  'high': 4,
-  'low': 5,
+  rise: 1,
+  fall: 2,
+  change: 3,
+  high: 4,
+  low: 5,
 };
 
 Tessel.Pin.prototype.removeListener = function(event, listener) {
@@ -281,7 +296,7 @@ Tessel.Pin.prototype.removeAllListeners = function(event) {
 };
 
 Tessel.Pin.prototype.addListener = function(mode, callback) {
-  if (mode in Tessel.Pin.interruptModes) {
+  if (typeof Tessel.Pin.interruptModes[mode] !== 'undefined') {
     if (!this.interruptSupported) {
       throw new Error('Interrupts are not supported on pin ' + this.pin);
     }
