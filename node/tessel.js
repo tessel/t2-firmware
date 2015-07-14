@@ -80,8 +80,8 @@ Tessel.Port = function(name, socketPath, board) {
       } else if (byte >= REPLY.MIN_ASYNC) {
         if (byte >= REPLY.ASYNC_PIN_CHANGE_N && byte < REPLY.ASYNC_PIN_CHANGE_N + 8) {
           var pin = this.pin[byte - REPLY.ASYNC_PIN_CHANGE_N];
-
           var mode = pin.interruptMode;
+
           if (mode === 'low' || mode === 'high') {
             pin.interruptMode = null;
           }
@@ -175,6 +175,8 @@ Tessel.Port = function(name, socketPath, board) {
     return port._uart;
   };
 };
+
+util.inherits(Tessel.Port, EventEmitter);
 
 Tessel.Port.prototype.cork = function() {
   this.sock.cork();
