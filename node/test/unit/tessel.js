@@ -1,5 +1,6 @@
 process.env.IS_TEST_MODE = true;
 
+var EventEmitter = require('events').EventEmitter;
 var sinon = require('sinon');
 var factory = require('../../tessel.js');
 var version = 2;
@@ -228,6 +229,42 @@ exports['Tessel.Port'] = {
     test.equal(port.pin[5].analogSupported, true);
     test.equal(port.pin[6].analogSupported, true);
     test.equal(port.pin[7].analogSupported, true);
+
+    test.done();
+  },
+
+  interruptSupportedA: function(test) {
+    test.expect(8);
+
+    var port = new Tessel.Port('A', '/foo/bar/baz', this.tessel);
+
+    test.equal(port.pin[0].interruptSupported, false);
+    test.equal(port.pin[1].interruptSupported, false);
+    test.equal(port.pin[3].interruptSupported, false);
+    test.equal(port.pin[4].interruptSupported, false);
+
+    test.equal(port.pin[2].interruptSupported, true);
+    test.equal(port.pin[5].interruptSupported, true);
+    test.equal(port.pin[6].interruptSupported, true);
+    test.equal(port.pin[7].interruptSupported, true);
+
+    test.done();
+  },
+
+  interruptSupportedB: function(test) {
+    test.expect(8);
+
+    var port = new Tessel.Port('B', '/foo/bar/baz', this.tessel);
+
+    test.equal(port.pin[0].interruptSupported, false);
+    test.equal(port.pin[1].interruptSupported, false);
+    test.equal(port.pin[3].interruptSupported, false);
+    test.equal(port.pin[4].interruptSupported, false);
+
+    test.equal(port.pin[2].interruptSupported, true);
+    test.equal(port.pin[5].interruptSupported, true);
+    test.equal(port.pin[6].interruptSupported, true);
+    test.equal(port.pin[7].interruptSupported, true);
 
     test.done();
   },
@@ -602,6 +639,257 @@ exports['Tessel.Port Commands (handling incoming socket stream)'] = {
     this.port.sock.read.returns(new Buffer([REPLY.MIN_ASYNC]));
     this.port.sock.emit('readable');
   },
+};
+
+exports['Tessel.Pin'] = {
+  setUp: function(done) {
+    this.socket = new EventEmitter();
+
+    this.createConnection = sandbox.stub(net, 'createConnection', function() {
+      this.socket.cork = sandbox.spy();
+      this.socket.uncork = sandbox.spy();
+      this.socket.write = sandbox.spy();
+      // Stubbed as needed
+      this.socket.read = sandbox.stub().returns(new Buffer([REPLY.DATA]));
+      return this.socket;
+    }.bind(this));
+
+    this._simple_cmd = sandbox.stub(Tessel.Port.prototype, '_simple_cmd');
+
+    this.tessel = factory();
+
+    this.a = new Tessel.Port('A', '/foo/bar/baz', this.tessel);
+    this.b = new Tessel.Port('B', '/foo/bar/baz', this.tessel);
+
+    done();
+  },
+
+  tearDown: function(done) {
+    Tessel.instance = null;
+    sandbox.restore();
+    done();
+  },
+
+  emitter: function(test) {
+    test.expect(1);
+    test.equal(new Tessel.Pin(0, this.a) instanceof EventEmitter, true);
+    test.done();
+  },
+
+  initializationA: function(test) {
+    test.expect(38);
+
+    var pins = [];
+
+    for (var i = 0; i < 8; i++) {
+      var intSupported = [2, 5, 6, 7].indexOf(i) !== -1;
+      var adcSupported = i === 4 || i === 7;
+      pins.push(
+        new Tessel.Pin(i, this.a, intSupported, adcSupported)
+      );
+    }
+
+    // Pin Number (matches index)
+    test.equal(pins[0].pin, 0);
+    test.equal(pins[1].pin, 1);
+    test.equal(pins[2].pin, 2);
+    test.equal(pins[3].pin, 3);
+    test.equal(pins[4].pin, 4);
+    test.equal(pins[5].pin, 5);
+    test.equal(pins[6].pin, 6);
+    test.equal(pins[7].pin, 7);
+
+    // Port
+    test.equal(pins[0]._port, this.a);
+    test.equal(pins[1]._port, this.a);
+    test.equal(pins[2]._port, this.a);
+    test.equal(pins[3]._port, this.a);
+    test.equal(pins[4]._port, this.a);
+    test.equal(pins[5]._port, this.a);
+    test.equal(pins[6]._port, this.a);
+    test.equal(pins[7]._port, this.a);
+
+    // Interrupts on 2, 5, 6, 7
+    test.equal(pins[2].interruptSupported, true);
+    test.equal(pins[5].interruptSupported, true);
+    test.equal(pins[6].interruptSupported, true);
+    test.equal(pins[7].interruptSupported, true);
+
+    // Analog on 4, 7
+    test.equal(pins[4].analogSupported, true);
+    test.equal(pins[7].analogSupported, true);
+
+    // Present Interrupt Mode
+    test.equal(pins[0].interruptMode, null);
+    test.equal(pins[1].interruptMode, null);
+    test.equal(pins[2].interruptMode, null);
+    test.equal(pins[3].interruptMode, null);
+    test.equal(pins[4].interruptMode, null);
+    test.equal(pins[5].interruptMode, null);
+    test.equal(pins[6].interruptMode, null);
+    test.equal(pins[7].interruptMode, null);
+
+    // isPWM?
+    test.equal(pins[0].isPWM, false);
+    test.equal(pins[1].isPWM, false);
+    test.equal(pins[2].isPWM, false);
+    test.equal(pins[3].isPWM, false);
+    test.equal(pins[4].isPWM, false);
+    test.equal(pins[5].isPWM, false);
+    test.equal(pins[6].isPWM, false);
+    test.equal(pins[7].isPWM, false);
+
+    test.done();
+  },
+
+  initializationB: function(test) {
+    test.expect(44);
+
+    var pins = [];
+
+    for (var i = 0; i < 8; i++) {
+      var intSupported = [2, 5, 6, 7].indexOf(i) !== -1;
+      pins.push(
+        new Tessel.Pin(i, this.b, intSupported, true)
+      );
+    }
+
+    // Pin Number (matches index)
+    test.equal(pins[0].pin, 0);
+    test.equal(pins[1].pin, 1);
+    test.equal(pins[2].pin, 2);
+    test.equal(pins[3].pin, 3);
+    test.equal(pins[4].pin, 4);
+    test.equal(pins[5].pin, 5);
+    test.equal(pins[6].pin, 6);
+    test.equal(pins[7].pin, 7);
+
+    // Port
+    test.equal(pins[0]._port, this.b);
+    test.equal(pins[1]._port, this.b);
+    test.equal(pins[2]._port, this.b);
+    test.equal(pins[3]._port, this.b);
+    test.equal(pins[4]._port, this.b);
+    test.equal(pins[5]._port, this.b);
+    test.equal(pins[6]._port, this.b);
+    test.equal(pins[7]._port, this.b);
+
+    // Interrupts on 2, 5, 6, 7
+    test.equal(pins[2].interruptSupported, true);
+    test.equal(pins[5].interruptSupported, true);
+    test.equal(pins[6].interruptSupported, true);
+    test.equal(pins[7].interruptSupported, true);
+
+    // Analog on all
+    test.equal(pins[0].analogSupported, true);
+    test.equal(pins[1].analogSupported, true);
+    test.equal(pins[2].analogSupported, true);
+    test.equal(pins[3].analogSupported, true);
+    test.equal(pins[4].analogSupported, true);
+    test.equal(pins[5].analogSupported, true);
+    test.equal(pins[6].analogSupported, true);
+    test.equal(pins[7].analogSupported, true);
+
+    // Present Interrupt Mode
+    test.equal(pins[0].interruptMode, null);
+    test.equal(pins[1].interruptMode, null);
+    test.equal(pins[2].interruptMode, null);
+    test.equal(pins[3].interruptMode, null);
+    test.equal(pins[4].interruptMode, null);
+    test.equal(pins[5].interruptMode, null);
+    test.equal(pins[6].interruptMode, null);
+    test.equal(pins[7].interruptMode, null);
+
+    // isPWM?
+    test.equal(pins[0].isPWM, false);
+    test.equal(pins[1].isPWM, false);
+    test.equal(pins[2].isPWM, false);
+    test.equal(pins[3].isPWM, false);
+    test.equal(pins[4].isPWM, false);
+    test.equal(pins[5].isPWM, false);
+    test.equal(pins[6].isPWM, false);
+    test.equal(pins[7].isPWM, false);
+
+    test.done();
+  },
+
+  interruptHigh: function(test) {
+    test.expect(1);
+
+    var spy = sandbox.spy();
+
+    [2, 5, 6, 7].forEach(function(pinIndex) {
+      this.a.pin[pinIndex].once('high', spy);
+      this.b.pin[pinIndex].once('high', spy);
+
+      // Simulate receipt of pin state changes
+      this.a.sock.read.returns(new Buffer([REPLY.ASYNC_PIN_CHANGE_N + pinIndex]));
+      this.a.sock.emit('readable');
+
+      this.b.sock.read.returns(new Buffer([REPLY.ASYNC_PIN_CHANGE_N + pinIndex]));
+      this.b.sock.emit('readable');
+    }, this);
+
+    test.equal(spy.callCount, 8);
+    test.done();
+  },
+
+  interruptLow: function(test) {
+    test.expect(1);
+
+    var spy = sandbox.spy();
+
+    [2, 5, 6, 7].forEach(function(pinIndex) {
+      this.a.pin[pinIndex].once('low', spy);
+      this.b.pin[pinIndex].once('low', spy);
+
+      // Simulate receipt of pin state changes
+      this.a.sock.read.returns(new Buffer([REPLY.ASYNC_PIN_CHANGE_N + pinIndex]));
+      this.a.sock.emit('readable');
+
+      this.b.sock.read.returns(new Buffer([REPLY.ASYNC_PIN_CHANGE_N + pinIndex]));
+      this.b.sock.emit('readable');
+    }, this);
+
+    test.equal(spy.callCount, 8);
+    test.done();
+  },
+
+  interruptNotSupported: function(test) {
+    test.expect(8);
+
+    [0, 1, 3, 4].forEach(function(pinIndex) {
+      test.throws(function() {
+        this.a.pin[pinIndex].once('low');
+      }.bind(this));
+      test.throws(function() {
+        this.b.pin[pinIndex].once('low');
+      }.bind(this));
+    }, this);
+    test.done();
+  },
+
+  _setInterruptMode: function(test) {
+    test.expect(4);
+
+    this.a.pin[2]._setInterruptMode('high');
+
+    test.equal(this._simple_cmd.callCount, 1);
+    test.deepEqual(
+      this._simple_cmd.lastCall.args[0], [CMD.GPIO_INT, 2 | (Tessel.Pin.interruptModes.high << 4)]
+    );
+
+    this._simple_cmd.reset();
+
+    this.a.pin[2]._setInterruptMode('low');
+
+    test.equal(this._simple_cmd.callCount, 1);
+    test.deepEqual(
+      this._simple_cmd.lastCall.args[0], [CMD.GPIO_INT, 2 | (Tessel.Pin.interruptModes.low << 4)]
+    );
+
+    test.done();
+  }
 };
 
 exports['Tessel.I2C'] = {
