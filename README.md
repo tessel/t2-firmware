@@ -120,21 +120,21 @@ make
 ```
 
 ### Updating
-`dfu-util` is a command line utility to update the firmware on T2. See [their website](http://dfu-util.sourceforge.net/) for installation instructions. Plug the USB port your T2 into your computer while holding down the button by the Tessel 2 logo - this will put T2 into bootloader mode. Then (after running through the build steps above!) run `dfu-util -l` to make sure T2 is detected:
+`dfu-util` is a command line utility to update the firmware on T2. See [their website](http://dfu-util.sourceforge.net/) for installation instructions. Plug the USB port your T2 into your computer while holding down the button by the Tessel 2 logo - this will put T2 into bootloader mode, with the power LED blinking. Then (after running through the build steps above!) run `dfu-util -l` to make sure T2 is detected:
 ```
 ➜  dfu-util --list
 ...
-Found DFU: [1d50:6097] ver=0002, devnum=13, cfg=1, intf=0, alt=1, name="SRAM", serial="UNKNOWN"
-Found DFU: [1d50:6097] ver=0002, devnum=13, cfg=1, intf=0, alt=0, name="Flash", serial="UNKNOWN"
+Found DFU: [1209:7551] ver=0002, devnum=13, cfg=1, intf=0, alt=1, name="SRAM", serial="UNKNOWN"
+Found DFU: [1209:7551] ver=0002, devnum=13, cfg=1, intf=0, alt=0, name="Flash", serial="UNKNOWN"
 ```
-Note the vendor id and product id within the brackets (`1d50:6097` in this case). You'll need to substitute those numbers in the command below to flash the device:
+Note the vendor id and product id within the brackets (`1209:7551` in this case). You'll need to substitute those numbers in the command below to flash the device:
 ```
-➜  dfu-util -aFlash -d 1d50:6097 -D build/firmware.bin
+➜  dfu-util -aFlash -d 1209:7551 -D build/firmware.bin
 ...
 dfu-util: Invalid DFU suffix signature
 dfu-util: A valid DFU suffix will be required in a future dfu-util release!!!
 Opening DFU capable USB device...
-ID 1d50:6097
+ID 1209:7551
 Run-time device DFU version 0101
 Claiming USB DFU Interface...
 Setting Alternate Setting #0 ...
@@ -150,6 +150,8 @@ dfu-util: unable to read DFU status after completion
 ```
 
 That should be it! Don't worry about the final warning at the bottom - it doesn't seem to affect anything.
+
+Note that this only updates the firmware on the SAMD21 coprocessor. You will need to [update OpenWrt on the SoC](https://github.com/tessel/t2-cli#updating) separately. [Eventually](https://github.com/tessel/t2-cli/issues/109) this process will be integrated as the `tessel update` command.
 
 # T2 Hardware API
 
