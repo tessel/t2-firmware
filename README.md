@@ -9,7 +9,7 @@
   * [Compiling](#compiling)
     * [Dependencies](#dependencies)
     * [Building](#building)
-    * [Flashing](#flashing)
+    * [Updating](#updating)
 * [T2 Hardware API](#t2-hardware-api)
   * [Ports and pins](#ports-and-pins)
     * [Modules](#modules)
@@ -119,7 +119,7 @@ cd t2-firmware
 make
 ```
 
-### Flashing
+### Updating
 `dfu-util` is a command line utility to update the firmware on T2. See [their website](http://dfu-util.sourceforge.net/) for installation instructions. Plug the USB port your T2 into your computer while holding down the button by the Tessel 2 logo - this will put T2 into bootloader mode. Then (after running through the build steps above!) run `dfu-util -l` to make sure T2 is detected:
 ```
 ➜  dfu-util --list
