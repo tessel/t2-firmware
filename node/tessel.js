@@ -4,16 +4,48 @@ var Duplex = require('stream').Duplex;
 var net = require('net');
 var fs = require('fs');
 
-function Tessel() {
+var defOptions = {
+  ports: {
+    A: true,
+    B: true,
+  }
+};
+
+function Tessel(options) {
   if (Tessel.instance) {
     return Tessel.instance;
   } else {
     Tessel.instance = this;
   }
 
+  // If the user program has provided a _valid_ options object, or use default
+  options = typeof options === 'object' && options !== null ? options : defOptions;
+
+  // If the user program has passed a options object that doesn't
+  // contain a `ports` property, or the value of the `ports` property
+  // is null or undefined: use the default.
+  if (options.ports == null) {
+    options.ports = defOptions.ports;
+  }
+
+  // For compatibility with T1 code, ensure that all ports are initialized by default.
+  // This means that only an explicit `A: false` or `B: false` will result in a
+  // port not being initialized. If the property is not present, null or undefined,
+  // it will be set to `true`.
+  //
+  // ONLY a value of `false` can prevent the port from being initialized!
+  //
+  if (options.ports.A == null) {
+    options.ports.A = true;
+  }
+
+  if (options.ports.B == null) {
+    options.ports.B = true;
+  }
+
   this.ports = {
-    A: new Tessel.Port('A', '/var/run/tessel/port_a', this),
-    B: new Tessel.Port('B', '/var/run/tessel/port_b', this)
+    A: options.ports.A ? new Tessel.Port('A', '/var/run/tessel/port_a', this) : null,
+    B: options.ports.B ? new Tessel.Port('B', '/var/run/tessel/port_b', this) : null,
   };
 
   this.port = this.ports;
@@ -731,30 +763,38 @@ Tessel.LED.prototype.read = function(callback) {
   });
 };
 
-if (process.env.IS_TEST_MODE) {
+// To allow user programs control over port initialization, while
+// maintaining compatibility with _existing code_ that expects T1
+// semantics (where the expected export is an already initialized
+// Tessel instance), an environment flag must be used to indicate
+// that the user program will handle initialization.
+//
+// The use of process.env.* is ideal for the user in that it
+// allows the parameter to be set:
+//
+// - in a dotfile, sourced by user prefence
+//    export TESSEL_EXPORT_UNINITIALIZED=1
+//
+// - in the terminal
+//    TESSEL_EXPORT_UNINITIALIZED=1 node program.js
+//
+// - in the program itself
+//    process.env.TESSEL_EXPORT_UNINITIALIZED = 1;
+//
+//
+// Note: `process.env.IS_TEST_MODE` has not been replaced because
+// the presense of either should not imply the other.
+//
+
+if (process.env.IS_TEST_MODE || process.env.TESSEL_EXPORT_UNINITIALIZED) {
   // To make this module testable, we need
   // control over the creation of every
   // Tessel instance.
 
-  var exportable = function() {
-    return new Tessel();
-  };
+  Tessel.CMD = CMD;
+  Tessel.REPLY = REPLY;
 
-  exportable.CMD = CMD;
-  exportable.REPLY = REPLY;
-  exportable.Tessel = Tessel;
-  /*
-  // Implied...
-  exportable.Tessel.LED = LED;
-  exportable.Tessel.I2C = I2C;
-  exportable.Tessel.Pin = Pin;
-  exportable.Tessel.Port = Port;
-  exportable.Tessel.SPI = SPI;
-  exportable.Tessel.Tessel = Tessel;
-  exportable.Tessel.UART = UART;
-  */
-
-  module.exports = exportable;
+  module.exports = Tessel;
 } else {
   module.exports = new Tessel();
 }
