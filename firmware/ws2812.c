@@ -1,5 +1,5 @@
 #include "firmware.h"
-// #include "tcc/tcc.h"
+#include "tcc/tcc.h"
 
 void _ws2812_set_pin_mux(Pin p);
 void _ws2812_enable_clock();
