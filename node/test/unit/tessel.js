@@ -1,14 +1,12 @@
 process.env.IS_TEST_MODE = true;
 
-var EventEmitter = require('events').EventEmitter;
 var sinon = require('sinon');
-var factory = require('../../tessel.js');
+var Tessel = require('../../tessel-export');
 var version = 2;
 
 // These are ONLY exported for testing.
-var CMD = factory.CMD;
-var REPLY = factory.REPLY;
-var Tessel = factory.Tessel;
+var CMD = Tessel.CMD;
+var REPLY = Tessel.REPLY;
 
 // Shared sinon sandbox
 var sandbox = sinon.sandbox.create();
@@ -27,7 +25,7 @@ exports['Tessel'] = {
   setUp: function(done) {
     this.LED = sandbox.stub(Tessel, 'LED');
     this.Port = sandbox.stub(Tessel, 'Port');
-    this.tessel = factory();
+    this.tessel = new Tessel();
     done();
   },
 
@@ -110,7 +108,7 @@ exports['Tessel.Port'] = {
       return new EventEmitter();
     });
 
-    this.tessel = factory();
+    this.tessel = new Tessel();
     done();
   },
 
@@ -293,7 +291,7 @@ exports['Tessel.Port.prototype'] = {
       return this.socket;
     }.bind(this));
 
-    this.tessel = factory();
+    this.tessel = new Tessel();
 
     this.I2C = sandbox.stub(Tessel, 'I2C');
     this.SPI = sandbox.stub(Tessel, 'SPI');
@@ -656,7 +654,7 @@ exports['Tessel.Pin'] = {
 
     this._simple_cmd = sandbox.stub(Tessel.Port.prototype, '_simple_cmd');
 
-    this.tessel = factory();
+    this.tessel = new Tessel();
 
     this.a = new Tessel.Port('A', '/foo/bar/baz', this.tessel);
     this.b = new Tessel.Port('B', '/foo/bar/baz', this.tessel);
@@ -903,7 +901,7 @@ exports['Tessel.I2C'] = {
       return this.socket;
     }.bind(this));
 
-    this.tessel = factory();
+    this.tessel = new Tessel();
 
     this.cork = sandbox.stub(Tessel.Port.prototype, 'cork');
     this.uncork = sandbox.stub(Tessel.Port.prototype, 'uncork');
