@@ -244,16 +244,25 @@ Tessel.Port.prototype._status_cmd = function(buf, cb) {
 };
 
 Tessel.Port.prototype._tx = function(buf, cb) {
+  var chunk = 0,
+      cbuf;
+
   if (buf.length === 0) {
     throw new Error('Length must be non-zero');
-  } else if (buf.length > 255) {
-    // TODO: split into sequence of commands
-    throw new Error('Buffer size must be less than 255');
   }
 
   this.cork();
-  this.sock.write(new Buffer([CMD.TX, buf.length]));
-  this.sock.write(buf);
+
+  // The protocol only supports <256 byte transfers, chunk if buf is bigger
+  while (chunk < buf.length) {
+    cbuf = buf.slice(chunk, chunk+255);
+
+    this.sock.write(new Buffer([CMD.TX, cbuf.length]));
+    this.sock.write(cbuf);
+
+    chunk += 255;
+  }
+
   this.sync(cb);
   this.uncork();
 };
