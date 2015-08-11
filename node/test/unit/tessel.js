@@ -455,16 +455,61 @@ exports['Tessel.Port.prototype'] = {
     test.equal(Tessel.I2C.lastCall.args[0].port, this.b);
 
     test.done();
-  }
+  },
 
+  _txLessThanByteTransferLimit: function(test) {
+    test.expect(6);
+
+    var buffer = new Buffer(255);
+
+    this.cork = sandbox.stub(Tessel.Port.prototype, 'cork');
+    this.sync = sandbox.stub(Tessel.Port.prototype, 'sync');
+    this.uncork = sandbox.stub(Tessel.Port.prototype, 'uncork');
+
+    this.a._tx(buffer, function() {});
+
+    test.equal(this.cork.callCount, 1);
+    test.equal(this.sync.callCount, 1);
+    test.equal(this.uncork.callCount, 1);
+    // The 2 call write sequence is called once
+    test.equal(this.a.sock.write.callCount, 2);
+
+    test.ok(this.a.sock.write.firstCall.args[0].equals(new Buffer([Tessel.CMD.TX, 255])));
+    test.ok(this.a.sock.write.lastCall.args[0].equals(buffer));
+
+    test.done();
+  },
+
+  _txGreaterThanByteTransferLimit: function(test) {
+    test.expect(8);
+
+    var buffer = new Buffer(510);
+
+    this.cork = sandbox.stub(Tessel.Port.prototype, 'cork');
+    this.sync = sandbox.stub(Tessel.Port.prototype, 'sync');
+    this.uncork = sandbox.stub(Tessel.Port.prototype, 'uncork');
+
+    this.a._tx(buffer, function() {});
+
+    test.equal(this.cork.callCount, 1);
+    test.equal(this.sync.callCount, 1);
+    test.equal(this.uncork.callCount, 1);
+    // The 2 call write sequence is called twice, since there
+    // is twice as many bytes as the transfer limit
+    test.equal(this.a.sock.write.callCount, 4);
+
+    test.ok(this.a.sock.write.firstCall.args[0].equals(new Buffer([Tessel.CMD.TX, 255])));
+    test.ok(this.a.sock.write.secondCall.args[0].equals(buffer.slice(0, 255)));
+
+    test.ok(this.a.sock.write.thirdCall.args[0].equals(new Buffer([Tessel.CMD.TX, 255])));
+    test.ok(this.a.sock.write.lastCall.args[0].equals(buffer.slice(255)));
+
+    test.done();
+  }
 };
 /*
 TODO:
 
-_tx: function(test) {
-  test.expect();
-  test.done();
-},
 _rx: function(test) {
   test.expect();
   test.done();
