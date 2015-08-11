@@ -1,6 +1,4 @@
-process.env.TESSEL_EXPORT_UNINITIALIZED = true;
-
-var Tessel = require('tessel');
+var Tessel = require('tessel-export');
 
 var tessel = new Tessel({
   ports: {

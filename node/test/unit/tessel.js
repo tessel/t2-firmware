@@ -1,7 +1,7 @@
 process.env.IS_TEST_MODE = true;
 
 var sinon = require('sinon');
-var Tessel = require('../../tessel.js');
+var Tessel = require('../../tessel-export');
 var version = 2;
 
 // These are ONLY exported for testing.
