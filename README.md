@@ -155,6 +155,8 @@ Note that this only updates the firmware on the SAMD21 coprocessor. You will nee
 
 # T2 Hardware API
 
+[![Build Status](https://travis-ci.org/tessel/t2-firmware.svg?branch=master)](https://travis-ci.org/tessel/t2-firmware)
+
 When you `require('tessel')` within a script which is executed on Tessel 2, this loads a library which interfaces with the Tessel 2 hardware, including pins, ports, and LEDs, just like Tessel 1 ([Tessel 1 hardware documentation](https://tessel.io/docs/hardwareAPI)). The code for Tessel 2's hardware object can be found [here](https://github.com/tessel/t2-firmware/blob/master/node/tessel.js).
 
 ## Ports and pins
