@@ -287,7 +287,7 @@ exports['Tessel.Port.prototype'] = {
       this.socket.cork = sandbox.spy();
       this.socket.uncork = sandbox.spy();
       this.socket.write = sandbox.spy();
-      this.socket.read = sandbox.spy();
+      this.socket.read = sandbox.stub().returns(new Buffer([REPLY.DATA]));
       return this.socket;
     }.bind(this));
 
@@ -474,7 +474,7 @@ exports['Tessel.Port.prototype'] = {
     // The 2 call write sequence is called once
     test.equal(this.a.sock.write.callCount, 2);
 
-    test.ok(this.a.sock.write.firstCall.args[0].equals(new Buffer([Tessel.CMD.TX, 255])));
+    test.ok(this.a.sock.write.firstCall.args[0].equals(new Buffer([CMD.TX, 255])));
     test.ok(this.a.sock.write.lastCall.args[0].equals(buffer));
 
     test.done();
@@ -498,29 +498,127 @@ exports['Tessel.Port.prototype'] = {
     // is twice as many bytes as the transfer limit
     test.equal(this.a.sock.write.callCount, 4);
 
-    test.ok(this.a.sock.write.firstCall.args[0].equals(new Buffer([Tessel.CMD.TX, 255])));
+    test.ok(this.a.sock.write.firstCall.args[0].equals(new Buffer([CMD.TX, 255])));
     test.ok(this.a.sock.write.secondCall.args[0].equals(buffer.slice(0, 255)));
 
-    test.ok(this.a.sock.write.thirdCall.args[0].equals(new Buffer([Tessel.CMD.TX, 255])));
+    test.ok(this.a.sock.write.thirdCall.args[0].equals(new Buffer([CMD.TX, 255])));
     test.ok(this.a.sock.write.lastCall.args[0].equals(buffer.slice(255)));
 
     test.done();
-  }
+  },
+
+  _txInvalidBuffer: function(test) {
+    test.expect(1);
+
+    test.throws(function() {
+      this.a._tx(new Buffer(0));
+    }.bind(this));
+
+    test.done();
+  },
+
+  _rx: function(test) {
+    test.expect(5);
+
+    this.cork = sandbox.stub(Tessel.Port.prototype, 'cork');
+    this.uncork = sandbox.stub(Tessel.Port.prototype, 'uncork');
+
+    var size = 4;
+    var callback = sandbox.spy();
+
+    this.a._rx(size, callback);
+
+    test.equal(this.a.sock.write.callCount, 1);
+    test.ok(this.a.sock.write.lastCall.args[0].equals(new Buffer([CMD.RX, size])));
+
+    test.equal(this.a.replyQueue.length, 1);
+
+    var replyQueueEntry = this.a.replyQueue[0];
+
+    test.equal(replyQueueEntry.size, size);
+    test.equal(replyQueueEntry.callback, callback);
+
+    //
+    // REPLY.DATA responses are tested in:
+    // "Tessel.Port Commands (handling incoming socket stream)" -> "replydata"
+    //
+
+    test.done();
+  },
+
+  _rxInvalidLengthZero: function(test) {
+    test.expect(1);
+
+    test.throws(function() {
+      this.a._rx(0);
+    }.bind(this));
+
+    test.done();
+  },
+
+  _rxInvalidLengthMax: function(test) {
+    test.expect(1);
+
+    test.throws(function() {
+      this.a._rx(256);
+    }.bind(this));
+
+    test.done();
+  },
+
+  _txrx: function(test) {
+    test.expect(8);
+
+    this.cork = sandbox.stub(Tessel.Port.prototype, 'cork');
+    this.uncork = sandbox.stub(Tessel.Port.prototype, 'uncork');
+
+    var buffer = new Buffer(4);
+    var callback = sandbox.spy();
+
+    this.a._txrx(buffer, callback);
+
+    test.equal(this.cork.callCount, 1);
+    test.equal(this.uncork.callCount, 1);
+    test.equal(this.a.sock.write.callCount, 2);
+
+    test.equal(this.a.replyQueue.length, 1);
+
+    var replyQueueEntry = this.a.replyQueue[0];
+
+    test.equal(replyQueueEntry.size, buffer.length);
+    test.equal(replyQueueEntry.callback, callback);
+
+    test.ok(this.a.sock.write.firstCall.args[0].equals(new Buffer([CMD.TXRX, buffer.length])));
+    test.ok(this.a.sock.write.lastCall.args[0].equals(buffer));
+
+    test.done();
+  },
+
+  _txrxInvalidLengthZero: function(test) {
+    test.expect(1);
+
+    var buffer = new Buffer(0);
+
+    test.throws(function() {
+      this.a._txrx(buffer);
+    }.bind(this));
+
+    test.done();
+  },
+
+  _txrxInvalidLengthMax: function(test) {
+    test.expect(1);
+
+    var buffer = new Buffer(256);
+
+    test.throws(function() {
+      this.a._txrx(buffer);
+    }.bind(this));
+
+    test.done();
+  },
+
 };
-/*
-TODO:
-
-_rx: function(test) {
-  test.expect();
-  test.done();
-},
-_txrx: function(test) {
-  test.expect();
-  test.done();
-},
-
-*/
-
 
 exports['Tessel.Port Commands (handling incoming socket stream)'] = {
   setUp: function(done) {
