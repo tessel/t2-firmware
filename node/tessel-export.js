@@ -126,7 +126,7 @@ Tessel.Port = function(name, socketPath, board) {
         replyBuf = replyBuf.slice(1);
       } else {
         if (this.replyQueue.length === 0) {
-          throw new Error('Received an unexpected response with no commands pending: ' + byte);
+          throw new Error('Received unexpected response with no commands pending: ' + byte);
         }
 
         var size = this.replyQueue[0].size;
@@ -248,14 +248,14 @@ Tessel.Port.prototype._tx = function(buf, cb) {
       chunk;
 
   if (buf.length === 0) {
-    throw new Error('Length must be non-zero');
+    throw new RangeError('Buffer size must be non-zero');
   }
 
   this.cork();
 
   // The protocol only supports <256 byte transfers, chunk if buf is bigger
   while (offset < buf.length) {
-    chunk = buf.slice(offset, offset+255);
+    chunk = buf.slice(offset, offset + 255);
 
     this.sock.write(new Buffer([CMD.TX, chunk.length]));
     this.sock.write(chunk);
@@ -268,11 +268,8 @@ Tessel.Port.prototype._tx = function(buf, cb) {
 };
 
 Tessel.Port.prototype._rx = function(len, cb) {
-  if (len === 0) {
-    throw new Error('Length must be non-zero');
-  } else if (len > 255) {
-    // TODO: split into sequence of commands
-    throw new Error('Buffer size must be less than 255');
+  if (len === 0 || len > 255) {
+    throw new RangeError('Buffer size must be within 1-255');
   }
 
   this.sock.write(new Buffer([CMD.RX, len]));
@@ -283,18 +280,17 @@ Tessel.Port.prototype._rx = function(len, cb) {
 };
 
 Tessel.Port.prototype._txrx = function(buf, cb) {
-  if (buf.length === 0) {
-    throw new Error('Length must be non-zero');
-  } else if (buf.length > 255) {
-    // TODO: split into sequence of commands
-    throw new Error('Buffer size must be less than 255');
+  var len = buf.length;
+
+  if (len === 0 || len > 255) {
+    throw new RangeError('Buffer size must be within 1-255');
   }
 
   this.cork();
-  this.sock.write(new Buffer([CMD.TXRX, buf.length]));
+  this.sock.write(new Buffer([CMD.TXRX, len]));
   this.sock.write(buf);
   this.replyQueue.push({
-    size: buf.length,
+    size: len,
     callback: cb,
   });
   this.uncork();

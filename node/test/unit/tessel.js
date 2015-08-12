@@ -512,7 +512,7 @@ exports['Tessel.Port.prototype'] = {
 
     test.throws(function() {
       this.a._tx(new Buffer(0));
-    }.bind(this));
+    }.bind(this), RangeError);
 
     test.done();
   },
@@ -551,7 +551,7 @@ exports['Tessel.Port.prototype'] = {
 
     test.throws(function() {
       this.a._rx(0);
-    }.bind(this));
+    }.bind(this), RangeError);
 
     test.done();
   },
@@ -561,7 +561,7 @@ exports['Tessel.Port.prototype'] = {
 
     test.throws(function() {
       this.a._rx(256);
-    }.bind(this));
+    }.bind(this), RangeError);
 
     test.done();
   },
@@ -601,7 +601,7 @@ exports['Tessel.Port.prototype'] = {
 
     test.throws(function() {
       this.a._txrx(buffer);
-    }.bind(this));
+    }.bind(this), RangeError);
 
     test.done();
   },
@@ -613,7 +613,7 @@ exports['Tessel.Port.prototype'] = {
 
     test.throws(function() {
       this.a._txrx(buffer);
-    }.bind(this));
+    }.bind(this), RangeError);
 
     test.done();
   },
@@ -720,7 +720,7 @@ exports['Tessel.Port Commands (handling incoming socket stream)'] = {
       this.port.replyQueue.length = 0;
       this.port.sock.read.returns(new Buffer([REPLY.HIGH]));
       this.port.sock.emit('readable');
-    }.bind(this));
+    }.bind(this), Error);
 
     test.done();
   },
@@ -738,7 +738,7 @@ exports['Tessel.Port Commands (handling incoming socket stream)'] = {
 
       this.port.sock.read.returns(new Buffer([REPLY.DATA, 0xff, 0x7f]));
       this.port.sock.emit('readable');
-    }.bind(this));
+    }.bind(this), Error);
 
     test.equal(spy.callCount, 0);
     test.done();
@@ -1002,10 +1002,10 @@ exports['Tessel.Pin'] = {
     [0, 1, 3, 4].forEach(function(pinIndex) {
       test.throws(function() {
         this.a.pin[pinIndex].once('low');
-      }.bind(this));
+      }.bind(this), Error);
       test.throws(function() {
         this.b.pin[pinIndex].once('low');
-      }.bind(this));
+      }.bind(this), Error);
     }, this);
     test.done();
   },
