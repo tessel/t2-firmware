@@ -120,7 +120,7 @@ make
 ```
 
 ### Updating
-`dfu-util` is a command line utility to update the firmware on T2. See [their website](http://dfu-util.sourceforge.net/) for installation instructions. Plug the USB port your T2 into your computer while holding down the button by the Tessel 2 logo - this will put T2 into bootloader mode, with the power LED blinking. Then (after running through the build steps above!) run `dfu-util -l` to make sure T2 is detected:
+`dfu-util` is a command line utility to update the firmware on T2. See [their website](http://dfu-util.sourceforge.net/) for installation instructions (`brew install dfu-util` works). Plug the USB port your T2 into your computer while holding down the button by the Tessel 2 logo - this will put T2 into bootloader mode, with the power LED blinking. Then (after running through the build steps above!) run `dfu-util -l` to make sure T2 is detected:
 ```
 ➜  dfu-util --list
 ...
