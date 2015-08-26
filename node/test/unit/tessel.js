@@ -266,17 +266,6 @@ exports['Tessel.Port'] = {
 
     test.done();
   },
-  /*
-  TODO:
-  readable: function(test) {
-    test.expect(1);
-
-    // Emit data via `readable` event
-    // Assert correct outcomes
-
-    test.done();
-  },
-  */
 };
 
 exports['Tessel.Port.prototype'] = {
@@ -642,6 +631,19 @@ exports['Tessel.Port Commands (handling incoming socket stream)'] = {
     Tessel.instance = null;
     sandbox.restore();
     done();
+  },
+
+  readableButNull: function(test) {
+    test.expect(1);
+
+    this.port.sock.read.returns(null);
+
+    this.port.sock.emit('readable');
+
+    setImmediate(function() {
+      test.ok(true, 'Reaching the next execution turns means that Buffer.concat did not fail on `null`');
+      test.done();
+    }.bind(this));
   },
 
   replyhigh: function(test) {

@@ -89,8 +89,10 @@ Tessel.Port = function(name, socketPath, board) {
 
   this.sock.on('readable', function() {
     var queued;
+    // This value can potentially be `null`.
+    var available = new Buffer(this.sock.read() || 0);
 
-    replyBuf = Buffer.concat([replyBuf, this.sock.read()]);
+    replyBuf = Buffer.concat([replyBuf, available]);
 
     while (replyBuf.length !== 0) {
       var byte = replyBuf[0];
