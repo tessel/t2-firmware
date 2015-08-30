@@ -44,8 +44,8 @@ function Tessel(options) {
   }
 
   this.ports = {
-    A: options.ports.A ? new Tessel.Port('A', '/var/run/tessel/port_a', this) : null,
-    B: options.ports.B ? new Tessel.Port('B', '/var/run/tessel/port_b', this) : null,
+    A: options.ports.A ? new Tessel.Port('A', Tessel.Port.PATH.A, this) : null,
+    B: options.ports.B ? new Tessel.Port('B', Tessel.Port.PATH.B, this) : null,
   };
 
   this.port = this.ports;
@@ -85,8 +85,19 @@ Tessel.Port = function(name, socketPath, board) {
     }
   });
 
+  // Number of tasks occupying the socket
+  this._pendingTasks = 0;
+
+  // Unreference this socket so that the script will exit
+  // if nothing else is waiting in the event queue.
+  this.unref();
+
   this.sock.on('error', function(e) {
-    console.log('sock err', e);
+    console.log('we had a socket err', e);
+  });
+
+  this.sock.on('end', function() {
+    console.log('the other socket end closed!');
   });
 
   this.sock.on('close', function() {
@@ -100,59 +111,90 @@ Tessel.Port = function(name, socketPath, board) {
     // This value can potentially be `null`.
     var available = new Buffer(this.sock.read() || 0);
 
+    // Copy incoming data into the reply buffer
     replyBuf = Buffer.concat([replyBuf, available]);
 
+    // While we still have data to process in the buffer
     while (replyBuf.length !== 0) {
+      // Grab the next byte
       var byte = replyBuf[0];
+      // If the next byte equals the marker for a uart incoming
       if (byte === REPLY.ASYNC_UART_RX) {
-        // get the next byte which is the number of bytes
+        // Get the next byte which is the number of bytes
         var rxNum = replyBuf[1];
-
+        // As long as the number of butes of rx buffer exists
+        // and we have at least the number of bytes needed for a uart rx packet
         if (rxNum !== undefined && replyBuf.length >= 2 + rxNum) {
+          // Read the incoming data
           var rxData = replyBuf.slice(2, 2 + rxNum);
+          // Cut those bytes out of the reply buf packet so we don't
+          // process them again
           replyBuf = replyBuf.slice(2 + rxNum);
 
+          // If a uart port was instantiated
           if (this._uart) {
+            // Push this data into the buffer
             this._uart.push(rxData.toString());
           }
-
+          // Something went wrong and the packet is malformed
         } else {
           break;
         }
+        // This is some other async transaction
       } else if (byte >= REPLY.MIN_ASYNC) {
+        // If this is a pin change
         if (byte >= REPLY.ASYNC_PIN_CHANGE_N && byte < REPLY.ASYNC_PIN_CHANGE_N + 8) {
+          // Pull out which pin it is
           var pin = this.pin[byte - REPLY.ASYNC_PIN_CHANGE_N];
+          // Get the mode change
           var mode = pin.interruptMode;
 
+          // If this was a one-time mode
           if (mode === 'low' || mode === 'high') {
+            // Reset the pin interrupt state (prevent constant interrupts)
             pin.interruptMode = null;
+            // Decrement the number of tasks waiting on the socket
+            this.unref();
           }
 
+          // Emit the change
           pin.emit(mode);
         } else {
+          // Some other async event
           this.emit('async-event', byte);
         }
 
+        // Cut this byte off of the reply buffer
         replyBuf = replyBuf.slice(1);
       } else {
+        // If there are no commands awaiting a response
         if (this.replyQueue.length === 0) {
+          // Throw an error... something went wrong
           throw new Error('Received unexpected response with no commands pending: ' + byte);
         }
 
+        // Get the size if the incoming packet
         var size = this.replyQueue[0].size;
 
+        // If we have reply data
         if (byte === REPLY.DATA) {
+          // Ensure that the packet size agrees
           if (!size) {
             throw new Error('Received unexpected data packet');
           }
 
+          // The number of data bytes expected have been received.
           if (replyBuf.length >= 1 + size) {
-            // The number of data bytes expected have been received.
+            // Extract the data
             var data = replyBuf.slice(1, 1 + size);
+            // Slice this data off of the buffer
             replyBuf = replyBuf.slice(1 + size);
-            queued = this.replyQueue.shift();
+            // Get the  queued command
+            queued = this.dequeue();
 
+            // If there is a callback for th ecommand
             if (queued.callback) {
+              // Return the data in the callback
               queued.callback.call(this, null, queued.size ? data : byte);
             }
           } else {
@@ -161,11 +203,16 @@ Tessel.Port = function(name, socketPath, board) {
             // reply queue's next registered handler.
             break;
           }
+          // If it's just one byte being returned
         } else if (byte === REPLY.HIGH || byte === REPLY.LOW) {
+          // Slice it off
           replyBuf = replyBuf.slice(1);
-          queued = this.replyQueue.shift();
+          // Get the callback in the queue
+          queued = this.dequeue();
 
+          // If a callback was provided
           if (queued.callback) {
+            // Return the byte in the callback
             queued.callback.call(this, null, byte);
           }
         }
@@ -213,12 +260,47 @@ Tessel.Port = function(name, socketPath, board) {
   this.UART = function(format) {
     if (!port._uart) {
       port._uart = new Tessel.UART(port, format || {});
+      // Grab a reference to this socket so it doesn't close
+      // if we're waiting for UART data
+      port.ref();
     }
     return port._uart;
   };
 };
 
 util.inherits(Tessel.Port, EventEmitter);
+
+Tessel.Port.prototype.ref = function() {
+  // Increase the number of pending tasks
+  this._pendingTasks++;
+  // Ensure this socket stays open until unref'ed
+  this.sock.ref();
+};
+
+Tessel.Port.prototype.unref = function() {
+  // If we have pending tasks to complete
+  if (this._pendingTasks > 0) {
+    // Subtract the one that is being unref'ed
+    this._pendingTasks--;
+  }
+
+  // If this was the last task
+  if (this._pendingTasks === 0) {
+    // Unref the socket so the process doesn't hang open
+    this.sock.unref();
+  }
+};
+
+Tessel.Port.prototype.enqueue = function(reply) {
+  this.ref();
+  this.replyQueue.push(reply);
+};
+
+
+Tessel.Port.prototype.dequeue = function() {
+  this.unref();
+  return this.replyQueue.shift();
+};
 
 Tessel.Port.prototype.cork = function() {
   this.sock.cork();
@@ -231,7 +313,7 @@ Tessel.Port.prototype.uncork = function() {
 Tessel.Port.prototype.sync = function(cb) {
   if (cb) {
     this.sock.write(new Buffer([CMD.ECHO, 1, 0x88]));
-    this.replyQueue.push({
+    this.enqueue({
       size: 1,
       callback: cb
     });
@@ -247,7 +329,7 @@ Tessel.Port.prototype._simple_cmd = function(buf, cb) {
 
 Tessel.Port.prototype._status_cmd = function(buf, cb) {
   this.sock.write(new Buffer(buf));
-  this.replyQueue.push({
+  this.enqueue({
     size: 0,
     callback: cb,
   });
@@ -283,7 +365,7 @@ Tessel.Port.prototype._rx = function(len, cb) {
   }
 
   this.sock.write(new Buffer([CMD.RX, len]));
-  this.replyQueue.push({
+  this.enqueue({
     size: len,
     callback: cb,
   });
@@ -299,11 +381,16 @@ Tessel.Port.prototype._txrx = function(buf, cb) {
   this.cork();
   this.sock.write(new Buffer([CMD.TXRX, len]));
   this.sock.write(buf);
-  this.replyQueue.push({
+  this.enqueue({
     size: len,
     callback: cb,
   });
   this.uncork();
+};
+
+Tessel.Port.PATH = {
+  'A': '/var/run/tessel/port_a',
+  'B': '/var/run/tessel/port_b'
 };
 
 Tessel.Pin = function(pin, port, interruptSupported, analogSupported) {
@@ -359,6 +446,9 @@ Tessel.Pin.prototype.addListener = function(mode, callback) {
         throw new Error('Cannot set pin interrupt mode to ' + mode +
           '; already listening for ' + this.interruptMode);
       }
+      // Set the socket reference so the script doesn't exit
+      this._port.ref();
+
       this._setInterruptMode(mode);
     }
   }
@@ -420,7 +510,7 @@ Tessel.Pin.prototype.rawDirection = function() {
 Tessel.Pin.prototype._readPin = function(cmd, cb) {
   this._port.cork();
   this._port.sock.write(new Buffer([cmd, this.pin]));
-  this._port.replyQueue.push({
+  this._port.enqueue({
     size: 0,
     callback: function(err, data) {
       cb(err, data === REPLY.HIGH ? 1 : 0);
@@ -468,7 +558,7 @@ Tessel.Pin.prototype.analogRead = function(cb) {
   }
 
   this._port.sock.write(new Buffer([CMD.ANALOG_READ, this.pin]));
-  this._port.replyQueue.push({
+  this._port.enqueue({
     size: 2,
     callback: function(err, data) {
       cb(err, (data[0] + (data[1] << 8)) / ANALOG_RESOLUTION * 3.3);
@@ -674,6 +764,8 @@ Tessel.UART.prototype._read = function() {};
 Tessel.UART.prototype.disable = function() {
   this._port._simple_cmd([CMD.DISABLE_UART, 0, 0]);
   this.enabled = false;
+  // Unreference this socket if there are no more items waiting on it
+  this._port.unref();
 };
 
 var CMD = {
