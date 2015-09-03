@@ -63,6 +63,14 @@ function Tessel(options) {
   this.version = 2;
 }
 
+Tessel.prototype.close = function() {
+  ['A', 'B'].forEach(function(name) {
+    if (this.port[name]) {
+      this.port[name].sock.destroy();
+    }
+  }, this);
+};
+
 Tessel.Port = function(name, socketPath, board) {
   var port = this;
 
@@ -774,5 +782,12 @@ if (process.env.IS_TEST_MODE) {
   Tessel.CMD = CMD;
   Tessel.REPLY = REPLY;
 }
+
+
+process.on('exit', function() {
+  if (Tessel.instance) {
+    Tessel.instance.close();
+  }
+});
 
 module.exports = Tessel;
