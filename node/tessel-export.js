@@ -763,6 +763,8 @@ Tessel.LED.prototype.read = function(callback) {
       } else if (value === '0') {
         callback(null, false);
         return;
+      } else if (value === '255') {
+        callback(null, false);
       } else {
         throw new Error('Invalid state returned by LED:' + value);
       }
