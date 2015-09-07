@@ -543,6 +543,8 @@ Tessel.I2C.prototype.transfer = function(txbuf, rxlen, callback) {
 
 Tessel.SPI = function(params, port) {
   this._port = port;
+  // Default the params if none were provided
+  params = params || {};
   // default to pin 5 of the module port as cs
   this.chipSelect = params.chipSelect || this._port.digital[0];
 
