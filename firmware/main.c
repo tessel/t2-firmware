@@ -106,6 +106,9 @@ int main(void) {
 
     __enable_irq();
 
+    tc_delay_enable(TC_BOOTING_ANIMATION);
+    tc_delay_start(TC_BOOTING_ANIMATION, 10000);
+
     while (1) { __WFI(); }
 }
 
@@ -166,7 +169,10 @@ void SERCOM_HANDLER(SERCOM_PORT_B_UART_I2C) {
 }
 
 void bridge_open_0() {
-   tc_delay_disable(TC_BOOTING_ANIMATION);
+    // disable the animation timer
+    tc_delay_disable(TC_BOOTING_ANIMATION);
+    // Pull the port pin low
+    pin_low(PORT_A.power);
 }
 void bridge_completion_out_0(u8 count) {
     pipe_bridge_out_completion(count);
@@ -204,7 +210,7 @@ void bridge_close_2() {
 
 void TC_HANDLER(TC_BOOTING_ANIMATION) {
     // Toggle the pin (I know it says high right now... I'm testing)
-    pin_high(PORT_A.power);
+    pin_toggle(PORT_A.power);
     // Clear the interrupt flag
     tc_clear_interrupt_flag(TC_BOOTING_ANIMATION);
 }

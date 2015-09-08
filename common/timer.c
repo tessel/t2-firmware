@@ -42,6 +42,8 @@ void tc_delay_start(TimerId id, u32 ticks) {
     // Set the top of the counter
     tc(id)->COUNT16.CC[0].reg = ticks;
 
+    NVIC_EnableIRQ(TC3_IRQn + (id - 3));
+
     // Enable the counter!
     tc(id)->COUNT16.CTRLA.bit.ENABLE = 1;
 }
@@ -58,13 +60,9 @@ void tc_delay_disable(TimerId id) {
 // setup a new timer/capture delay channel
 void tc_delay_enable(TimerId id) {
     // Set up the timer
-    PM->APBCMASK.reg |= 1 << (PM_APBCMASK_TC3_Pos + id);
+    timer_clock_enable(id);
 
-    GCLK->CLKCTRL.reg = GCLK_CLKCTRL_CLKEN |
-        GCLK_CLKCTRL_GEN(0) |
-        GCLK_CLKCTRL_ID(TC3_GCLK_ID + ((id-2)/2));
-
-    // Reset the generation
+    // Reset the timer
     tc(id)->COUNT16.CTRLA.reg |= TC_CTRLA_SWRST;
 
     // Set it to use a 16 bit counter, resync on glock, 1024 clock prescaler, run in standby
