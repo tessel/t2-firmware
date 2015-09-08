@@ -32,3 +32,56 @@ void tcc_delay_enable(TimerId id) {
     tcc(id)->CTRLA.bit.ENABLE = 1;
     tcc(id)->INTENSET.reg = TCC_INTENSET_OVF;
 }
+
+// start a timer/capture delay that has already been configured
+void tc_delay_start(TimerId id, u32 ticks) {
+
+    // Set the initial value to 0
+    tc(id)->COUNT16.COUNT.reg = 0;
+
+    // Set the top of the counter
+    tc(id)->COUNT16.CC[0].reg = ticks;
+
+    // Enable the counter!
+    tc(id)->COUNT16.CTRLA.bit.ENABLE = 1;
+}
+
+// delay a currently running timer/capture channel
+void tc_delay_disable(TimerId id) {
+    // Enable the interrupt for compare channel 0
+    tc(id)->COUNT16.INTENCLR.reg = TC_INTFLAG_MC(1);
+
+    // Disable the counter
+    tc(id)->COUNT16.CTRLA.bit.ENABLE = 0 << TC_CTRLA_ENABLE_Pos;
+}
+
+// setup a new timer/capture delay channel
+void tc_delay_enable(TimerId id) {
+    // Set up the timer
+    PM->APBCMASK.reg |= 1 << (PM_APBCMASK_TC3_Pos + id);
+
+    GCLK->CLKCTRL.reg = GCLK_CLKCTRL_CLKEN |
+        GCLK_CLKCTRL_GEN(0) |
+        GCLK_CLKCTRL_ID(TC3_GCLK_ID + ((id-2)/2));
+
+    // Reset the generation
+    tc(id)->COUNT16.CTRLA.reg |= TC_CTRLA_SWRST;
+
+    // Set it to use a 16 bit counter, resync on glock, 1024 clock prescaler, run in standby
+    tc(id)->COUNT16.CTRLA.reg = TC_CTRLA_MODE_COUNT16 | TC_CTRLA_PRESCSYNC_GCLK
+        | TC_CTRLA_PRESCALER(7) | TC_CTRLA_RUNSTDBY;
+
+    // Clear everything?
+    tc(id)->COUNT16.CTRLBCLR.reg = 0xFF;
+
+    // Not one shot and please count upwards
+    tc(id)->COUNT16.CTRLBSET.reg = 0;
+
+    // Enable the interrupt for compare channel 0
+    tc(id)->COUNT16.INTENSET.reg |= TC_INTFLAG_MC(1);
+}
+
+// clear the capture channel interrupt flag from the interrupt
+void tc_clear_interrupt_flag(TimerId id) {
+    tc(id)->COUNT16.INTFLAG.reg = TC_INTFLAG_OVF;
+}

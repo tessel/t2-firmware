@@ -3,35 +3,6 @@
 PortData port_a;
 PortData port_b;
 
-volatile bool booted = false;
-
-/*** SysTick ***/
-volatile uint32_t g_msTicks;
-
-/* SysTick IRQ handler */
-void SysTick_Handler(void) {
-    g_msTicks++;
-}
-
-void init_systick() {
-    if (SysTick_Config(48000000 / 1000)) {  /* Setup SysTick Timer for 1 msec interrupts  */
-        while (1) {}                                /* Capture error */
-    }
-    NVIC_SetPriority(SysTick_IRQn, 0x0);
-    g_msTicks = 0;
-}
-
-/*** LED ***/
-unsigned led_next_time = 0;
-void led_task() {
-    if (g_msTicks > led_next_time) {
-        led_next_time += 400;
-        pin_toggle(PORT_A.power);
-        pin_toggle(PORT_B.power);
-        pin_toggle(PIN_LED);
-    }
-}
-
 void boot_delay_ms(int delay){
     tc(TC_BOOT)->COUNT16.CTRLA.reg
         = TC_CTRLA_WAVEGEN_MPWM
@@ -135,17 +106,7 @@ int main(void) {
 
     __enable_irq();
 
-    init_systick();
-
-    while (1) {
-        if (booted == false) {
-            led_task();
-        }
-        else {
-
-        }
-        __WFI();
-    }
+    while (1) { __WFI(); }
 }
 
 void DMAC_Handler() {
@@ -205,10 +166,7 @@ void SERCOM_HANDLER(SERCOM_PORT_B_UART_I2C) {
 }
 
 void bridge_open_0() {
-    booted = true;
-    pin_high(PIN_LED);
-    pin_low(PORT_A.power);
-    pin_low(PORT_B.power);
+   tc_delay_disable(TC_BOOTING_ANIMATION);
 }
 void bridge_completion_out_0(u8 count) {
     pipe_bridge_out_completion(count);
@@ -242,6 +200,13 @@ void bridge_completion_in_2() {
 }
 void bridge_close_2() {
     port_disable(&port_b);
+}
+
+void TC_HANDLER(TC_BOOTING_ANIMATION) {
+    // Toggle the pin (I know it says high right now... I'm testing)
+    pin_high(PORT_A.power);
+    // Clear the interrupt flag
+    tc_clear_interrupt_flag(TC_BOOTING_ANIMATION);
 }
 
 void TC_HANDLER(TC_TERMINAL_TIMEOUT) {
