@@ -7,10 +7,20 @@ volatile bool booted = false;
 
 /*** SysTick ***/
 volatile uint32_t g_msTicks;
+/*** BOOT LED ***/
+unsigned led_next_time = 0;
 
 /* SysTick IRQ handler */
 void SysTick_Handler(void) {
     g_msTicks++;
+
+    // Boot LED Tasks
+    if (!booted && g_msTicks > led_next_time) {
+        led_next_time += 400;
+        pin_toggle(PORT_A.power);
+        pin_toggle(PORT_B.power);
+        pin_toggle(PIN_LED);
+    }
 }
 
 void init_systick() {
@@ -19,17 +29,6 @@ void init_systick() {
     }
     NVIC_SetPriority(SysTick_IRQn, 0x0);
     g_msTicks = 0;
-}
-
-/*** LED ***/
-unsigned led_next_time = 0;
-void led_task() {
-    if (g_msTicks > led_next_time) {
-        led_next_time += 400;
-        pin_toggle(PORT_A.power);
-        pin_toggle(PORT_B.power);
-        pin_toggle(PIN_LED);
-    }
 }
 
 void boot_delay_ms(int delay){
@@ -134,18 +133,11 @@ int main(void) {
         TCC_PORT_B, DMA_PORT_B_TX, DMA_PORT_B_RX);
 
     __enable_irq();
-
+    SCB->SCR |= SCB_SCR_SLEEPONEXIT_Msk;
+    
     init_systick();
 
-    while (1) {
-        if (booted == false) {
-            led_task();
-        }
-        else {
-
-        }
-        __WFI();
-    }
+    while (1) { __WFI(); }
 }
 
 void DMAC_Handler() {
