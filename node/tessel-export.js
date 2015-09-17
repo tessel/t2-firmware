@@ -619,7 +619,7 @@ Tessel.SPI.prototype.receive = function(data_len, callback) {
   this._port.uncork();
 };
 
-Tessel.SPI.prototype.transfer = function(data, callback) {
+Tessel.SPI.prototype.transfer = function(data, callback) {''
   this._port.cork();
   this.chipSelect.low();
   this._port._txrx(data, callback);
@@ -759,10 +759,8 @@ Tessel.LED.prototype.read = function(callback) {
       value = value.toString().trim();
       if (value === '1') {
         callback(null, true);
-        return;
-      } else if (value === '0') {
+      } else if (value === '0' || value === '255') {
         callback(null, false);
-        return;
       } else {
         throw new Error('Invalid state returned by LED:' + value);
       }
