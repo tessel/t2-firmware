@@ -13,6 +13,7 @@ module.exports = function(grunt) {
       },
       all: [
         'tessel.js',
+        'tessel-export.js',
         'test/**/*.js',
         'Gruntfile.js',
       ]
@@ -20,6 +21,7 @@ module.exports = function(grunt) {
     jscs: {
       all: [
         'tessel.js',
+        'tessel-export.js',
         'test/**/*.js',
         'Gruntfile.js',
       ],
@@ -30,6 +32,7 @@ module.exports = function(grunt) {
     jsbeautifier: {
       all: [
         'tessel.js',
+        'tessel-export.js',
         'test/**/*.js',
         'Gruntfile.js',
       ],

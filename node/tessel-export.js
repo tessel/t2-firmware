@@ -255,7 +255,7 @@ Tessel.Port.prototype._status_cmd = function(buf, cb) {
 
 Tessel.Port.prototype._tx = function(buf, cb) {
   var offset = 0,
-      chunk;
+    chunk;
 
   if (buf.length === 0) {
     throw new RangeError('Buffer size must be non-zero');
@@ -629,7 +629,7 @@ Tessel.SPI.prototype.receive = function(data_len, callback) {
   this._port.uncork();
 };
 
-Tessel.SPI.prototype.transfer = function(data, callback) {''
+Tessel.SPI.prototype.transfer = function(data, callback) {
   this._port.cork();
   this.chipSelect.low();
   this._port._txrx(data, callback);
