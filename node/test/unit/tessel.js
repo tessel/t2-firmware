@@ -14,12 +14,17 @@ var sandbox = sinon.sandbox.create();
 // Used within tessel.js, can be stubs/spies
 // Uncomment as necessary.
 //
-// var util = require('util');
+var util = require('util');
 var EventEmitter = require('events').EventEmitter;
 // var Duplex = require('stream').Duplex;
 var net = require('net');
 // var fs = require('fs');
 
+function FakeSocket() {
+  this.ref = function() {};
+  this.unref = function() {};
+}
+util.inherits(FakeSocket, EventEmitter);
 
 exports['Tessel'] = {
   setUp: function(done) {
@@ -105,7 +110,7 @@ exports['Tessel'] = {
 exports['Tessel.Port'] = {
   setUp: function(done) {
     this.createConnection = sandbox.stub(net, 'createConnection', function() {
-      return new EventEmitter();
+      return new FakeSocket();
     });
 
     this.tessel = new Tessel();
@@ -270,7 +275,7 @@ exports['Tessel.Port'] = {
 
 exports['Tessel.Port.prototype'] = {
   setUp: function(done) {
-    this.socket = new EventEmitter();
+    this.socket = new FakeSocket();
 
     this.createConnection = sandbox.stub(net, 'createConnection', function() {
       this.socket.cork = sandbox.spy();
@@ -611,7 +616,7 @@ exports['Tessel.Port.prototype'] = {
 
 exports['Tessel.Port Commands (handling incoming socket stream)'] = {
   setUp: function(done) {
-    this.socket = new EventEmitter();
+    this.socket = new FakeSocket();
 
     this.createConnection = sandbox.stub(net, 'createConnection', function() {
       this.socket.cork = sandbox.spy();
@@ -786,7 +791,7 @@ exports['Tessel.Port Commands (handling incoming socket stream)'] = {
 
 exports['Tessel.Pin'] = {
   setUp: function(done) {
-    this.socket = new EventEmitter();
+    this.socket = new FakeSocket();
 
     this.createConnection = sandbox.stub(net, 'createConnection', function() {
       this.socket.cork = sandbox.spy();
@@ -1037,7 +1042,7 @@ exports['Tessel.Pin'] = {
 
 exports['Tessel.I2C'] = {
   setUp: function(done) {
-    this.socket = new EventEmitter();
+    this.socket = new FakeSocket();
 
     this.createConnection = sandbox.stub(net, 'createConnection', function() {
       this.socket.cork = sandbox.spy();
