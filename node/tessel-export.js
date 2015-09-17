@@ -740,16 +740,21 @@ Tessel.LED.prototype.output = function(value, callback) {
 };
 
 Tessel.LED.prototype.toggle = function(callback) {
+  function cb(err, value) {
+    if (typeof callback === 'function') {
+      callback(err, value);
+    } else if (err) {
+      throw err;
+    }
+  }
+
   var self = this;
   self.read(function(err, value) {
     if (err) {
-      if (typeof callback === 'function') {
-        callback(err);
-      }
-      return;
-    } else {
-      self.write(!value, callback);
+      return cb(err);
     }
+
+    self.write(!value, cb);
   });
 };
 
@@ -758,23 +763,25 @@ Tessel.LED.prototype.write = function(value, callback) {
 };
 
 Tessel.LED.prototype.read = function(callback) {
+  function cb(err, value) {
+    if (typeof callback === 'function') {
+      callback(err, value);
+    } else if (err) {
+      throw err;
+    }
+  }
+
   fs.readFile(this._path, function(err, value) {
-    if (typeof callback !== 'function') {
-      return;
-    }
     if (err) {
-      callback(err);
-      return;
-    } else {
-      value = value.toString().trim();
-      if (value === '1') {
-        callback(null, true);
-      } else if (value === '0' || value === '255') {
-        callback(null, false);
-      } else {
-        throw new Error('Invalid state returned by LED:' + value);
-      }
+      return cb(err);
     }
+
+    var n = Number(value.toString().trim());
+    if (0 <= n && n <= 255) {
+      return cb(null, n > 0);
+    }
+
+    cb(new Error('Invalid state returned by LED: ' + value));
   });
 };
 
