@@ -237,6 +237,12 @@ void tcc_delay_start(TimerId id, u32 ticks);
 void tcc_delay_disable(TimerId id);
 void tcc_delay_enable(TimerId id);
 
+
+void tc_delay_start(TimerId id, u32 ticks);
+void tc_delay_disable(TimerId id);
+void tc_delay_enable(TimerId id);
+void tc_clear_interrupt_flag(TimerId id);
+
 // wdt
 
 inline static void wdt_reset(u32 clock_channel) {

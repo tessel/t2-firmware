@@ -105,7 +105,10 @@ int main(void) {
         TCC_PORT_B, DMA_PORT_B_TX, DMA_PORT_B_RX);
 
     __enable_irq();
-    SCB->SCR |= SCB_SCR_SLEEPONEXIT_Msk;
+
+    tc_delay_enable(TC_BOOTING_ANIMATION);
+    tc_delay_start(TC_BOOTING_ANIMATION, 10000);
+
     while (1) { __WFI(); }
 }
 
@@ -165,7 +168,12 @@ void SERCOM_HANDLER(SERCOM_PORT_B_UART_I2C) {
     bridge_handle_sercom_uart_i2c(&port_b);
 }
 
-void bridge_open_0() {}
+void bridge_open_0() {
+    // disable the animation timer
+    tc_delay_disable(TC_BOOTING_ANIMATION);
+    // Pull the port pin low
+    pin_low(PORT_A.power);
+}
 void bridge_completion_out_0(u8 count) {
     pipe_bridge_out_completion(count);
 }
@@ -198,6 +206,13 @@ void bridge_completion_in_2() {
 }
 void bridge_close_2() {
     port_disable(&port_b);
+}
+
+void TC_HANDLER(TC_BOOTING_ANIMATION) {
+    // Toggle the pin (I know it says high right now... I'm testing)
+    pin_toggle(PORT_A.power);
+    // Clear the interrupt flag
+    tc_clear_interrupt_flag(TC_BOOTING_ANIMATION);
 }
 
 void TC_HANDLER(TC_TERMINAL_TIMEOUT) {

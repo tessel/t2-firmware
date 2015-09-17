@@ -35,8 +35,9 @@
 #define USB_EP_CDC_OUT          0x04
 
 /// Timer allocation
-#define TC_TERMINAL_TIMEOUT 3
-#define TC_BOOT             4
+#define TC_TERMINAL_TIMEOUT  3
+#define TC_BOOT              4
+#define TC_BOOTING_ANIMATION 5
 
 // TCC allocation
 // muxed with i2c. also used for uart read timers
