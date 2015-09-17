@@ -3,6 +3,34 @@
 PortData port_a;
 PortData port_b;
 
+volatile bool booted = false;
+
+/*** SysTick ***/
+volatile uint32_t g_msTicks;
+/*** BOOT LED ***/
+unsigned led_next_time = 0;
+
+/* SysTick IRQ handler */
+void SysTick_Handler(void) {
+    g_msTicks++;
+
+    // Boot LED Tasks
+    if (!booted && g_msTicks > led_next_time) {
+        led_next_time += 400;
+        pin_toggle(PORT_A.power);
+        pin_toggle(PORT_B.power);
+        pin_toggle(PIN_LED);
+    }
+}
+
+void init_systick() {
+    if (SysTick_Config(48000000 / 1000)) {  /* Setup SysTick Timer for 1 msec interrupts  */
+        while (1) {}                                /* Capture error */
+    }
+    NVIC_SetPriority(SysTick_IRQn, 0x0);
+    g_msTicks = 0;
+}
+
 void boot_delay_ms(int delay){
     tc(TC_BOOT)->COUNT16.CTRLA.reg
         = TC_CTRLA_WAVEGEN_MPWM
@@ -106,6 +134,9 @@ int main(void) {
 
     __enable_irq();
     SCB->SCR |= SCB_SCR_SLEEPONEXIT_Msk;
+    
+    init_systick();
+
     while (1) { __WFI(); }
 }
 
@@ -165,7 +196,12 @@ void SERCOM_HANDLER(SERCOM_PORT_B_UART_I2C) {
     bridge_handle_sercom_uart_i2c(&port_b);
 }
 
-void bridge_open_0() {}
+void bridge_open_0() {
+    booted = true;
+    pin_high(PIN_LED);
+    pin_low(PORT_A.power);
+    pin_low(PORT_B.power);
+}
 void bridge_completion_out_0(u8 count) {
     pipe_bridge_out_completion(count);
 }
