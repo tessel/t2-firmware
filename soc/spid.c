@@ -20,6 +20,11 @@
 #define N_CHANNEL 3
 #define BUFSIZE 255
 
+#define STATUS_TRUE 1
+#define STATUS_FALSE 0
+#define STATUS_BYTE 0x01
+#define STATUS_BIT 0x10
+
 #define debug(args...)
 #define info(args...)   syslog(LOG_INFO, args)
 #define error(args...)  syslog(LOG_ERR, args)
@@ -36,6 +41,10 @@ typedef struct ChannelData {
 } ChannelData;
 
 ChannelData channels[N_CHANNEL];
+
+uint8_t channels_writable_bitmask;
+uint8_t channels_opened_bitmask;
+uint8_t channels_enabled_bitmask;
 
 /// Use sysfs to export the specified GPIO
 void gpio_export(const char* gpio) {
@@ -97,6 +106,122 @@ void delay() {
     while(i--);
 }
 
+/*
+Fetches the stored open/closed state of a given channel
+
+Args:
+    - bitmask: the bitmask to fetch a value from
+    - channel: the index of the channel to check the status of
+
+Returns:
+    STATUS_TRUE if state is currently active
+    STATUS_FALSE if state is currently inactive
+
+*/
+uint8_t get_channel_bitmask_state(uint8_t *bitmask, uint8_t channel) {
+    return ((*bitmask) & (1 << channel)) ? STATUS_TRUE : STATUS_FALSE;
+}
+
+/*
+Sets a channel bitmap state
+
+Args:
+    - bitmask: the bitmask to modify
+    - channel: the index of the channel to set the state of
+    - state: a bool determining whether that state is active or not
+
+*/
+void set_channel_bitmask_state(uint8_t *bitmask, uint8_t channel, bool state) {
+    if (state == true) {
+        *(bitmask) |= (1<<channel);
+    }
+    else {
+        *(bitmask) &= ~(1<<channel);
+    }
+}
+
+/*
+Helper function to pull out the correct bitmask from a buffer header sent by the coprocessor
+
+Args:
+    rx_buf: The buffer sent from the coprocessor
+    channel: The connection channel to get the enabled status of
+*/
+uint8_t extract_enabled_state(uint8_t *rx_buf, uint8_t channel) {
+    return ((rx_buf[STATUS_BYTE] & (STATUS_BIT << channel)) ? STATUS_TRUE : STATUS_FALSE);
+}
+
+/*
+Closes a provided channel's connection
+
+Args:
+    - channel: the index of the channel
+        0: USB
+        1: MODULE PORT A
+        2: MODULE PORT B
+
+*/
+void close_channel_connection(uint8_t channel) {
+
+    info("Closing connection %d\n", channel);
+    // Close the file descriptor
+    close(CONN_POLL(channel).fd);
+    // Reset the file descriptor
+    CONN_POLL(channel).fd = -1;
+    // Clear the outgoing data
+    channels[channel].out_length = 0;
+    // Re-enable events on a new connection
+    SOCK_POLL(channel).events = POLLIN;
+    // Set the channel open status to false
+    set_channel_bitmask_state(&channels_opened_bitmask, channel, false);
+    // Set the writability to false
+    set_channel_bitmask_state(&channels_writable_bitmask, channel, false);
+}
+
+/*
+Checks for any requested changes from MCU in a channel's open/close status and obliges
+
+Args:
+    rx_buf: Buffer received over SPI from MCU
+    writable: bit flag indicating state of channel (used in maintaining state after closing)
+    chanels_open: bit flag indicating writable channels (used in maintaining state after closing)
+*/
+void manage_channel_active_status(uint8_t *rx_buf) {
+
+    // For each possible channel
+    for (int i=0; i<N_CHANNEL; i++) {
+        // Extract the new channel enabled status from the packet header
+        uint8_t new_status = extract_enabled_state(rx_buf, i);
+        // Fetch the old enabled status
+        uint8_t old_status = get_channel_bitmask_state(&channels_enabled_bitmask, i);
+        debug("\nChannel %d, old enabled status: %d, new enabled status: %d", i, old_status, new_status);
+        // If the status hasn't changed
+        if (new_status == old_status) {
+            debug("\nStatus has not changed.\n");
+            // Make no changes to the polling
+            continue;
+        }
+        // If the new status has the channel enabled
+        else if (new_status == STATUS_TRUE) {
+            debug("\nChannel has been enabled!\n");
+            // We should start listening for connect events
+            SOCK_POLL(i).events = POLLIN;
+            // Set the status as open
+            set_channel_bitmask_state(&channels_enabled_bitmask, i, true);
+        }
+        // If the new status disables the channel
+        else {
+            debug("\nChannel has been disabled!\n");
+            // Close the socket and mark the channel closed
+            close_channel_connection(i);
+            // Mark the channel as disabled
+            set_channel_bitmask_state(&channels_enabled_bitmask, i, false);
+            // Stop listening for events
+            SOCK_POLL(i).events = 0;
+        }
+    }
+}
+
 int main(int argc, char** argv) {
     openlog("spid", LOG_PERROR | LOG_PID | LOG_NDELAY, LOG_LOCAL1);
     info("Starting");
@@ -153,8 +278,9 @@ int main(int argc, char** argv) {
         CONN_POLL(i).fd = -1;
     }
 
-    uint8_t writable = 0;
-    uint8_t channels_open = 0;
+    channels_writable_bitmask = 0;
+    channels_opened_bitmask = 0;
+    channels_enabled_bitmask = 0;
     int retries = 0;
 
     while (1) {
@@ -210,13 +336,15 @@ int main(int argc, char** argv) {
 
                 // disable further events on listening socket
                 SOCK_POLL(i).events = 0;
-                channels_open |= (1<<i);
+                debug("\nWe have a new connection on a socket, %d\n", i);
+                set_channel_bitmask_state(&channels_opened_bitmask, i, true);
             }
         }
 
         // Check which connected sockets are readable / writable or closed
         for (int i=0; i<N_CHANNEL; i++) {
             bool to_close = false;
+            debug("\nChecking if channel was closed %d %d\n", i, CONN_POLL(i).revents & POLLIN);
             if (CONN_POLL(i).revents & POLLIN) {
                 int length = read(CONN_POLL(i).fd, channels[i].out_buf, BUFSIZE);
                 CONN_POLL(i).events &= ~POLLIN;
@@ -236,23 +364,16 @@ int main(int argc, char** argv) {
             if (to_close || CONN_POLL(i).revents & POLLHUP
                          || CONN_POLL(i).revents & POLLERR
                          || CONN_POLL(i).revents & POLLRDHUP) {
-                info("Closing connection %d\n", i);
-                close(CONN_POLL(i).fd);
-                CONN_POLL(i).fd = -1;
-
-                channels[i].out_length = 0;
-                writable &= ~(1 << i);
-
-                // Re-enable events on a new connection
-                SOCK_POLL(i).events = POLLIN;
-                channels_open &= ~(1<<i);
-
+                debug("Got the call to close connection on %d", i);
+                // Close the connection
+                close_channel_connection(i);
                 continue;
             }
 
             if (CONN_POLL(i).revents & POLLOUT) {
                 CONN_POLL(i).events &= ~POLLOUT;
-                writable |= (1 << i);
+                // The connection is now writable
+                set_channel_bitmask_state(&channels_writable_bitmask, i, true);
                 debug("%i: Writable\n", i);
             }
         }
@@ -265,7 +386,7 @@ int main(int argc, char** argv) {
         uint8_t rx_buf[2 + N_CHANNEL];
 
         tx_buf[0] = 0x53;
-        tx_buf[1] = writable | (channels_open << 4);
+        tx_buf[1] = channels_writable_bitmask | (channels_opened_bitmask << 4);
 
         for (int i=0; i<N_CHANNEL; i++) {
             tx_buf[2+i] = channels[i].out_length;
@@ -298,6 +419,10 @@ int main(int argc, char** argv) {
                 continue;
             }
         }
+
+        // Check for any open/close requests on the channels
+        manage_channel_active_status(rx_buf);
+
         retries = 0;
 
         delay();
@@ -318,7 +443,7 @@ int main(int argc, char** argv) {
             }
 
             size = rx_buf[2+chan];
-            if (writable & (1<<chan) && size > 0) {
+            if (get_channel_bitmask_state(&channels_writable_bitmask, chan) && size > 0) {
                 transfer[desc].len = size;
                 transfer[desc].rx_buf = (unsigned long) &channels[chan].in_buf[0];
                 desc++;
@@ -337,7 +462,7 @@ int main(int argc, char** argv) {
             // Write received data to the appropriate socket
             for (int chan=0; chan<N_CHANNEL; chan++) {
                 int size = rx_buf[2+chan];
-                if (writable & (1<<chan) && size > 0) {
+                if (get_channel_bitmask_state(&channels_writable_bitmask, chan) && size > 0) {
                     int r = write(CONN_POLL(chan).fd, &channels[chan].in_buf[0], size);
                     debug("%i: Write %u %i\n", chan, size, r);
                     if (r < 0) {
@@ -345,7 +470,7 @@ int main(int argc, char** argv) {
                     }
 
                     CONN_POLL(chan).events |= POLLOUT;
-                    writable &= ~(1<<chan);
+                    set_channel_bitmask_state(&channels_writable_bitmask, chan, false);
                 }
             }
         }

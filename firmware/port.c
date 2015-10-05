@@ -84,6 +84,8 @@ void port_init(PortData* p, u8 chan, const TesselPort* port,
 
     sercom_clock_enable(p->port->spi, p->clock_channel, 1);
     sercom_clock_enable(p->port->uart_i2c, p->clock_channel, 1);
+
+    bridge_enable_chan(chan);
 }
 
 void port_enable(PortData* p) {
@@ -122,11 +124,14 @@ void port_disable(PortData* p) {
     EIC->INTFLAG.reg = p->port->pin_interrupts;
 
     pin_low(p->port->power);
+
+    // After the port has been reset, re-enable it
+    bridge_enable_chan(p->chan);
 }
 
 void port_send_status(PortData* p, u8 d) {
     if (p->reply_len >= BRIDGE_BUF_SIZE) {
-        invalid();
+        bridge_disable_chan(p->chan);
         return;
     }
     p->reply_buf[p->reply_len++] = d;
@@ -219,7 +224,8 @@ Pin port_selected_pin(PortData* p) {
 
 void port_exec_async_complete(PortData* p, ExecStatus s) {
     if (p->state != PORT_EXEC_ASYNC) {
-        invalid();
+        bridge_disable_chan(p->chan);
+        return;
     }
     p->state = s;
     port_step(p);
@@ -236,7 +242,8 @@ void uart_send_data(PortData *p){
         if (count + 2 > BRIDGE_BUF_SIZE - p->reply_len) {
             // Shouldn't have to worry about insufficient buffer space because the buffer is
             // always flushed before enabling async events, but assert to be sure.
-            invalid();
+            bridge_disable_chan(p->chan);
+            return;
         }
 
         p->reply_buf[p->reply_len++] = REPLY_ASYNC_UART_RX;
@@ -409,7 +416,7 @@ ExecStatus port_begin_cmd(PortData *p) {
             pin_gpio(p->port->rx);
             return EXEC_DONE;
     }
-    invalid();
+    bridge_disable_chan(p->chan);
     return EXEC_DONE;
 }
 
@@ -523,7 +530,7 @@ inline bool port_async_events_allowed(PortData* p) {
 
 void port_step(PortData* p) {
     if (p->state == PORT_DISABLE) {
-        invalid();
+        bridge_disable_chan(p->chan);
         return;
     }
 
@@ -565,7 +572,10 @@ void port_step(PortData* p) {
                 p->state = port_begin_cmd(p);
             }
         } else if (p->state == PORT_READ_ARG) {
-            if (p->arg_len == 0) invalid();
+            if (p->arg_len == 0) {
+                bridge_disable_chan(p->chan);
+                return;
+            }
             p->arg[p->arg_pos++] = p->cmd_buf[p->cmd_pos++];
             p->arg_len--;
 
@@ -598,7 +608,8 @@ void port_dma_rx_completion(PortData* p) {
         p->state = (p->arg[0] == 0 ? EXEC_DONE : EXEC_CONTINUE);
         port_step(p);
     } else {
-        invalid();
+        bridge_disable_chan(p->chan);
+        return;
     }
 }
 
@@ -607,7 +618,8 @@ void port_dma_tx_completion(PortData* p) {
         p->state = (p->arg[0] == 0 ? EXEC_DONE : EXEC_CONTINUE);
         port_step(p);
     } else {
-        invalid();
+        bridge_disable_chan(p->chan);
+        return;
     }
 }
 
@@ -642,10 +654,12 @@ void bridge_handle_sercom_uart_i2c(PortData* p) {
             p->state = (p->arg[0] == 0 ? EXEC_DONE : EXEC_CONTINUE);
             port_step(p);
         } else {
-            invalid();
+            bridge_disable_chan(p->chan);
+            return;
         }
     } else {
-        invalid();
+        bridge_disable_chan(p->chan);
+        return;
     }
 }
 
@@ -666,7 +680,8 @@ void port_handle_extint(PortData *p, u32 flags) {
         }
         EIC->INTFLAG.reg = p->port->pin_interrupts & flags;
     } else {
-        invalid();
+        bridge_disable_chan(p->chan);
+        return;
     }
 
     port_step(p);

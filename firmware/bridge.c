@@ -220,3 +220,14 @@ void bridge_start_out(u8 channel, u8* data) {
     out_chan_ready |= (1<<channel);
     pin_high(PIN_BRIDGE_IRQ);
 }
+
+void bridge_enable_chan(u8 channel) {
+    out_chan_ready |= (0x10<<channel);
+    pin_high(PIN_BRIDGE_IRQ);
+}
+
+void bridge_disable_chan(u8 channel) {
+    out_chan_ready &= ~(0x11<<channel); // Also clears the "ready to accept data" bit
+    in_chan_size[channel] = 0; // Clears any data that was waiting to be sent
+    pin_high(PIN_BRIDGE_IRQ);
+}

@@ -22,6 +22,8 @@ void usbpipe_init() {
 
     bridge_start_out(BRIDGE_USB, pipe_buffer_soc_to_pc);
     pipe_state_soc_to_pc  = PIPE_WAIT_FOR_BRIDGE;
+
+    bridge_enable_chan(BRIDGE_USB); // Tells SPI Daemon to start USB Daemon
 }
 
 void usbpipe_disable() {
@@ -29,6 +31,7 @@ void usbpipe_disable() {
     usb_disable_ep(USB_EP_PIPE_OUT);
     pipe_state_pc_to_soc = PIPE_DISABLE;
     pipe_state_soc_to_pc = PIPE_DISABLE;
+    bridge_disable_chan(BRIDGE_USB); // Tells SPI Daemon to close USB Daemon
 }
 
 // Received from USB, send to bridge
