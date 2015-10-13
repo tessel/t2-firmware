@@ -18,7 +18,7 @@ var util = require('util');
 var EventEmitter = require('events').EventEmitter;
 // var Duplex = require('stream').Duplex;
 var net = require('net');
-// var fs = require('fs');
+var fs = require('fs');
 
 function FakeSocket() {
   this.ref = function() {};
@@ -28,8 +28,10 @@ util.inherits(FakeSocket, EventEmitter);
 
 exports['Tessel'] = {
   setUp: function(done) {
-    this.LED = sandbox.stub(Tessel, 'LED');
+    this.LED = sandbox.spy(Tessel, 'LED');
     this.Port = sandbox.stub(Tessel, 'Port');
+    this.fsWrite = sandbox.stub(fs, 'writeFile');
+
     this.tessel = new Tessel();
     done();
   },
@@ -77,6 +79,25 @@ exports['Tessel'] = {
     test.done();
   },
 
+  ledsLazyInitialization: function(test) {
+    test.expect(3);
+    test.equal(this.LED.callCount, 0);
+    // Trigger a [[Get]]
+    test.equal(this.tessel.led[0] instanceof Tessel.LED, true);
+    test.equal(this.LED.callCount, 1);
+    test.done();
+  },
+
+  ledsLazyInitializedAndOff: function(test) {
+    test.expect(5);
+    test.equal(this.tessel.led[0].value, 0);
+    test.equal(this.fsWrite.callCount, 1);
+    test.equal(this.fsWrite.lastCall.args[0], '/sys/devices/leds/leds/tessel:red:error/brightness');
+    test.equal(this.fsWrite.lastCall.args[1], '0');
+    test.equal(this.LED.callCount, 1);
+    test.done();
+  },
+
   fourLEDsInitialized: function(test) {
     test.expect(9);
     test.equal(this.tessel.led[0] instanceof Tessel.LED, true);
@@ -106,6 +127,126 @@ exports['Tessel'] = {
     test.done();
   },
 };
+
+
+exports['Tessel.LED'] = {
+  setUp: function(done) {
+    this.LED = sandbox.spy(Tessel, 'LED');
+    this.Port = sandbox.stub(Tessel, 'Port');
+    this.fsWrite = sandbox.stub(fs, 'writeFile');
+    this.tessel = new Tessel();
+    done();
+  },
+
+  tearDown: function(done) {
+    Tessel.instance = null;
+    sandbox.restore();
+    done();
+  },
+
+  high: function(test) {
+    test.expect(2);
+
+    this.tessel.led[0].high();
+
+    test.equal(this.tessel.led[0].value, '1');
+    test.equal(this.fsWrite.lastCall.args[1], '1');
+    test.done();
+  },
+
+  on: function(test) {
+    test.expect(3);
+    test.equal(this.tessel.led[0].on(), this.tessel.led[0]);
+    test.equal(this.tessel.led[0].value, '1');
+    test.equal(this.fsWrite.lastCall.args[1], '1');
+    test.done();
+  },
+
+  low: function(test) {
+    test.expect(2);
+
+    this.tessel.led[0].low();
+
+    test.equal(this.tessel.led[0].value, '0');
+    test.equal(this.fsWrite.lastCall.args[1], '0');
+    test.done();
+  },
+
+  off: function(test) {
+    test.expect(3);
+    test.equal(this.tessel.led[0].off(), this.tessel.led[0]);
+    test.equal(this.tessel.led[0].value, '0');
+    test.equal(this.fsWrite.lastCall.args[1], '0');
+    test.done();
+  },
+
+  outputIsTheSameAsWrite: function(test) {
+    test.expect(1);
+    test.equal(Tessel.LED.prototype.output, Tessel.LED.prototype.write);
+    test.done();
+  },
+
+  writeUpdatesTheValue: function(test) {
+    test.expect(2);
+
+    test.equal(this.tessel.led[0].value, '0');
+    this.tessel.led[0].write(1);
+    test.equal(this.tessel.led[0].value, '1');
+
+    test.done();
+  },
+};
+
+exports['Tessel.LEDs (collection operations)'] = {
+  setUp: function(done) {
+    this.LED = sandbox.spy(Tessel, 'LED');
+    this.LEDs = sandbox.spy(Tessel, 'LEDs');
+    this.Port = sandbox.stub(Tessel, 'Port');
+    this.fsWrite = sandbox.stub(fs, 'writeFile');
+
+    this.on = sandbox.spy(Tessel.LED.prototype, 'on');
+    this.off = sandbox.spy(Tessel.LED.prototype, 'off');
+    this.toggle = sandbox.spy(Tessel.LED.prototype, 'toggle');
+
+    this.tessel = new Tessel();
+    done();
+  },
+
+  tearDown: function(done) {
+    Tessel.instance = null;
+    sandbox.restore();
+    done();
+  },
+
+  alias: function(test) {
+    test.expect(1);
+    test.equal(this.tessel.led, this.tessel.leds);
+    test.done();
+  },
+
+  on: function(test) {
+    test.expect(2);
+    test.equal(this.tessel.leds.on(), this.tessel.leds);
+    test.equal(this.on.callCount, 4);
+    test.done();
+  },
+
+  off: function(test) {
+    test.expect(2);
+    test.equal(this.tessel.leds.off(), this.tessel.leds);
+    test.equal(this.off.callCount, 4);
+    test.done();
+  },
+
+  toggle: function(test) {
+    test.expect(2);
+    test.equal(this.tessel.leds.toggle(), this.tessel.leds);
+    test.equal(this.toggle.callCount, 4);
+    test.done();
+  },
+
+};
+
 
 exports['Tessel.Port'] = {
   setUp: function(done) {

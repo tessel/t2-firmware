@@ -50,12 +50,21 @@ function Tessel(options) {
 
   this.port = this.ports;
 
-  this.led = [
-    new Tessel.LED('red', '/sys/devices/leds/leds/tessel:red:error/brightness'),
-    new Tessel.LED('amber', '/sys/devices/leds/leds/tessel:amber:wlan/brightness'),
-    new Tessel.LED('green', '/sys/devices/leds/leds/tessel:green:user1/brightness'),
-    new Tessel.LED('blue', '/sys/devices/leds/leds/tessel:blue:user2/brightness')
-  ];
+  this.led = new Tessel.LEDs([{
+    color: 'red',
+    type: 'error'
+  }, {
+    color: 'amber',
+    type: 'wlan'
+  }, {
+    color: 'green',
+    type: 'user1'
+  }, {
+    color: 'blue',
+    type: 'user2'
+  }, ]);
+
+  this.leds = this.led;
 
   // tessel v1 does not have this version number
   // this is useful for libraries to adapt to changes
@@ -813,10 +822,76 @@ var REPLY = {
 //   CPOL: 1,
 //   CPHA: 2
 // };
+//
+var prefix = '/sys/devices/leds/leds/tessel:';
+var suffix = '/brightness';
+
+Tessel.LEDs = function(defs) {
+  var descriptors = {};
+  var leds = [];
+
+  defs.forEach(function(definition, index) {
+    var name = definition.color + ':' + definition.type;
+    var path = prefix + name + suffix;
+    var color = definition.color;
+    descriptors[index] = {
+      get: function() {
+        // On first access of any built-
+        // in LED...
+        if (leds[index] === undefined) {
+          // The LED object must be initialized
+          leds[index] = new Tessel.LED(color, path);
+          // And set to 0
+          leds[index].low();
+        }
+        return leds[index];
+      }
+    };
+  }, this);
+
+  descriptors.length = {
+    value: defs.length
+  };
+
+  Object.defineProperties(this, descriptors);
+};
+
+['on', 'off', 'toggle'].forEach(function(operation) {
+  Tessel.LEDs.prototype[operation] = function() {
+    for (var i = 0; i < this.length; i++) {
+      this[i][operation]();
+    }
+
+    return this;
+  };
+});
 
 Tessel.LED = function(color, path) {
-  this.color = color;
-  this._path = path;
+  var state = {
+    color: color,
+    path: path,
+    value: 0,
+  };
+
+  // Define data properties that enforce
+  // write privileges.
+  Object.defineProperties(this, {
+    color: {
+      value: state.color
+    },
+    path: {
+      value: state.path
+    },
+    value: {
+      get: function() {
+        return state.value;
+      },
+      set: function(value) {
+        // Treat any truthiness as "high"
+        state.value = value ? 1 : 0;
+      }
+    }
+  });
 };
 
 Tessel.LED.prototype.high = function(callback) {
@@ -827,53 +902,37 @@ Tessel.LED.prototype.low = function(callback) {
   this.write(false, callback);
 };
 
-Tessel.LED.prototype.output = function(value, callback) {
-  this.write(value, callback);
+Tessel.LED.prototype.on = function() {
+  this.write(1);
+  return this;
+};
+
+Tessel.LED.prototype.off = function() {
+  this.write(0);
+  return this;
 };
 
 Tessel.LED.prototype.toggle = function(callback) {
-  function cb(err, value) {
-    if (typeof callback === 'function') {
-      callback(err, value);
-    } else if (err) {
-      throw err;
-    }
-  }
-
-  var self = this;
-  self.read(function(err, value) {
-    if (err) {
-      return cb(err);
-    }
-
-    self.write(!value, cb);
-  });
+  this.write(this.value ? 0 : 1, callback);
 };
 
 Tessel.LED.prototype.write = function(value, callback) {
-  fs.writeFile(this._path, value ? '1' : '0', callback);
-};
-
-Tessel.LED.prototype.read = function(callback) {
-  function cb(err, value) {
-    if (typeof callback === 'function') {
-      callback(err, value);
-    } else if (err) {
-      throw err;
-    }
+  if (typeof callback !== 'function') {
+    callback = function() {};
   }
 
-  fs.readFile(this._path, function(err, value) {
-    if (err) {
-      return cb(err);
-    }
+  this.value = value;
 
-    var n = Number(value.toString().trim());
-    if (0 <= n && n <= 255) {
-      return cb(null, n > 0);
-    }
+  fs.writeFile(this.path, String(this.value), callback);
+};
 
-    cb(new Error('Invalid state returned by LED: ' + value));
+// Define backward compatibility alias
+Tessel.LED.prototype.output = Tessel.LED.prototype.write;
+
+Tessel.LED.prototype.read = function(callback) {
+  var value = this.value;
+  setImmediate(function() {
+    callback(null, value);
   });
 };
 
