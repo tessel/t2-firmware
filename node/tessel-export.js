@@ -890,6 +890,11 @@ Tessel.LED = function(color, path) {
         // Treat any truthiness as "high"
         state.value = value ? 1 : 0;
       }
+    },
+    isOn: {
+      get: function() {
+        return state.value === 1;
+      }
     }
   });
 };
