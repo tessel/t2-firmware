@@ -180,6 +180,21 @@ exports['Tessel.LED'] = {
     test.done();
   },
 
+  isOn: function(test) {
+    test.expect(3);
+
+    test.equal(this.tessel.led[0].isOn, false);
+
+    this.tessel.led[0].on();
+
+    test.equal(this.tessel.led[0].isOn, true);
+
+    test.throws(function() {
+      this.tessel.led[0].isOn = false;
+    });
+    test.done();
+  },
+
   outputIsTheSameAsWrite: function(test) {
     test.expect(1);
     test.equal(Tessel.LED.prototype.output, Tessel.LED.prototype.write);
