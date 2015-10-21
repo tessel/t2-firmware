@@ -345,57 +345,58 @@ Tessel.Port.prototype._status_cmd = function(buf, cb) {
 };
 
 Tessel.Port.prototype._tx = function(buf, cb) {
-  var offset = 0,
-    chunk;
-
-  if (buf.length === 0) {
-    throw new RangeError('Buffer size must be non-zero');
-  }
-
   this.cork();
-
-  // The protocol only supports <256 byte transfers, chunk if buf is bigger
-  while (offset < buf.length) {
-    chunk = buf.slice(offset, offset + 255);
-
-    this.sock.write(new Buffer([CMD.TX, chunk.length]));
-    this.sock.write(chunk);
-
-    offset += 255;
-  }
-
+  this._chunkTransfer(CMD.TX, buf);
   this.sync(cb);
   this.uncork();
 };
 
 Tessel.Port.prototype._rx = function(len, cb) {
-  if (len === 0 || len > 255) {
-    throw new RangeError('Buffer size must be within 1-255');
-  }
-
-  this.sock.write(new Buffer([CMD.RX, len]));
-  this.enqueue({
-    size: len,
-    callback: cb,
-  });
-};
-
-Tessel.Port.prototype._txrx = function(buf, cb) {
-  var len = buf.length;
-
-  if (len === 0 || len > 255) {
-    throw new RangeError('Buffer size must be within 1-255');
-  }
-
   this.cork();
-  this.sock.write(new Buffer([CMD.TXRX, len]));
-  this.sock.write(buf);
+  this._chunkTransfer(CMD.RX, buf);
   this.enqueue({
-    size: len,
+    size: buf.length,
     callback: cb,
   });
   this.uncork();
 };
+
+Tessel.Port.prototype._txrx = function(buf, cb) {
+  this.cork();
+  this._chunkTransfer(CMD.TXRX, buf);
+  this.enqueue({
+    size: buf.length,
+    callback: cb,
+  });
+  this.uncork();
+};
+
+Tessel.Port.prototype._chunkTransfer = function(cmd, buf) {
+  var offset = 0,
+    chunk;
+
+  // Ensure the buffer is actually a Buffer
+  if (!Buffer.isBuffer(buf)) {
+    throw new TypeError('Can only transfer buffers');
+  }
+
+  // Ensure the buffer length is greater than zero
+  if (buf.length === 0) {
+    throw new RangeError('Buffer size must be non-zero');
+  }
+
+   // The protocol only supports <256 byte transfers, chunk if buf is bigger
+  while (offset < buf.length) {
+    // Cut off the current offset up to 255 bytes or the end
+    chunk = buf.slice(offset, offset + 255);
+    // Write the transfer header
+    this.sock.write(new Buffer([cmd, chunk.length]));
+    // Write the chunk contents
+    this.sock.write(chunk);
+    // Increment our offset
+    offset += 255;
+  }
+}
 
 Tessel.Port.PATH = {
   'A': '/var/run/tessel/port_a',
