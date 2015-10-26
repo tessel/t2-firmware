@@ -49,6 +49,8 @@
 #define GCLK_PORT_A 3
 #define GCLK_PORT_B 4
 
+extern volatile bool booted;
+
 // flash.c
 
 void flash_init();
