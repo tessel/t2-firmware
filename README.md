@@ -111,14 +111,11 @@ make
 ```
 
 ### Updating
-`dfu-util` is a command line utility to update the firmware on T2. See [their website](http://dfu-util.sourceforge.net/) for installation instructions (`brew install dfu-util` works). Plug the USB port your T2 into your computer while holding down the button by the Tessel 2 logo - this will put T2 into bootloader mode, with the power LED blinking. Then (after running through the build steps above!) run `dfu-util -l` to make sure T2 is detected:
-```
-➜  dfu-util --list
-...
-Found DFU: [1209:7551] ver=0002, devnum=13, cfg=1, intf=0, alt=1, name="SRAM", serial="UNKNOWN"
-Found DFU: [1209:7551] ver=0002, devnum=13, cfg=1, intf=0, alt=0, name="Flash", serial="UNKNOWN"
-```
-Note the vendor id and product id within the brackets (`1209:7551` in this case). You'll need to substitute those numbers in the command below to flash the device:
+`dfu-util` is a command line utility to update the firmware on T2. See [their website](http://dfu-util.sourceforge.net/) for installation instructions (`brew install dfu-util` works).
+
+Plug the USB port your T2 into your computer while holding down the button by the Tessel 2 logo - this will put T2 into bootloader mode, with the power LED blinking.
+
+Now flash the device:
 ```
 ➜  dfu-util -aFlash -d 1209:7551 -D build/firmware.bin
 ...
