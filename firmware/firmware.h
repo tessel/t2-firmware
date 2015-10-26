@@ -3,8 +3,6 @@
 #include "common/hw.h"
 #include "samd/usb_samd.h"
 
-extern volatile bool booted;
-
 /// DMA allocation. Channels 0-3 support EVSYS and are reserved for
 /// functions that need it
 #define DMA_TERMINAL_RX 0
@@ -50,6 +48,8 @@ extern volatile bool booted;
 #define GCLK_32K    2
 #define GCLK_PORT_A 3
 #define GCLK_PORT_B 4
+
+extern volatile bool booted;
 
 // flash.c
 

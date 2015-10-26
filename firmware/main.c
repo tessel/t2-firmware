@@ -125,7 +125,6 @@ int main(void) {
     dac_init(GCLK_32K);
 
     bridge_init();
-    usbpipe_init();
 
     port_init(&port_a, 1, &PORT_A, GCLK_PORT_A,
         TCC_PORT_A, DMA_PORT_A_TX, DMA_PORT_A_RX);

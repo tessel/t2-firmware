@@ -390,7 +390,7 @@ void usb_cb_completion(void) {
 			usb_ep_handled(USB_EP_FLASH_IN);
 		}
 	} else if (altsetting == ALTSETTING_PIPE) {
-		if (booted && usb_ep_pending(USB_EP_PIPE_OUT)) {
+		if (usb_ep_pending(USB_EP_PIPE_OUT)) {
 			pipe_usb_out_completion();
 			usb_ep_handled(USB_EP_PIPE_OUT);
 		}
@@ -432,7 +432,7 @@ bool usb_cb_set_interface(uint16_t interface, uint16_t new_altsetting) {
 
 		if (new_altsetting == ALTSETTING_FLASH){
 			flash_init();
-		} else if (new_altsetting == ALTSETTING_PIPE) {
+		} else if (booted && new_altsetting == ALTSETTING_PIPE) {
 			usbpipe_init();
 		}
 
