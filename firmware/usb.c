@@ -390,7 +390,7 @@ void usb_cb_completion(void) {
 			usb_ep_handled(USB_EP_FLASH_IN);
 		}
 	} else if (altsetting == ALTSETTING_PIPE) {
-		if (usb_ep_pending(USB_EP_PIPE_OUT)) {
+		if (booted && usb_ep_pending(USB_EP_PIPE_OUT)) {
 			pipe_usb_out_completion();
 			usb_ep_handled(USB_EP_PIPE_OUT);
 		}
