@@ -425,7 +425,7 @@ Tessel.Pin.prototype.removeListener = function(event, listener) {
   // If it's an interrupt event, remove as necessary
   var emitter = Tessel.Pin.super_.prototype.removeListener.call(this, event, listener);
 
-  if (event === this.interruptMode && EventEmitter.listenerCount(this, event)) {
+  if (event === this.interruptMode && this.listenerCount(event) === 0) {
     this._setInterruptMode(null);
   }
 
