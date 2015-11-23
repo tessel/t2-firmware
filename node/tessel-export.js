@@ -249,7 +249,7 @@ Tessel.Port = function(name, socketPath, board) {
 
   this.pwm = [];
 
-  this.I2C = function I2C(address, mode) {
+  this.I2C = function I2CInit(address, mode) {
     return new Tessel.I2C({
       addr: address,
       mode: mode,
@@ -259,20 +259,26 @@ Tessel.Port = function(name, socketPath, board) {
 
   this.I2C.enabled = false;
 
-  this.SPI = function(format) {
-    if (!port._spi) {
-      port._spi = new Tessel.SPI(format === null ? {} : format, port);
+  this.SPI = function SPIInit(format) {
+    if (port._spi) {
+      port._spi.disable();
     }
+
+    port._spi = new Tessel.SPI(format === null ? {} : format, port);
+
     return port._spi;
   };
 
-  this.UART = function(format) {
-    if (!port._uart) {
-      port._uart = new Tessel.UART(port, format || {});
-      // Grab a reference to this socket so it doesn't close
-      // if we're waiting for UART data
-      port.ref();
+  this.UART = function UARTInit(format) {
+    if (port._uart) {
+      port._uart.disable();
     }
+
+    port._uart = new Tessel.UART(port, format || {});
+    // Grab a reference to this socket so it doesn't close
+    // if we're waiting for UART data
+    port.ref();
+
     return port._uart;
   };
 };
@@ -608,6 +614,7 @@ Tessel.I2C = function(params) {
   // Send the ENABLE_I2C command when the first I2C device is instantiated
   if (!this._port.I2C.enabled) {
     this._port._simple_cmd([CMD.ENABLE_I2C, this._baud]);
+    // Note that this bus is enabled now
     this._port.I2C.enabled = true;
   }
 };
@@ -671,27 +678,27 @@ Tessel.SPI = function(params, port) {
    *  with a max clock divisor of 255, slowest clock is 368Hz unless we switch from 48MHz xtal to 32KHz xtal
    */
   // default is 2MHz
-  params.clockSpeed = params.clockSpeed ? params.clockSpeed : 2e6;
+  this.clockSpeed = params.clockSpeed ? params.clockSpeed : 2e6;
 
   // if speed is slower than 93750 then we need a clock divisor
-  if (params.clockSpeed > 24e6 || params.clockSpeed < 368) {
+  if (this.clockSpeed > 24e6 || this.clockSpeed < 368) {
     throw new Error('SPI Clock needs to be between 24e6 and 368Hz.');
   }
 
-  this.clockReg = Math.floor(48e6 / (2 * params.clockSpeed) - 1);
+  this._clockReg = Math.floor(48e6 / (2 * this.clockSpeed) - 1);
 
   // find the smallest clock divider such that clockReg is <=255
-  if (this.clockReg > 255) {
+  if (this._clockReg > 255) {
     // find the clock divider, make sure its at least 1
-    this._clockDiv = Math.floor(48e6 / (params.clockSpeed * (2 * 255 + 2))) || 1;
+    this._clockDiv = Math.floor(48e6 / (this.clockSpeed * (2 * 255 + 2))) || 1;
 
     // if the speed is still too low, set the clock divider to max and set baud accordingly
     if (this._clockDiv > 255) {
-      this.clockReg = Math.floor(this.clockReg / 255) || 1;
+      this._clockReg = Math.floor(this._clockReg / 255) || 1;
       this._clockDiv = 255;
     } else {
       // if we can set a clock divider <255, max out clockReg
-      this.clockReg = 255;
+      this._clockReg = 255;
     }
   } else {
     this._clockDiv = 1;
@@ -705,7 +712,7 @@ Tessel.SPI = function(params, port) {
   this.cpol = params.cpol === 'high' || params.cpol === 1 ? 1 : 0;
   this.cpha = params.cpha === 'second' || params.cpha === 1 ? 1 : 0;
 
-  this._port._simple_cmd([CMD.ENABLE_SPI, this.cpol + (this.cpha << 1), this.clockReg, this._clockDiv]);
+  this._port._simple_cmd([CMD.ENABLE_SPI, this.cpol + (this.cpha << 1), this._clockReg, this._clockDiv]);
 };
 
 Tessel.SPI.prototype.send = function(data, callback) {
@@ -716,8 +723,11 @@ Tessel.SPI.prototype.send = function(data, callback) {
   this._port.uncork();
 };
 
-Tessel.SPI.prototype.deinit = function() {
+Tessel.SPI.prototype.disable = function() {
+  // Tell the coprocessor to disable this interface
   this._port._simple_cmd([CMD.CMD_DISABLE_SPI]);
+  // Unreference the previous SPI object
+  this._port._spi = undefined;
 };
 
 Tessel.SPI.prototype.receive = function(data_len, callback) {
@@ -754,15 +764,13 @@ Tessel.UART = function(port, options) {
 
   // split _baud up into two bytes & send
   this._port._simple_cmd([CMD.ENABLE_UART, this._baud >> 8, this._baud & 0xFF]);
-
-  this.enabled = true;
 };
 
 util.inherits(Tessel.UART, Duplex);
 
 Tessel.UART.prototype._write = function(chunk, encoding, cb) {
   // throw an error if not enabled
-  if (!this.enabled) {
+  if (!this._port._uart) {
     throw new Error('UART is not enabled on this port');
   }
   this._port._tx(chunk, cb);
@@ -771,10 +779,13 @@ Tessel.UART.prototype._write = function(chunk, encoding, cb) {
 Tessel.UART.prototype._read = function() {};
 
 Tessel.UART.prototype.disable = function() {
+  // Tell the coprocessor to disable this interface
   this._port._simple_cmd([CMD.DISABLE_UART, 0, 0]);
-  this.enabled = false;
   // Unreference this socket if there are no more items waiting on it
+  // Specifically because it is asynchronous
   this._port.unref();
+  // Unreference the previous uart object
+  this._port._uart = undefined;
 };
 
 var CMD = {
