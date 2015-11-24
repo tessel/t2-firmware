@@ -248,7 +248,7 @@ uint16_t usb_cb_get_descriptor(uint8_t type, uint8_t index, const uint8_t** ptr)
 					address = &language_string;
 					break;
 				case 0x01:
-					address = usb_string_to_descriptor("Technical Machine");
+					address = usb_string_to_descriptor("Tessel");
 					break;
 				case 0x02:
 					address = usb_string_to_descriptor("Tessel 2");
