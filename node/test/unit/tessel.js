@@ -1468,3 +1468,151 @@ exports['Tessel.I2C.computeBaud'] = {
     test.done();
   },
 };
+
+exports['Tessel.UART'] = {
+  setUp: function(done) {
+    this.socket = new FakeSocket();
+
+    this.createConnection = sandbox.stub(net, 'createConnection', function() {
+      this.socket.cork = sandbox.spy();
+      this.socket.uncork = sandbox.spy();
+      this.socket.write = sandbox.spy();
+      return this.socket;
+    }.bind(this));
+
+    this.tessel = new Tessel();
+
+    this.cork = sandbox.stub(Tessel.Port.prototype, 'cork');
+    this.uncork = sandbox.stub(Tessel.Port.prototype, 'uncork');
+    this._tx = sandbox.stub(Tessel.Port.prototype, '_tx');
+    this._rx = sandbox.stub(Tessel.Port.prototype, '_rx');
+    this._simple_cmd = sandbox.stub(Tessel.Port.prototype, '_simple_cmd');
+
+    this.port = new Tessel.Port('foo', '/foo/bar/baz', this.tessel);
+
+    this.uartDisable = sandbox.spy(Tessel.UART.prototype, 'disable');
+
+    done();
+  },
+
+  tearDown: function(done) {
+    Tessel.instance = null;
+    sandbox.restore();
+    done();
+  },
+
+  interfaceChange: function(test) {
+    test.expect(3);
+
+    var b1 = 9600;
+    var b2 = 115200;
+
+    var uart = new this.port.UART({
+      baudrate: b1
+    });
+
+    test.equal(uart._baudrate, b1);
+
+    uart = new this.port.UART({
+      baudrate: b2
+    });
+
+    test.ok(this.uartDisable.calledOnce, true);
+
+    test.equal(uart._baudrate, b2);
+
+    test.done();
+  },
+
+  oneUARTAtATime: function(test) {
+    test.expect(4);
+
+    var u1 = new this.port.UART();
+
+    var u2 = new this.port.UART();
+
+    test.notStrictEqual(u1, u2);
+
+    test.notStrictEqual(this.port._uart, u1);
+
+    test.strictEqual(this.port._uart, u2);
+
+    test.ok(this.uartDisable.calledOnce, true);
+
+    test.done();
+  }
+};
+
+exports['Tessel.SPI'] = {
+  setUp: function(done) {
+    this.socket = new FakeSocket();
+
+    this.createConnection = sandbox.stub(net, 'createConnection', function() {
+      this.socket.cork = sandbox.spy();
+      this.socket.uncork = sandbox.spy();
+      this.socket.write = sandbox.spy();
+      return this.socket;
+    }.bind(this));
+
+    this.tessel = new Tessel();
+
+    this.cork = sandbox.stub(Tessel.Port.prototype, 'cork');
+    this.uncork = sandbox.stub(Tessel.Port.prototype, 'uncork');
+    this._tx = sandbox.stub(Tessel.Port.prototype, '_tx');
+    this._rx = sandbox.stub(Tessel.Port.prototype, '_rx');
+    this._simple_cmd = sandbox.stub(Tessel.Port.prototype, '_simple_cmd');
+
+    this.port = new Tessel.Port('foo', '/foo/bar/baz', this.tessel);
+
+    this.spiDisable = sandbox.spy(Tessel.SPI.prototype, 'disable');
+
+    done();
+  },
+
+  tearDown: function(done) {
+    Tessel.instance = null;
+    sandbox.restore();
+    done();
+  },
+
+  interfaceChange: function(test) {
+    test.expect(3);
+
+    var s1 = 1e6;
+    var s2 = 1e4;
+
+    var spi = new this.port.SPI({
+      clockSpeed: s1
+    });
+
+    test.equal(spi.clockSpeed, s1);
+
+    spi = new this.port.SPI({
+      clockSpeed: s2
+    });
+
+    test.ok(this.spiDisable.calledOnce, true);
+
+    test.equal(spi.clockSpeed, s2);
+
+    test.done();
+  },
+
+  oneSPIAtATime: function(test) {
+    test.expect(4);
+
+    var s1 = new this.port.SPI();
+
+    var s2 = new this.port.SPI();
+
+    test.notStrictEqual(s1, s2);
+
+    test.notStrictEqual(this.port._spi, s1);
+
+    test.strictEqual(this.port._spi, s2);
+
+    test.ok(this.spiDisable.calledOnce, true);
+
+    test.done();
+  }
+};
