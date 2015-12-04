@@ -42,7 +42,7 @@ enum Commands {
     CMD_CLOSE_STDERR = 0x33,
 };
 
-#define debug(args...)  syslog(LOG_INFO, args)
+#define debug(args...)
 #define info(args...)   syslog(LOG_INFO, args)
 #define error(args...)  syslog(LOG_ERR, args)
 #define fatal(args...) ({ \
@@ -66,7 +66,7 @@ struct epoll_event spid_event;
 // Static array for those events to be stored
 struct epoll_event events[MAX_EPOLL_EVENTS];
 
-#define PIPE_BUF 4096
+#define INTERNAL_PIPE_BUF_SIZE 32768
 #define MAX_CTRL_ARGS 255
 #define MAX_WRITE_LEN 255
 
@@ -109,7 +109,7 @@ typedef struct {
     // The number of 'active' bytes
     int bufcount;
     // The internal buffer used for back pressure
-    char buffer[PIPE_BUF];
+    char buffer[INTERNAL_PIPE_BUF_SIZE];
 } pipebuf_t;
 
 typedef struct {
@@ -252,9 +252,9 @@ int write_from_pipebuf(pipebuf_t *pb, int fd, int write_len) {
         to_write = write_len;
 
         // If the data would go past the end of the buffer
-        if (pb->startpos + to_write > PIPE_BUF) {
+        if (pb->startpos + to_write > INTERNAL_PIPE_BUF_SIZE) {
             // Only write until the end of the buffer
-            to_write = PIPE_BUF - pb->startpos;
+            to_write = INTERNAL_PIPE_BUF_SIZE - pb->startpos;
         }
 
         // Write this batch to the file descriptor from the internal buffer
@@ -266,7 +266,7 @@ int write_from_pipebuf(pipebuf_t *pb, int fd, int write_len) {
         pb->bufcount -= written;
 
         // If the start position marker is at the buffer end
-        if (pb->startpos == PIPE_BUF) {
+        if (pb->startpos == INTERNAL_PIPE_BUF_SIZE) {
             // Set it at the start of the buffer for the next read
             pb->startpos = 0;
         }
@@ -421,9 +421,9 @@ int pipebuf_in_write_to_sock(pipebuf_t* pb, size_t num_to_write) {
         int remaining = num_to_write - written;
         int packet_write_size = (remaining < MAX_WRITE_LEN) ? remaining : MAX_WRITE_LEN;
         // Send the header so the CLI knows it's about to receive data
-        send_header(CMD_WRITE_CONTROL + pb->role, pb->id, 0, packet_write_size);
+        send_header(CMD_WRITE_CONTROL + pb->role, pb->id, packet_write_size >> 8, packet_write_size & 0xFF);
         // Send the data and increment the counter of the number of bytes written
-        pipebuf_common_debug(pb, "WRiting from stdout/stderr internal to CLI");
+        pipebuf_common_debug(pb, "Writing from stdout/stderr internal to CLI");
         debug("{%d bytes}", packet_write_size);
         written += write_from_pipebuf(pb, sock_fd, packet_write_size);
     }
@@ -459,7 +459,7 @@ void pipebuf_in_ack(pipebuf_t* pb, size_t ack_number_size) {
 
     // If this pipe buffer was previously full
     // But will now be able to send out data
-    if (pb->bufcount == PIPE_BUF && ack_size > 0) {
+    if (pb->bufcount == INTERNAL_PIPE_BUF_SIZE && ack_size > 0) {
         // Enable notifications of when the internal pipe buffer is written to
         add_pipebuf_epoll(pb);
     }
@@ -492,7 +492,7 @@ void pipebuf_in_to_internal_buffer(pipebuf_t* pb) {
     else to read */
     int r = 0;
     int try_to_read = 0;
-    int space_available = PIPE_BUF - pb->bufcount;
+    int space_available = INTERNAL_PIPE_BUF_SIZE - pb->bufcount;
     pipebuf_common_debug(pb, "stdout/stderr has data from child to be read");
     // While we have space in the pipe buffer
     while (space_available) {
@@ -500,9 +500,9 @@ void pipebuf_in_to_internal_buffer(pipebuf_t* pb) {
         try_to_read = space_available;
 
         // If the space extends past the pipe buffer end
-        if (pb->endpos + try_to_read > PIPE_BUF) {
+        if (pb->endpos + try_to_read > INTERNAL_PIPE_BUF_SIZE) {
             // Set this read to only read up to the end
-            try_to_read = PIPE_BUF - pb->endpos;
+            try_to_read = INTERNAL_PIPE_BUF_SIZE - pb->endpos;
         }
 
         pipebuf_common_debug(pb, "Attempting to write from stdout/stderr child to internal");
@@ -524,7 +524,7 @@ void pipebuf_in_to_internal_buffer(pipebuf_t* pb) {
             pb->endpos += r;
 
              // If the start position marker is at the buffer end
-            if (pb->endpos == PIPE_BUF) {
+            if (pb->endpos == INTERNAL_PIPE_BUF_SIZE) {
                 // Set it at the start of the buffer for the next read
                 pb->endpos = 0;
             }
@@ -555,7 +555,7 @@ void pipebuf_in_to_internal_buffer(pipebuf_t* pb) {
     }
 
     // If the pipe buffer is full
-    if (pb->bufcount == PIPE_BUF) {
+    if (pb->bufcount == INTERNAL_PIPE_BUF_SIZE) {
         // remove it from the epoll
         delete_pipebuf_epoll(pb);
     }
@@ -576,9 +576,9 @@ Returns: the file descriptor to communicate with the stream
 int pipebuf_out_init(pipebuf_t* pb, int id, int role) {
     int fd =  pipebuf_common_init(pb, id, role, EPOLLOUT, 1);
 
-    pipebuf_out_ack(pb, PIPE_BUF);
+    pipebuf_out_ack(pb, INTERNAL_PIPE_BUF_SIZE);
 
-    pb->credit = PIPE_BUF;
+    pb->credit = INTERNAL_PIPE_BUF_SIZE;
 
     return fd;
 }
@@ -621,9 +621,9 @@ void pipebuf_out_to_internal_buffer(pipebuf_t* pb, int read_len) {
         to_read = read_len;
 
         // If this read would read further than the end of the ring buffer
-        if (pb->endpos + read_len > PIPE_BUF) {
+        if (pb->endpos + read_len > INTERNAL_PIPE_BUF_SIZE) {
             // Only read until the end of the ring buffer
-            to_read = PIPE_BUF - pb->endpos;
+            to_read = INTERNAL_PIPE_BUF_SIZE - pb->endpos;
         }
 
         // Read from the socket into the buffer
@@ -645,7 +645,7 @@ void pipebuf_out_to_internal_buffer(pipebuf_t* pb, int read_len) {
         pb->endpos += to_read;
 
         // If the end position marker is at the buffer end
-        if (pb->endpos == PIPE_BUF) {
+        if (pb->endpos == INTERNAL_PIPE_BUF_SIZE) {
             // Set it at the start of the buffer for the next read
             pb->endpos = 0;
         }
@@ -855,12 +855,12 @@ void handle_socket_readable() {
 
         case CMD_WRITE_CONTROL:
             debug("CMD: Write to CTRL buf of process with id %d", id);
-            pipebuf_out_to_internal_buffer(&p->ctrl, header[3]);
+            pipebuf_out_to_internal_buffer(&p->ctrl, header[3] | (header[2] << 8));
             break;
 
         case CMD_WRITE_STDIN:
             debug("CMD: Write to STDIN buf of process with id %d", id);
-            pipebuf_out_to_internal_buffer(&p->stdin, header[3]);
+            pipebuf_out_to_internal_buffer(&p->stdin, header[3] | (header[2] << 8));
             break;
 
         case CMD_ACK_STDOUT:
