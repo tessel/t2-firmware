@@ -518,42 +518,64 @@ int main(int argc, char** argv) {
 
         for (int chan=0; chan<N_CHANNEL; chan++) {
             int size = channels[chan].out_length;
+            // If the coprocessor is ready to receive, and we have data to send
             if (rx_buf[1] & (1<<chan) && size > 0) {
+                debug("coprocessor is ready to receive and we have %d bytes from channel %d", size, chan);
+                // Make this channel readable by others
                 CONN_POLL(chan).events |= POLLIN;
+                // Set the length to the size we need to send
                 transfer[desc].len = size;
+                // Point the output buffer to the correct place
                 transfer[desc].tx_buf = (unsigned long) &channels[chan].out_buf[0];
+                // Note that we will have no more data to send (once this is sent)
                 channels[chan].out_length = 0;
+                // Mark that we need to make a SPI transaction
                 desc++;
             }
 
+            // The number of bytes the coprocessor wants to send to a channel
             size = rx_buf[2+chan];
+            // Check that the channel is writable and there is data that needs to be received
             if (get_channel_bitmask_state(&channels_writable_bitmask, chan) && size > 0) {
+                debug("Channel %d is ready to have %d bytes written to it from bridge", chan, size);
+                // Set the appropriate size
                 transfer[desc].len = size;
+                // Point our receive buffer to the in buf of the appropriate channel
                 transfer[desc].rx_buf = (unsigned long) &channels[chan].in_buf[0];
+                // Mark that we need a SPI transaction to take place
                 desc++;
             }
         }
 
+        // If the previous logic designated the need for a SPI transaction
         if (desc != 0) {
             debug("Performing transfer on %i channels\n", desc);
 
+            // Make the SPI transaction
             int status = ioctl(spi_fd, SPI_IOC_MESSAGE(desc), transfer);
 
+            // Ensure there were no errors
             if (status < 0) {
               fatal("SPI_IOC_MESSAGE: data: %s", strerror(errno));
             }
 
             // Write received data to the appropriate socket
             for (int chan=0; chan<N_CHANNEL; chan++) {
+                // Get the length of the received data for this channel
                 int size = rx_buf[2+chan];
+                // Make sure that channel is writable and we have data to send to it
                 if (get_channel_bitmask_state(&channels_writable_bitmask, chan) && size > 0) {
+                    // Write this data to the pipe
                     int r = write(CONN_POLL(chan).fd, &channels[chan].in_buf[0], size);
                     debug("%i: Write %u %i\n", chan, size, r);
+                    // Ensure there were no errors
                     if (r < 0) {
                         error("Error in write %i: %s\n", chan, strerror(errno));
                     }
 
+                    // Mark we want to know when this pipe is writable again
                     CONN_POLL(chan).events |= POLLOUT;
+                    // Set the state to not writable
                     set_channel_bitmask_state(&channels_writable_bitmask, chan, false);
                 }
             }
