@@ -139,13 +139,13 @@ int main(int argc, char **argv) {
   // Static array for those events to be stored
   struct epoll_event events[num_events];
   // Create an event for when the usb unix domain socket is readable/writable
-  struct epoll_event evt;
+  struct epoll_event listener_event;
   // Set the data pointer to point to the callback function
-  evt.data.fd = listener_fd;
+  listener_event.data.fd = listener_fd;
   // We want to know when it is readable and when data comes in
-  evt.events = EPOLLIN;
+  listener_event.events = EPOLLIN;
   // Add the socket file descriptor to our epoll fd
-  int r = epoll_ctl(epfd, EPOLL_CTL_ADD, listener_fd, &evt);
+  int r = epoll_ctl(epfd, EPOLL_CTL_ADD, listener_fd, &listener_event);
 
   if (r < 0) {
       fatal("Could not add listening socket to event poll: %s", strerror(errno));
@@ -178,15 +178,22 @@ int main(int argc, char **argv) {
           debug("Descriptor is %d", sock_fd);
 
           // Create an event for when the usb unix domain socket is readable/writable
-          struct epoll_event evt;
+          struct epoll_event socket_event;
           // Set the data pointer to point to the callback function
-          evt.data.fd = sock_fd;
+          socket_event.data.fd = sock_fd;
           // We want to know when it is readable and when data comes in
-          evt.events = EPOLLIN | EPOLLERR | EPOLLHUP;
+          socket_event.events = EPOLLIN | EPOLLERR | EPOLLHUP;
           // Add the socket file descriptor to our epoll fd
-          int r = epoll_ctl(epfd, EPOLL_CTL_ADD, sock_fd, &evt);
+          int r = epoll_ctl(epfd, EPOLL_CTL_ADD, sock_fd, &socket_event);
           if (r < 0) {
               fatal("Could not add domain socket to event poll: %s", strerror(errno));
+          }
+
+          // Remove events about new socket connections
+          r = epoll_ctl(epfd, EPOLL_CTL_DEL, listener_fd, &listener_event);
+
+          if (r < 0) {
+            fatal("Could not remove listening socket from event poll: %s", strerror(errno));
           }
         }
       }
@@ -196,6 +203,14 @@ int main(int argc, char **argv) {
         {
           debug("Socket was closed remotely!");
           handle_socket_closed();
+
+          // Start listening for new sockets
+          int r = epoll_ctl(epfd, EPOLL_CTL_ADD, listener_fd, &listener_event);
+
+          if (r < 0) {
+              fatal("Could not add listening socket to event poll: %s", strerror(errno));
+          }
+          debug("Listening for new sockets...");
         }
         else if (events[i].events & EPOLLIN) {        
           debug("We have a readable socket!");
