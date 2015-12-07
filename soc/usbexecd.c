@@ -42,7 +42,7 @@ enum Commands {
     CMD_CLOSE_STDERR = 0x33,
 };
 
-#define debug(args...)
+#define debug(args...)  syslog(LOG_INFO, args)
 #define info(args...)   syslog(LOG_INFO, args)
 #define error(args...)  syslog(LOG_ERR, args)
 #define fatal(args...) ({ \
@@ -1143,6 +1143,7 @@ int main(int argc, char** argv) {
 
     // Start up a listening socket with a path provided by the user
     initialize_listening_socket(argv[1]);
+
 
     // Create the signal mask for the SIGCHILD and add to epoll
     initialize_sigchild_events();
