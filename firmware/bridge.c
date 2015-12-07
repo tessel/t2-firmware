@@ -111,6 +111,9 @@ void bridge_handle_sync() {
             return;
         }
 
+        // Set this flag so the LED boot sequence stops
+        booted = true;
+
         u8 desc = 0;
 
         // Create DMA chain

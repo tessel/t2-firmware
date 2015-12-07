@@ -95,8 +95,11 @@ void gpio_edge(const char* gpio, const char* mode) {
     close(fd);
 }
 
+// IRQ pin pollfd (when coprocessor has async data)
 #define GPIO_POLL fds[0]
+// connected domain socket pollfds
 #define CONN_POLL(n) fds[1 + n]
+// listening domain socket pollfds
 #define SOCK_POLL(n) fds[1 + N_CHANNEL + n]
 #define N_POLLFDS (N_CHANNEL * 2 + 1)
 struct pollfd fds[N_POLLFDS];
@@ -170,12 +173,22 @@ void close_channel_connection(uint8_t channel) {
     CONN_POLL(channel).fd = -1;
     // Clear the outgoing data
     channels[channel].out_length = 0;
-    // Re-enable events on a new connection
-    SOCK_POLL(channel).events = POLLIN;
+    // Re-enable events on a new connection if it's still enabled
+    if (get_channel_bitmask_state(&channels_enabled_bitmask, channel)) {
+        SOCK_POLL(channel).events = POLLIN;
+    }
     // Set the channel open status to false
     set_channel_bitmask_state(&channels_opened_bitmask, channel, false);
     // Set the writability to false
     set_channel_bitmask_state(&channels_writable_bitmask, channel, false);
+}
+
+void disable_listening_socket(uint8_t channel) {
+    SOCK_POLL(channel).events = 0;
+}
+
+void enable_listening_socket(uint8_t channel) {
+    SOCK_POLL(channel).events = POLLIN;
 }
 
 /*
@@ -205,7 +218,7 @@ void manage_channel_active_status(uint8_t *rx_buf) {
         else if (new_status == STATUS_TRUE) {
             debug("\nChannel has been enabled!\n");
             // We should start listening for connect events
-            SOCK_POLL(i).events = POLLIN;
+            enable_listening_socket(i);
             // Set the status as open
             set_channel_bitmask_state(&channels_enabled_bitmask, i, true);
         }
@@ -214,6 +227,8 @@ void manage_channel_active_status(uint8_t *rx_buf) {
             debug("\nChannel has been disabled!\n");
             // Close the socket and mark the channel closed
             close_channel_connection(i);
+            // Disable the listening socket
+            disable_listening_socket(i);
             // Mark the channel as disabled
             set_channel_bitmask_state(&channels_enabled_bitmask, i, false);
             // Stop listening for events
@@ -274,7 +289,8 @@ int main(int argc, char** argv) {
         }
 
         SOCK_POLL(i).fd = fd;
-        SOCK_POLL(i).events = POLLIN;
+        // The first time the coprocessor enables, it will be set to POLLIN
+        SOCK_POLL(i).events = 0;
         CONN_POLL(i).fd = -1;
     }
 
