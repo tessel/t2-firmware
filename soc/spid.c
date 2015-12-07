@@ -25,6 +25,8 @@
 #define STATUS_BYTE 0x01
 #define STATUS_BIT 0x10
 
+#define USBD_CHANNEL 0
+
 #define debug(args...)
 #define info(args...)   syslog(LOG_INFO, args)
 #define error(args...)  syslog(LOG_ERR, args)
@@ -103,7 +105,8 @@ void gpio_edge(const char* gpio, const char* mode) {
 #define SOCK_POLL(n) fds[1 + N_CHANNEL + n]
 #define N_POLLFDS (N_CHANNEL * 2 + 1)
 struct pollfd fds[N_POLLFDS];
-
+int usbd_sock_fd;
+struct sockaddr_un usbd_sock_addr;
 void delay() {
     volatile int i = 1000;
     while(i--);
@@ -174,7 +177,7 @@ void close_channel_connection(uint8_t channel) {
     // Clear the outgoing data
     channels[channel].out_length = 0;
     // Re-enable events on a new connection if it's still enabled
-    if (get_channel_bitmask_state(&channels_enabled_bitmask, channel)) {
+    if (get_channel_bitmask_state(&channels_enabled_bitmask, channel) && channel != USBD_CHANNEL) {
         SOCK_POLL(channel).events = POLLIN;
     }
     // Set the channel open status to false
@@ -189,6 +192,29 @@ void disable_listening_socket(uint8_t channel) {
 
 void enable_listening_socket(uint8_t channel) {
     SOCK_POLL(channel).events = POLLIN;
+}
+
+void enable_usb_daemon_socket() {
+
+    // Create a new socket
+    int fd = socket(usbd_sock_addr.sun_family, SOCK_STREAM, 0);
+    // Check for errors
+    if (fd < 0) {
+        fatal("Error creating socket %s: %s\n", usbd_sock_addr.sun_path, strerror(errno));
+    }
+
+    CONN_POLL(USBD_CHANNEL).fd = fd;
+
+    // Connect to the USB Daemon
+    if (connect(CONN_POLL(USBD_CHANNEL).fd, (struct sockaddr *)&usbd_sock_addr, sizeof(usbd_sock_addr)) == -1) {
+        fatal("Error connecting to USB Daemon socket %s: %s\n", usbd_sock_addr.sun_path, strerror(errno));
+    }
+
+    // Set the bits of the events we want to listen to
+    CONN_POLL(USBD_CHANNEL).events = POLLIN | POLLOUT | POLLERR;
+
+    // Mark the channel as opened
+    set_channel_bitmask_state(&channels_opened_bitmask, USBD_CHANNEL, true);
 }
 
 /*
@@ -218,8 +244,13 @@ void manage_channel_active_status(uint8_t *rx_buf) {
         else if (new_status == STATUS_TRUE) {
             debug("\nChannel has been enabled!\n");
             // We should start listening for connect events
-            enable_listening_socket(i);
-            // Set the status as open
+            if (i == USBD_CHANNEL) {
+                enable_usb_daemon_socket();
+            }
+            else {
+                enable_listening_socket(i);
+            }
+            // Set the status as enabled
             set_channel_bitmask_state(&channels_enabled_bitmask, i, true);
         }
         // If the new status disables the channel
@@ -228,11 +259,19 @@ void manage_channel_active_status(uint8_t *rx_buf) {
             // Close the socket and mark the channel closed
             close_channel_connection(i);
             // Disable the listening socket
-            disable_listening_socket(i);
+            if (i != USBD_CHANNEL) {
+                // Turn off the listening socket
+                disable_listening_socket(i);
+                // Stop listening for events on the socket listener
+                SOCK_POLL(i).events = 0;
+            }
+            else {
+                // Stop listening for events on usbd socket
+                CONN_POLL(i).events = 0;
+            }
+
             // Mark the channel as disabled
             set_channel_bitmask_state(&channels_enabled_bitmask, i, false);
-            // Stop listening for events
-            SOCK_POLL(i).events = 0;
         }
     }
 }
@@ -271,27 +310,50 @@ int main(int argc, char** argv) {
 
     // Create the listening unix domain sockets
     for (int i = 0; i<N_CHANNEL; i++) {
-        struct sockaddr_un addr;
-        addr.sun_family = AF_UNIX;
-        snprintf(addr.sun_path, sizeof(addr.sun_path), "%s/%d", argv[4], i);
-        unlink(addr.sun_path);
-        int fd = socket(AF_UNIX, SOCK_STREAM, 0);
-        if (fd < 0) {
-            fatal("Error creating socket %s: %s\n", addr.sun_path, strerror(errno));
-        }
 
-        if (bind(fd, (struct sockaddr *) &addr, sizeof(addr)) == -1) {
-            fatal("Error binding socket %s: %s\n", addr.sun_path, strerror(errno));
-        }
+        // If this is not the USB Daemon channel
+        if (i != USBD_CHANNEL) {
+            // Create a struct to store socket info
+            struct sockaddr_un addr;
+            // Use UNIX family sockets
+            addr.sun_family = AF_UNIX;
+            // Copy the path of the socket into the struct
+            snprintf(addr.sun_path, sizeof(addr.sun_path), "%s/%d", argv[4], i);
+            // Create the socket
+            int fd = socket(addr.sun_family, SOCK_STREAM, 0);
+            // Check for errors
+            if (fd < 0) {
+                fatal("Error creating socket %s: %s\n", addr.sun_path, strerror(errno));
+            }
+            // Delete any previous paths because we'll create a new one
+            unlink(addr.sun_path);
 
-        if (listen(fd, 1) == -1) {
-            fatal("Error listening on socket %s: %s\n", addr.sun_path, strerror(errno));
-        }
+            // Bind to that socket address
+            if (bind(fd, (struct sockaddr *) &addr, sizeof(addr)) == -1) {
+                fatal("Error binding socket %s: %s\n", addr.sun_path, strerror(errno));
+            }
 
-        SOCK_POLL(i).fd = fd;
-        // The first time the coprocessor enables, it will be set to POLLIN
-        SOCK_POLL(i).events = 0;
-        CONN_POLL(i).fd = -1;
+            // Start listening for new connections
+            if (listen(fd, 1) == -1) {
+                fatal("Error listening on socket %s: %s\n", addr.sun_path, strerror(errno));
+            }
+
+            // Save the file descriptor of the listening socket
+            SOCK_POLL(i).fd = fd;
+            // The first time the coprocessor enables, it will be set to POLLIN
+            SOCK_POLL(i).events = 0;
+        }
+        // If this is the USB Daemon channel
+        else {
+            // Set the family of our global addr struct
+            usbd_sock_addr.sun_family = AF_UNIX;
+            // Copy the addr info into a global
+            snprintf(usbd_sock_addr.sun_path, sizeof(usbd_sock_addr.sun_path), "%s/%s", argv[4], "usb");
+            // We will create a socket fd when the channel is enabled
+            CONN_POLL(i).fd = -1;
+            // We will try to connect once the channel is enabled
+            CONN_POLL(i).events = 0;
+        }
     }
 
     channels_writable_bitmask = 0;
@@ -314,7 +376,7 @@ int main(int argc, char** argv) {
         for (int i=0; i<N_POLLFDS; i++) {
             debug("%x ", fds[i].events);
         }
-        debug("- %x %x %x \n", POLLIN, POLLOUT, POLLERR);
+        debug("- %x %x %x %x %x \n", POLLIN, POLLOUT, POLLERR, POLLHUP, POLLRDHUP);
 
         for (int i=0; i<N_POLLFDS; i++) {
             debug("%x ", fds[i].revents);
@@ -340,6 +402,12 @@ int main(int argc, char** argv) {
 
         // Check for new connections on unconnected sockets
         for (int i=0; i<N_CHANNEL; i++) {
+            // The USB Daemon channel is a client so we wont have new connection events
+            if (i == USBD_CHANNEL) {
+                // Just continue
+                continue;
+            }
+
             if (SOCK_POLL(i).revents & POLLIN) {
                 int fd = accept(SOCK_POLL(i).fd, NULL, 0);
                 if (fd == -1) {
