@@ -49,6 +49,8 @@ enum Commands {
     syslog (LOG_CRIT, args); \
     exit(1); \
 })
+// The maximum number of new events to be processed in one iteration
+#define MAX_EPOLL_EVENTS 16
 
 int listener_fd  = -1;
 int sock_fd      = -1;
@@ -60,6 +62,9 @@ struct epoll_event listener_event;
 
 struct sockaddr_un spid_addr;
 struct epoll_event spid_event;
+
+// Static array for those events to be stored
+struct epoll_event events[MAX_EPOLL_EVENTS];
 
 #define PIPE_BUF 4096
 #define MAX_CTRL_ARGS 255
@@ -1031,6 +1036,17 @@ void initialize_listening_socket(char *argv_path) {
         // Fail and report an error if necessary
         fatal("Error listening on socket %s: %s\n", listener_addr.sun_path, strerror(errno));
     }
+
+    // Set the event file descriptor to the listening socket file descriptor
+    listener_event.data.fd = listener_fd;
+    // We want to know when it is readable
+    listener_event.events = EPOLLIN;
+    // Add the socket file descriptor to our epoll fd
+    int r = epoll_ctl(ep_fd, EPOLL_CTL_ADD, listener_fd, &listener_event);
+
+    if (r < 0) {
+        fatal("Could not add listening socket to event poll: %s", strerror(errno));
+    }
 }
 
 /*
@@ -1118,9 +1134,6 @@ int main(int argc, char** argv) {
 
     debug("Starting...");
 
-    // Start up a listening socket with a path provided by the user
-    initialize_listening_socket(argv[1]);
-
     // Register an event listener with the kernel
     // First argument to epoll_create must be non-zero (doesn't mean anything else)
     ep_fd = epoll_create(1);
@@ -1128,29 +1141,16 @@ int main(int argc, char** argv) {
         fatal("Error creating epoll: %s\n", strerror(errno));
     }
 
-    // The number of events we can register between polling the event descriptor
-    const int num_events = 16;
-    // Static array for those events to be stored
-    struct epoll_event events[num_events];
-
-    // Set the event file descriptor to the listening socket file descriptor
-    listener_event.data.fd = listener_fd;
-    // We want to know when it is readable
-    listener_event.events = EPOLLIN;
-    // Add the socket file descriptor to our epoll fd
-    int r = epoll_ctl(ep_fd, EPOLL_CTL_ADD, listener_fd, &listener_event);
-
-    if (r < 0) {
-        fatal("Could not add listening socket to event poll: %s", strerror(errno));
-    }
+    // Start up a listening socket with a path provided by the user
+    initialize_listening_socket(argv[1]);
 
     // Create the signal mask for the SIGCHILD and add to epoll
     initialize_sigchild_events();
 
     while (1) {
         // Wait for at least one event to happen (indefinitely)
-        int nfds = epoll_wait(ep_fd, events, num_events, -1);
-        debug("Received some events~ %d", nfds);
+        int nfds = epoll_wait(ep_fd, events, MAX_EPOLL_EVENTS, -1);
+
         if (nfds < 0 && errno != EINTR) {
             fatal("epoll error: %s\n", strerror(errno));
         }
