@@ -134,6 +134,7 @@ int write_from_pipebuf(pipebuf_t *pb, int fd, int len);
 void pipebuf_out_to_internal_buffer(pipebuf_t* pb, int len);
 void pipebuf_out_is_writable(pipebuf_t* pb);
 void pipebuf_common_debug(pipebuf_t *pb, const char * str);
+void handle_closed_spid_socket();
 
 /* Helper function to write a packet header to the domain socket
 Param: cmd - which command in the Commands enum to send
@@ -446,7 +447,8 @@ void pipebuf_in_ack(pipebuf_t* pb, size_t ack_number_size) {
     // If the socket was closed prematurely
     if (sock_closed == -1) {
         // Return back to the event loop
-        fatal("Remote socket closed in the middle of sending ACK length bytes");
+        debug("Remote socket closed in the middle of sending ACK length bytes");
+        return handle_closed_spid_socket();
     }
 
     int ack_size = 0;
@@ -633,7 +635,8 @@ void pipebuf_out_to_internal_buffer(pipebuf_t* pb, int read_len) {
 
         // If the socket closes, abort
         if (sock_closed == -1) {
-            fatal("Socket connection closed in the middle of ctrl/stdin transmission");
+            debug("Socket connection closed in the middle of ctrl/stdin transmission");
+            return handle_closed_spid_socket();
         }
 
         // Add the number read into the buf count
