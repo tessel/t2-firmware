@@ -181,8 +181,6 @@ void bridge_dma_rx_completion() {
         #define CHECK_CLOSE(x) \
             if (!(ctrl_rx.status & (0x10<<x)) && (was_open & (0x10<<x))) { \
                 bridge_close_##x(ctrl_rx.size[x]); \
-                out_chan_ready &= ~ (1<<x); \
-                in_chan_size[x] = 0; \
             }
 
         CHECK_OPEN(0)
