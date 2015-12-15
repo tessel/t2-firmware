@@ -1,5 +1,5 @@
 #include "firmware.h"
-#define OUT_RING_SIZE 8
+#define OUT_RING_SIZE 10
 #define PACKET_SIZE 64
 u8 out_ring_buf[OUT_RING_SIZE][PACKET_SIZE];
 volatile u8 out_ring_count = 0; // Number of packets in the ring buffer
