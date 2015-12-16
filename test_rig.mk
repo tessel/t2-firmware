@@ -12,5 +12,5 @@ $(TARGET)_SRC += \
   test_rig/pins.c \
   test_rig/button.c \
 
-$(TARGET)_DEFINE += -D __SAMD21J18A__
+$(TARGET)_DEFINE += -D __SAMD21G18A__
 $(TARGET)_LDSCRIPT = common/samd21g18a_firmware_partition.ld
