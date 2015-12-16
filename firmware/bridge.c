@@ -111,6 +111,9 @@ void bridge_handle_sync() {
             return;
         }
 
+        // Set this flag so the LED boot sequence stops
+        booted = true;
+
         u8 desc = 0;
 
         // Create DMA chain
@@ -178,8 +181,6 @@ void bridge_dma_rx_completion() {
         #define CHECK_CLOSE(x) \
             if (!(ctrl_rx.status & (0x10<<x)) && (was_open & (0x10<<x))) { \
                 bridge_close_##x(ctrl_rx.size[x]); \
-                out_chan_ready &= ~ (1<<x); \
-                in_chan_size[x] = 0; \
             }
 
         CHECK_OPEN(0)
@@ -218,5 +219,16 @@ void bridge_start_in(u8 channel, u8* data, u8 length) {
 void bridge_start_out(u8 channel, u8* data) {
     out_chan_ptr[channel] = data;
     out_chan_ready |= (1<<channel);
+    pin_high(PIN_BRIDGE_IRQ);
+}
+
+void bridge_enable_chan(u8 channel) {
+    out_chan_ready |= (0x10<<channel);
+    pin_high(PIN_BRIDGE_IRQ);
+}
+
+void bridge_disable_chan(u8 channel) {
+    out_chan_ready &= ~(0x11<<channel); // Also clears the "ready to accept data" bit
+    in_chan_size[channel] = 0; // Clears any data that was waiting to be sent
     pin_high(PIN_BRIDGE_IRQ);
 }

@@ -75,6 +75,8 @@ void bridge_dma_rx_completion();
 
 void bridge_start_in(u8 channel, u8* data, u8 length);
 void bridge_start_out(u8 channel, u8* data);
+void bridge_enable_chan(u8 channel);
+void bridge_disable_chan(u8 channel);
 
 void bridge_completion_in_0();
 void bridge_completion_in_1();

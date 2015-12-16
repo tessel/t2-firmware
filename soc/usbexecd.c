@@ -49,12 +49,24 @@ enum Commands {
     syslog (LOG_CRIT, args); \
     exit(1); \
 })
+// The maximum number of new events to be processed in one iteration
+#define MAX_EPOLL_EVENTS 16
 
-int sock = 0;
-int epfd   = 0;
-int sigfd  = 0;
+int listener_fd  = -1;
+int sock_fd      = -1;
+int ep_fd        = -1;
+int sig_fd       = -1;
 
-#define PIPE_BUF 4096
+struct sockaddr_un listener_addr;
+struct epoll_event listener_event;
+
+struct sockaddr_un spid_addr;
+struct epoll_event spid_event;
+
+// Static array for those events to be stored
+struct epoll_event events[MAX_EPOLL_EVENTS];
+
+#define INTERNAL_PIPE_BUF_SIZE 32768
 #define MAX_CTRL_ARGS 255
 #define MAX_WRITE_LEN 255
 
@@ -97,7 +109,7 @@ typedef struct {
     // The number of 'active' bytes
     int bufcount;
     // The internal buffer used for back pressure
-    char buffer[PIPE_BUF];
+    char buffer[INTERNAL_PIPE_BUF_SIZE];
 } pipebuf_t;
 
 typedef struct {
@@ -122,6 +134,7 @@ int write_from_pipebuf(pipebuf_t *pb, int fd, int len);
 void pipebuf_out_to_internal_buffer(pipebuf_t* pb, int len);
 void pipebuf_out_is_writable(pipebuf_t* pb);
 void pipebuf_common_debug(pipebuf_t *pb, const char * str);
+void handle_closed_spid_socket();
 
 /* Helper function to write a packet header to the domain socket
 Param: cmd - which command in the Commands enum to send
@@ -130,13 +143,16 @@ Param: arg - an argument for the command (like ACK)
 Param len - the length of the data being sent following this packet
 */
 void send_header(uint8_t cmd, uint8_t id, uint8_t arg, uint8_t len) {
-    // Create the packet
-    uint8_t buf[4] = {cmd, id, arg, len};
-    // Write the packet to the socket
-    int r = write(sock, buf, sizeof(buf));
-    // Ensure it wrote all of the bytes
-    if (r != sizeof(buf)) {
-        fatal("send_header failed: %s", strerror(errno));
+    // If the socket is still active
+    if (sock_fd > -1) {
+        // Create the packet
+        uint8_t buf[4] = {cmd, id, arg, len};
+        // Write the packet to the socket
+        int r = write(sock_fd, buf, sizeof(buf));
+        // Ensure it wrote all of the bytes
+        if (r != sizeof(buf)) {
+            fatal("send_header failed: %s", strerror(errno));
+        }
     }
 }
 
@@ -236,9 +252,9 @@ int write_from_pipebuf(pipebuf_t *pb, int fd, int write_len) {
         to_write = write_len;
 
         // If the data would go past the end of the buffer
-        if (pb->startpos + to_write > PIPE_BUF) {
+        if (pb->startpos + to_write > INTERNAL_PIPE_BUF_SIZE) {
             // Only write until the end of the buffer
-            to_write = PIPE_BUF - pb->startpos;
+            to_write = INTERNAL_PIPE_BUF_SIZE - pb->startpos;
         }
 
         // Write this batch to the file descriptor from the internal buffer
@@ -250,7 +266,7 @@ int write_from_pipebuf(pipebuf_t *pb, int fd, int write_len) {
         pb->bufcount -= written;
 
         // If the start position marker is at the buffer end
-        if (pb->startpos == PIPE_BUF) {
+        if (pb->startpos == INTERNAL_PIPE_BUF_SIZE) {
             // Set it at the start of the buffer for the next read
             pb->startpos = 0;
         }
@@ -275,7 +291,7 @@ void modify_pipebuf_epoll(pipebuf_t* pb, int operation) {
     evt.events = pb->events;
 
     // Register the event
-    int r = epoll_ctl(epfd, operation, pb->fd, &evt);
+    int r = epoll_ctl(ep_fd, operation, pb->fd, &evt);
     // Verify it worked
     if (r < 0) {
         fatal("epoll_ctl failed: %s", strerror(errno));
@@ -405,11 +421,11 @@ int pipebuf_in_write_to_sock(pipebuf_t* pb, size_t num_to_write) {
         int remaining = num_to_write - written;
         int packet_write_size = (remaining < MAX_WRITE_LEN) ? remaining : MAX_WRITE_LEN;
         // Send the header so the CLI knows it's about to receive data
-        send_header(CMD_WRITE_CONTROL + pb->role, pb->id, 0, packet_write_size);
+        send_header(CMD_WRITE_CONTROL + pb->role, pb->id, packet_write_size >> 8, packet_write_size & 0xFF);
         // Send the data and increment the counter of the number of bytes written
-        pipebuf_common_debug(pb, "WRiting from stdout/stderr internal to CLI");
+        pipebuf_common_debug(pb, "Writing from stdout/stderr internal to CLI");
         debug("{%d bytes}", packet_write_size);
-        written += write_from_pipebuf(pb, sock, packet_write_size);
+        written += write_from_pipebuf(pb, sock_fd, packet_write_size);
     }
 
     debug("{%d in total}", written);
@@ -427,11 +443,12 @@ Param: ack_number_size - the number of credits to add to the stream
 void pipebuf_in_ack(pipebuf_t* pb, size_t ack_number_size) {
 
     uint8_t ack_size_bytes[ack_number_size];
-    int sock_closed = read_until(sock, ack_size_bytes, ack_number_size);
+    int sock_closed = read_until(sock_fd, ack_size_bytes, ack_number_size);
     // If the socket was closed prematurely
     if (sock_closed == -1) {
         // Return back to the event loop
-        fatal("Remote socket closed in the middle of sending ACK length bytes");
+        debug("Remote socket closed in the middle of sending ACK length bytes");
+        return handle_closed_spid_socket();
     }
 
     int ack_size = 0;
@@ -442,7 +459,7 @@ void pipebuf_in_ack(pipebuf_t* pb, size_t ack_number_size) {
 
     // If this pipe buffer was previously full
     // But will now be able to send out data
-    if (pb->bufcount == PIPE_BUF && ack_size > 0) {
+    if (pb->bufcount == INTERNAL_PIPE_BUF_SIZE && ack_size > 0) {
         // Enable notifications of when the internal pipe buffer is written to
         add_pipebuf_epoll(pb);
     }
@@ -475,7 +492,7 @@ void pipebuf_in_to_internal_buffer(pipebuf_t* pb) {
     else to read */
     int r = 0;
     int try_to_read = 0;
-    int space_available = PIPE_BUF - pb->bufcount;
+    int space_available = INTERNAL_PIPE_BUF_SIZE - pb->bufcount;
     pipebuf_common_debug(pb, "stdout/stderr has data from child to be read");
     // While we have space in the pipe buffer
     while (space_available) {
@@ -483,9 +500,9 @@ void pipebuf_in_to_internal_buffer(pipebuf_t* pb) {
         try_to_read = space_available;
 
         // If the space extends past the pipe buffer end
-        if (pb->endpos + try_to_read > PIPE_BUF) {
+        if (pb->endpos + try_to_read > INTERNAL_PIPE_BUF_SIZE) {
             // Set this read to only read up to the end
-            try_to_read = PIPE_BUF - pb->endpos;
+            try_to_read = INTERNAL_PIPE_BUF_SIZE - pb->endpos;
         }
 
         pipebuf_common_debug(pb, "Attempting to write from stdout/stderr child to internal");
@@ -507,7 +524,7 @@ void pipebuf_in_to_internal_buffer(pipebuf_t* pb) {
             pb->endpos += r;
 
              // If the start position marker is at the buffer end
-            if (pb->endpos == PIPE_BUF) {
+            if (pb->endpos == INTERNAL_PIPE_BUF_SIZE) {
                 // Set it at the start of the buffer for the next read
                 pb->endpos = 0;
             }
@@ -538,7 +555,7 @@ void pipebuf_in_to_internal_buffer(pipebuf_t* pb) {
     }
 
     // If the pipe buffer is full
-    if (pb->bufcount == PIPE_BUF) {
+    if (pb->bufcount == INTERNAL_PIPE_BUF_SIZE) {
         // remove it from the epoll
         delete_pipebuf_epoll(pb);
     }
@@ -559,9 +576,9 @@ Returns: the file descriptor to communicate with the stream
 int pipebuf_out_init(pipebuf_t* pb, int id, int role) {
     int fd =  pipebuf_common_init(pb, id, role, EPOLLOUT, 1);
 
-    pipebuf_out_ack(pb, PIPE_BUF);
+    pipebuf_out_ack(pb, INTERNAL_PIPE_BUF_SIZE);
 
-    pb->credit = PIPE_BUF;
+    pb->credit = INTERNAL_PIPE_BUF_SIZE;
 
     return fd;
 }
@@ -604,9 +621,9 @@ void pipebuf_out_to_internal_buffer(pipebuf_t* pb, int read_len) {
         to_read = read_len;
 
         // If this read would read further than the end of the ring buffer
-        if (pb->endpos + read_len > PIPE_BUF) {
+        if (pb->endpos + read_len > INTERNAL_PIPE_BUF_SIZE) {
             // Only read until the end of the ring buffer
-            to_read = PIPE_BUF - pb->endpos;
+            to_read = INTERNAL_PIPE_BUF_SIZE - pb->endpos;
         }
 
         // Read from the socket into the buffer
@@ -614,11 +631,12 @@ void pipebuf_out_to_internal_buffer(pipebuf_t* pb, int read_len) {
         debug("(%d bytes)", to_read);
 
         // Read until all of the possible bytes are filled
-        int sock_closed = read_until(sock, &(pb->buffer[pb->endpos]), to_read);
+        int sock_closed = read_until(sock_fd, &(pb->buffer[pb->endpos]), to_read);
 
         // If the socket closes, abort
         if (sock_closed == -1) {
-            fatal("Socket connection closed in the middle of ctrl/stdin transmission");
+            debug("Socket connection closed in the middle of ctrl/stdin transmission");
+            return handle_closed_spid_socket();
         }
 
         // Add the number read into the buf count
@@ -627,7 +645,7 @@ void pipebuf_out_to_internal_buffer(pipebuf_t* pb, int read_len) {
         pb->endpos += to_read;
 
         // If the end position marker is at the buffer end
-        if (pb->endpos == PIPE_BUF) {
+        if (pb->endpos == INTERNAL_PIPE_BUF_SIZE) {
             // Set it at the start of the buffer for the next read
             pb->endpos = 0;
         }
@@ -687,11 +705,32 @@ void pipebuf_out_ack(pipebuf_t* pb, size_t acksize) {
     // Then copy over the bytes from acksize
     memcpy(size_bytes, &acksize, num_size);
     // Then write this ack length to the socket 
-    int t = write(sock, size_bytes, num_size);
+    int t = write(sock_fd, size_bytes, num_size);
 
     if (t < 0) {
         fatal("Unable to write STDIN/CTRL Ack to the pipe: %s", strerror(errno));
     }
+}
+
+void close_process(procinfo_t* p) {
+
+    // If the process isn't killed yet
+    if (p->pid) {
+        // Kill it now
+        kill(p->pid, SIGKILL);
+        // Wait for it to be finished
+        waitpid(p->pid, NULL, 0);
+    }
+
+    // Close out all of the pipe buffers if they haven't been closed already
+    if ((&p->ctrl)->fd != -1) pipebuf_out_close(&p->ctrl, NO_FLUSH);
+    if ((&p->stdin)->fd != -1) pipebuf_out_close(&p->stdin, NO_FLUSH);
+    if ((&p->stdout)->fd != -1) pipebuf_in_close(&p->stdout, NO_FLUSH);
+    if ((&p->stderr)->fd != -1) pipebuf_in_close(&p->stderr, NO_FLUSH);
+    // Free the process memory
+    free(p);
+    // Reset the pointer (may not be necessary)
+    p = NULL;
 }
 
 /* 
@@ -702,7 +741,7 @@ void handle_socket_readable() {
     // Array to store incoming packet
     uint8_t header[4];
     // Block until 4 bytes are read
-    int sock_closed = read_until(sock, header, 4);
+    int sock_closed = read_until(sock_fd, header, 4);
 
     // If the remote socket is closed
     if (sock_closed) {
@@ -770,9 +809,9 @@ void handle_socket_readable() {
                 }
 
                 // Close socket and fds used by parent
-                close(sock);
-                close(epfd);
-                close(sigfd);
+                close(sock_fd);
+                close(ep_fd);
+                close(sig_fd);
 
                 // Get started on its own task
                 child(ctrl_fd, stdin_fd, stdout_fd, stderr_fd);
@@ -795,23 +834,10 @@ void handle_socket_readable() {
 
         case CMD_CLOSE:
             debug("CMD: Close a process with %d", id);
-            // If the process isn't killed yet
-            if (p->pid) {
-                // Kill it now
-                kill(p->pid, SIGKILL);
-                // Wait for it to be finished
-                waitpid(p->pid, NULL, 0);
-            }
-
-            // Close out all of the pipe buffers if they haven't been closed already
-            if ((&p->ctrl)->fd != -1) pipebuf_out_close(&p->ctrl, NO_FLUSH);
-            if ((&p->stdin)->fd != -1) pipebuf_out_close(&p->stdin, NO_FLUSH);
-            if ((&p->stdout)->fd != -1) pipebuf_in_close(&p->stdout, NO_FLUSH);
-            if ((&p->stderr)->fd != -1) pipebuf_in_close(&p->stderr, NO_FLUSH);
-            // Free the process memory
-            free(processes[id]);
-            // Reset the array entry
-            p = processes[id] = NULL;
+            // Close the process out
+            close_process(p);
+            // Update the table entry
+            processes[id] = NULL;
             // Let the sender know that the child process was successfully closed
             send_header(CMD_CLOSE_ACK, id, 255, 0);
             // Return
@@ -829,12 +855,12 @@ void handle_socket_readable() {
 
         case CMD_WRITE_CONTROL:
             debug("CMD: Write to CTRL buf of process with id %d", id);
-            pipebuf_out_to_internal_buffer(&p->ctrl, header[3]);
+            pipebuf_out_to_internal_buffer(&p->ctrl, header[3] | (header[2] << 8));
             break;
 
         case CMD_WRITE_STDIN:
             debug("CMD: Write to STDIN buf of process with id %d", id);
-            pipebuf_out_to_internal_buffer(&p->stdin, header[3]);
+            pipebuf_out_to_internal_buffer(&p->stdin, header[3] | (header[2] << 8));
             break;
 
         case CMD_ACK_STDOUT:
@@ -898,7 +924,7 @@ void handle_sigchld() {
     // Continue reading the signal file descriptor
     // Multiple signals may have been sent so we need to read
     // until no more are returned
-    while ((r = read(sigfd, &si, sizeof si))) {
+    while ((r = read(sig_fd, &si, sizeof si))) {
         // Check how many bytes were read
         if (r != sizeof(si)) {
             // If there is nore more data to read
@@ -942,9 +968,161 @@ void handle_sigchld() {
         procinfo_t* p = processes[id];
         // Set the pid to 0 so we know it is inactive
         p->pid = 0;
+
         // Send news of the death to the CLI
         send_header(CMD_EXIT_STATUS, id, code, 0);
     }
+}
+
+/*
+Close and free memory for any active processes
+*/
+void wipe_existing_processes() {
+    // Loop through all processes
+    for (int i = 0; i < N_PROC; i++) {
+        // Grab the process in the table
+        procinfo_t *p = processes[i];
+        // If it is defined
+        if (p != NULL) {
+            // Close it
+            close_process(p);
+            // Update the table
+            processes[i] = NULL;
+        }
+    }
+}
+
+/*
+In the event the spi daemon closes the socket, we
+need to close the usb daemon end and reset the fd
+*/
+void handle_socket_closed() {
+    // Remove events about new socket data
+    int r = epoll_ctl(ep_fd, EPOLL_CTL_DEL, sock_fd, &spid_event);
+    // Report any errors
+    if (r < 0) {
+        fatal("Could not remove listening socket from event poll: %s", strerror(errno));
+    }
+    // Close our end of the socket
+    close(sock_fd);
+    // Reset the fd
+    sock_fd = -1;
+}
+
+/*
+Creates a socket that listens for incoming connections
+*/
+
+void initialize_listening_socket(char *argv_path) {
+    // Set the address family to unix
+    listener_addr.sun_family = AF_UNIX;
+    // Create a new unix streaming socket
+    if ((listener_fd = socket(listener_addr.sun_family, SOCK_STREAM, 0)) == -1) {
+        // Fail and report an error if necessary
+        fatal("Error creating socket %s: %s\n", listener_addr.sun_path, strerror(errno));
+    }
+
+    // Copy the path of the domain socket to the addr struct
+    strncpy(listener_addr.sun_path, argv_path, sizeof(listener_addr.sun_path));
+
+    // Remove any previously existing path
+    unlink(listener_addr.sun_path);
+
+    // Bind that listening socket address
+    if (bind(listener_fd, (struct sockaddr *) &listener_addr, sizeof(listener_addr)) == -1) {
+        // Fail and report an error if necessary
+        fatal("Error binding socket %s: %s\n", listener_addr.sun_path, strerror(errno));
+    }
+
+    // Start listening on that socket
+    if (listen(listener_fd, 1) == -1) {
+        // Fail and report an error if necessary
+        fatal("Error listening on socket %s: %s\n", listener_addr.sun_path, strerror(errno));
+    }
+
+    // Set the event file descriptor to the listening socket file descriptor
+    listener_event.data.fd = listener_fd;
+    // We want to know when it is readable
+    listener_event.events = EPOLLIN;
+    // Add the socket file descriptor to our epoll fd
+    int r = epoll_ctl(ep_fd, EPOLL_CTL_ADD, listener_fd, &listener_event);
+
+    if (r < 0) {
+        fatal("Could not add listening socket to event poll: %s", strerror(errno));
+    }
+}
+
+/*
+Create the signal mask for the SIGCHILD and add to epoll
+*/
+void initialize_sigchild_events() {
+    // Create the signal mask for the SIGCHILD
+    sigset_t    sigmask;
+    sigemptyset (&sigmask);
+    sigaddset(&sigmask, SIGCHLD);
+
+    // Create the file descriptor that will be written to for that signal
+    sig_fd = signalfd(-1, &sigmask, SFD_NONBLOCK);
+
+    // Create an epoll event for that file descriptor
+    struct epoll_event sig_child_event;
+    sig_child_event.data.fd = sig_fd;
+    sig_child_event.events = EPOLLIN;
+    sigprocmask(SIG_BLOCK, &sigmask, NULL);
+
+    // Add the file descriptor to the epoll instance and associate it with that event
+    int r = epoll_ctl(ep_fd, EPOLL_CTL_ADD, sig_fd, &sig_child_event);
+    if (r < 0) {
+        fatal("Could not add signal fd to event poll: %s", strerror(errno));
+    }
+}
+
+/*
+Accept incoming socket connection, start listening for data, stop listening for new sockets
+*/
+
+void handle_incoming_spid_socket() {
+    // Accept the connection and set our socket fd
+    sock_fd = accept(listener_fd, NULL, NULL);
+    // Fail if we have an error
+    if (sock_fd < 0) {
+        fatal("Unable to accept socket connection...");
+    }
+    // Set the data pointer to point to the fd
+    spid_event.data.fd = sock_fd;
+    // We want to know when it is readable,when data comes in, or an closing/error event occurs
+    spid_event.events = EPOLLIN | EPOLLERR | EPOLLHUP | EPOLLRDHUP;
+    // Add the socket file descriptor to our epoll fd
+    int r = epoll_ctl(ep_fd, EPOLL_CTL_ADD, sock_fd, &spid_event);
+    // Report any errors
+    if (r < 0) {
+        fatal("Could not add domain socket to event poll: %s", strerror(errno));
+    }
+    // Remove events about new socket connections
+    r = epoll_ctl(ep_fd, EPOLL_CTL_DEL, listener_fd, &listener_event);
+    // Report any errors
+    if (r < 0) {
+        fatal("Could not remove listening socket from event poll: %s", strerror(errno));
+    }
+}
+
+/*
+Closes the socket fd, clears any processes, starts looking for new sockets
+*/
+void handle_closed_spid_socket() {
+    handle_socket_closed();
+
+    wipe_existing_processes();
+
+    // Start listening for new sockets
+    int r = epoll_ctl(ep_fd, EPOLL_CTL_ADD, listener_fd, &listener_event);
+
+    // Report any errors with the event addition
+    if (r < 0) {
+        fatal("Could not add listening socket to event poll: %s", strerror(errno));
+    }
+
+    debug("Listening for new sockets...");
 }
 
 /* Entry point. Opens a connection to the domain socket, sets up epoll and a signal file descriptor.
@@ -957,82 +1135,60 @@ int main(int argc, char** argv) {
       fatal("usage: usbexecd /var/run/tessel/usb\n");
     }
 
-    // Connect to socket
-    {
-        struct sockaddr_un addr;
-        if ((sock = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
-            fatal("Error creating socket %s: %s\n", addr.sun_path, strerror(errno));
-        }
-
-        addr.sun_family = AF_UNIX;
-        strncpy(addr.sun_path, argv[1], sizeof(addr.sun_path));
-        size_t len = strlen(addr.sun_path) + sizeof(addr.sun_family);
-
-        if (connect(sock, (struct sockaddr *)&addr, len) == -1) {
-            fatal("Error connecting to socket %s: %s\n", addr.sun_path, strerror(errno));
-        }
-    }
+    debug("Starting...");
 
     // Register an event listener with the kernel
-    epfd = epoll_create(2+16);
-    if (epfd < 0) {
+    // First argument to epoll_create must be non-zero (doesn't mean anything else)
+    ep_fd = epoll_create(1);
+    if (ep_fd < 0) {
         fatal("Error creating epoll: %s\n", strerror(errno));
     }
 
-    // The number of events we can register between polling the event descriptor
-    const int num_events = 16;
-    // Static array for those events to be stored
-    struct epoll_event events[num_events];
+    // Start up a listening socket with a path provided by the user
+    initialize_listening_socket(argv[1]);
 
-    // Create an event for when the usb unix domain socket is readable/writable
-    struct epoll_event evt;
-    // Set the data pointer to point to the callback function
-    evt.data.ptr = &handle_socket_readable;
-    // We want to know when it is readable and when data comes in
-    evt.events = EPOLLIN;
-    // Add the socket file descriptor to our epoll fd
-    int r = epoll_ctl(epfd, EPOLL_CTL_ADD, sock, &evt);
-    if (r < 0) {
-        fatal("Could not add domain socket to event poll: %s", strerror(errno));
-    }
 
-    // Create the signal mask for the SIGCHILD
-    sigset_t    sigmask;
-    sigemptyset (&sigmask);
-    sigaddset(&sigmask, SIGCHLD);
-
-    // Create the file descriptor that will be written to for that signal
-    sigfd = signalfd(-1, &sigmask, SFD_NONBLOCK);
-
-    // Create an epoll event for that file descriptor
-    struct epoll_event sig_child_event;
-    sig_child_event.data.ptr = &handle_sigchld;
-    sig_child_event.events = EPOLLIN;
-    sigprocmask(SIG_BLOCK, &sigmask, NULL);
-
-    // Add the file descriptor to the epoll instance and associate it with that event
-    r = epoll_ctl(epfd, EPOLL_CTL_ADD, sigfd, &sig_child_event);
-    if (r < 0) {
-        fatal("Could not add signal fd to event poll: %s", strerror(errno));
-    }
-
+    // Create the signal mask for the SIGCHILD and add to epoll
+    initialize_sigchild_events();
 
     while (1) {
         // Wait for at least one event to happen (indefinitely)
-        int nfds = epoll_wait(epfd, events, num_events, -1);
+        int nfds = epoll_wait(ep_fd, events, MAX_EPOLL_EVENTS, -1);
 
         if (nfds < 0 && errno != EINTR) {
             fatal("epoll error: %s\n", strerror(errno));
         }
         // For each event that occured, check what kind of event it is
         for (int i=0; i<nfds; i++) {
-            // Data from USB domain socket
-            if (events[i].data.ptr == &handle_socket_readable) {
-                // Process the packet using the protocol defined above
-                handle_socket_readable();
-            // Called when child process completes
-            } else if (events[i].data.ptr == &handle_sigchld) {
-                // Let the host know thath child died
+            // We received an event on the connection listener
+            // indicating a new connection attempt from the spi daemon
+            if (events[i].data.fd == listener_fd) {
+                // We have a new connection and no existing connection
+                if (events[i].events & EPOLLIN && sock_fd == -1) {
+                    debug("We got a connection attempt!");
+                    // Accept the connection and set our socket fd
+                    handle_incoming_spid_socket();
+                }
+            }
+            // If we have an event on the spi daemon socket
+            // and it's from the socket closing
+            else if (events[i].data.fd == sock_fd) {
+                if ((events[i].events & EPOLLERR) ||
+                  (events[i].events & EPOLLHUP) ||
+                  (events[i].events & EPOLLRDHUP))
+                {
+                    debug("Socket was closed remotely!");
+                    handle_closed_spid_socket();
+                }
+                // We have incoming data on the spi daemon socket
+                else if (events[i].events & EPOLLIN) {
+                    debug("We have a readable socket!");
+                    handle_socket_readable();
+                }
+            }
+            // One of our children died
+            else if (events[i].data.fd == sig_fd) {
+                // Let the host know that child died
                 handle_sigchld();
             // Data from child process or that they have become writable
             } else {
