@@ -49,10 +49,11 @@ exports['Tessel'] = {
   },
 
   instanceProperties: function(test) {
-    test.expect(4);
+    test.expect(5);
     test.notEqual(typeof this.tessel.ports, undefined);
     test.notEqual(typeof this.tessel.port, undefined);
     test.notEqual(typeof this.tessel.led, undefined);
+    test.notEqual(typeof this.tessel.network, undefined);
     test.notEqual(typeof this.tessel.version, undefined);
     test.done();
   },
