@@ -3,6 +3,7 @@ var EventEmitter = require('events').EventEmitter;
 var Duplex = require('stream').Duplex;
 var net = require('net');
 var fs = require('fs');
+var exec = require('child_process').exec;
 
 var defOptions = {
   ports: {
@@ -65,6 +66,10 @@ function Tessel(options) {
   }, ]);
 
   this.leds = this.led;
+
+  this.network = {
+    wifi: new Tessel.Network.Wifi()
+  };
 
   // tessel v1 does not have this version number
   // this is useful for libraries to adapt to changes
@@ -951,6 +956,107 @@ Tessel.LED.prototype.read = function(callback) {
     callback(null, value);
   });
 };
+
+Tessel.Network = {
+  Wifi: function() {
+    var state = {
+      settings: {},
+      connected: false
+    };
+
+    Object.defineProperties(this, {
+      isConnected: {
+        get: function() {
+          return !!state.connected;
+        }
+      },
+      connected: {
+        set: function(value) {
+          state.connected = value;
+        }
+      },
+      settings: {
+        get: function() {
+          return state.settings;
+        },
+        set: function(settings) {
+          util.inherits(state.settings, settings);
+        }
+      }
+    });
+  }
+};
+
+Tessel.Network.Wifi.prototype.connect = function(settings, callback) {
+  if (typeof settings !== 'object' || settings.ssid.length === 0) {
+    throw new Error('Wifi settings must be an object with at least a "ssid" property.');
+  }
+
+  if (typeof callback !== 'function') {
+    callback = function() {};
+  }
+
+  if (settings.password && !settings.security) {
+    settings.security = 'psk2';
+  }
+
+  if (!settings.password && (!settings.security || settings.security === 'none')) {
+    settings.security = 'none';
+  }
+
+  var self = this;
+  connectToNetwork(settings)
+    .then(commitWireless)
+    .then(restartWifi)
+    .then(function() {
+      self.settings = settings;
+      callback(null, self.settings);
+    })
+    .catch(function(err) {
+      callback(err);
+    });
+};
+
+function connectToNetwork(settings) {
+  var commands = [
+    'uci batch <<EOF',
+    'set wireless.@wifi-iface[0].ssid=' + settings.ssid,
+    'set wireless.@wifi-iface[0].key=' + settings.password,
+    'set wireless.@wifi-iface[0].encryption=' + settings.security,
+    'EOF'
+  ];
+
+  return new Promise(function(resolve) {
+    exec(commands.join('\n'), function(err) {
+      if (err) {
+        throw err;
+      }
+      resolve();
+    });
+  });
+}
+
+function commitWireless() {
+  return new Promise(function(resolve) {
+    exec('uci commit wireless', function(err) {
+      if (err) {
+        throw err;
+      }
+      resolve();
+    });
+  });
+}
+
+function restartWifi() {
+  return new Promise(function(resolve) {
+    exec('wifi', function(err) {
+      if (err) {
+        throw err;
+      }
+      resolve();
+    });
+  });
+}
 
 if (process.env.IS_TEST_MODE) {
   Tessel.CMD = CMD;
