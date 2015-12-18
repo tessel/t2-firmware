@@ -30,7 +30,7 @@ const static Pin PIN_SOC_RST = {.group = 0, .pin = 3};
 const static Pin PIN_18_V = {.group = 1, .pin = 3}; // pin for 1.8V line
 const static Pin PIN_SOC_PWR = {.group = 0, .pin = 27};
 
-const static Pin PIN_LED = {.group = 0, .pin = 6};
+const static Pin PIN_LED = {.group = 0, .pin = 6, .mux = MUX_PA06E_TCC1_WO0};
 const static Pin PIN_BTN = {.group = 1, .pin = 9};
 
 // Bridge - SPI to SoC and Flash

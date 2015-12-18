@@ -3,32 +3,132 @@
 PortData port_a;
 PortData port_b;
 
+// Indicates whether the SPI Daemon is listening for USB traffic
 volatile bool booted = false;
+// LED Chan: TCC1/WO[0]
+#define PWR_LED_TCC_CHAN 1
+// CC channel 0 on TCC instance 1
+#define PWR_LED_CC_CHAN 0
+// The maximum counter value was chosen to get a 2s period heartbeat
+#define MAX_COUNTER 0xFFFF
+// We have 16 slices of a sine wave
+#define NUM_POINT_SLICES 0x10
+// Number of loop iterations in a single slice
+#define COUNTS_IN_SLICE MAX_COUNTER/NUM_POINT_SLICES
+// Evenly spaced points along a sine wave, shifted up by 1, scaled by 0.5
+// multiplied by the max counter value
+const uint32_t sin_wave_points[] = {
+    32767,
+    45307,
+    55937,
+    63040,
+    65535,
+    63040,
+    55937,
+    45307,
+    32767,
+    20227,
+    9597,
+    2494,
+    0,
+    2494,
+    9597,
+    20227
+};
+// The current counter value of our timer
+volatile uint16_t counter = 0;
 
-/*** SysTick ***/
-volatile uint32_t g_msTicks;
-/*** BOOT LED ***/
-unsigned led_next_time = 0;
-
-/* SysTick IRQ handler */
-void SysTick_Handler(void) {
-    g_msTicks++;
-
-    // Boot LED Tasks
-    if (!booted && g_msTicks > led_next_time) {
-        led_next_time += 400;
-        pin_toggle(PORT_A.power);
-        pin_toggle(PORT_B.power);
-        pin_toggle(PIN_LED);
-    }
+/*
+    Reset the TCC module after breathing completes and stop interrupts
+*/
+void cancel_breathing_animation() {
+    // Disable the TCC
+    tcc(PWR_LED_TCC_CHAN)->CTRLA.reg = TCC_CTRLA_RESETVALUE;
+    // Disable Boot LED TCC IRQ in the NVIC
+    NVIC_DisableIRQ(TCC1_IRQn);
+    // Set the PWR LED to the default high state
+    pin_out(PIN_LED);
+    pin_high(PIN_LED);
 }
 
-void init_systick() {
-    if (SysTick_Config(48000000 / 1000)) {  /* Setup SysTick Timer for 1 msec interrupts  */
-        while (1) {}                                /* Capture error */
+/*
+ Linear interpolation between points in a circular pattern
+ Suggested by @kevinmehall: https://github.com/tessel/t2-firmware/pull/141#issuecomment-166160115
+*/
+uint32_t interpolate(uint32_t position) {
+  // Choose the two points points this position falls between
+  uint8_t index = (position * NUM_POINT_SLICES) / MAX_COUNTER;
+  uint8_t next_index = (index + 1) % NUM_POINT_SLICES;
+
+  // The relative position between the points, as a fraction of `MAX_COUNTER`
+  uint32_t between = (position * NUM_POINT_SLICES) % MAX_COUNTER;
+
+  // Linear interpolation
+  return ((MAX_COUNTER - between) * sin_wave_points[index] + between * sin_wave_points[next_index]) / MAX_COUNTER;
+}
+
+/*
+    Handler for the POWER LED breathing animation
+*/
+void TCC1_Handler() {
+    // booted is true when the coprocess first gets
+    // a status packet from the spi daemon
+    if (booted == true) {
+        // Stop this breathing animation and cancel interrupts
+        cancel_breathing_animation();
     }
-    NVIC_SetPriority(SysTick_IRQn, 0x0);
-    g_msTicks = 0;
+
+    // Take that proportion and extract a point along the sudo sine wave
+    tcc(PWR_LED_TCC_CHAN)->CCB[PWR_LED_CC_CHAN].bit.CCB = interpolate(++counter);
+}
+
+/*
+    Sets up the TCC module to send PWM output to the PWR LED
+*/
+void init_breathing_animation() {
+    // Setup the pin to be used as a TCC output
+    pin_mux(PIN_LED);
+    pin_dir(PIN_LED, true);
+
+    // Disable the TCC
+    tcc(PWR_LED_TCC_CHAN)->CTRLA.reg = 0;
+
+    // Reset the TCC
+    tcc(PWR_LED_TCC_CHAN)->CTRLA.reg = TCC_CTRLA_SWRST;
+
+    // Enable the timer
+    timer_clock_enable(PWR_LED_TCC_CHAN);
+
+    /* Set the prescalar setting to the highest division so we have more time
+        in between interrupts to complete the math
+    */
+    tcc(PWR_LED_TCC_CHAN)->CTRLA.bit.PRESCALER = TCC_CTRLA_PRESCALER_DIV1024_Val;
+
+    // Set the waveform generator to generate a PWM signal
+    // It uses polarity setting of 1 (switches from DIR to ~DIR)
+    tcc(PWR_LED_TCC_CHAN)->WAVE.reg = TCC_WAVE_WAVEGEN_NPWM | TCC_WAVE_POL0;
+
+    // Set the top count value (when a match will be hit and the waveform output flipped)
+    tcc(PWR_LED_TCC_CHAN)->PER.reg = MAX_COUNTER;
+
+    // Set the counter number, starting at 0% duty cycle
+    tcc(PWR_LED_TCC_CHAN)->CC[PWR_LED_CC_CHAN].reg = counter;
+
+    // Set the second CCB value value be dark for simplicity
+    tcc(PWR_LED_TCC_CHAN)->CCB[PWR_LED_CC_CHAN].bit.CCB = counter;
+
+    // Enable IRQ's in the NVIC
+    NVIC_EnableIRQ(TCC1_IRQn);
+    // Set the priority to low
+    NVIC_SetPriority(TCC1_IRQn, 0xff);
+    // Enable interrupts so we can modify the counter value (creates breathing effect)
+    tcc(PWR_LED_TCC_CHAN)->INTENSET.reg = TC_INTENSET_OVF;
+
+    // Wait for all the changes to finish loading?
+    while (tcc(PWR_LED_TCC_CHAN)->SYNCBUSY.reg > 0);
+
+    // Enable the TCC
+    tcc(PWR_LED_TCC_CHAN)->CTRLA.reg = TCC_CTRLA_ENABLE;
 }
 
 void boot_delay_ms(int delay){
@@ -89,9 +189,6 @@ int main(void) {
     usb_attach();
     NVIC_SetPriority(USB_IRQn, 0xff);
 
-    pin_high(PIN_LED);
-    pin_out(PIN_LED);
-
     pin_in(PIN_SOC_RST);
 
     pin_high(PIN_SOC_PWR);
@@ -134,7 +231,7 @@ int main(void) {
     __enable_irq();
     SCB->SCR |= SCB_SCR_SLEEPONEXIT_Msk;
     
-    init_systick();
+    init_breathing_animation();
 
     while (1) { __WFI(); }
 }
@@ -195,12 +292,8 @@ void SERCOM_HANDLER(SERCOM_PORT_B_UART_I2C) {
     bridge_handle_sercom_uart_i2c(&port_b);
 }
 
-void bridge_open_0() {
-    booted = true;
-    pin_high(PIN_LED);
-    pin_low(PORT_A.power);
-    pin_low(PORT_B.power);
-}
+void bridge_open_0() {}
+
 void bridge_completion_out_0(u8 count) {
     pipe_bridge_out_completion(count);
 }
