@@ -429,6 +429,7 @@ bool usb_cb_set_interface(uint16_t interface, uint16_t new_altsetting) {
 
 		if (altsetting == ALTSETTING_FLASH) {
 			flash_disable();
+			init_breathing_animation();
 		} else if (altsetting == ALTSETTING_PIPE) {
 			usbpipe_disable();
 		}
@@ -440,6 +441,7 @@ bool usb_cb_set_interface(uint16_t interface, uint16_t new_altsetting) {
 		}
 
 		if (new_altsetting == ALTSETTING_FLASH){
+			cancel_breathing_animation();
 			flash_init();
 		} else if (booted && new_altsetting == ALTSETTING_PIPE) {
 			usbpipe_init();

@@ -98,6 +98,9 @@ void bridge_close_1();
 void bridge_close_2();
 void bridge_close_3();
 
+void cancel_breathing_animation();
+void init_breathing_animation();
+
 // port.c
 
 #define UART_MS_TIMEOUT 10 // send uart data after ms timeout even if buffer is not full
