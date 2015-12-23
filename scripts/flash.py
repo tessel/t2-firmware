@@ -122,6 +122,14 @@ class Flash(object):
 def randbyte():
     return random.randint(0, 255)
 
+def reset_openwrt(device):
+    # Reset the USB interface
+    device.reset();
+    # Control transfer to put RST line low
+    device.ctrl_transfer(0x40, 0x10, 0, 0, '')
+    # Control transfer to put RST line high
+    device.ctrl_transfer(0x40, 0x10, 1, 0, '')
+
 if __name__ == '__main__':
     dev = usb.core.find(idVendor=0x1209, idProduct=0x7551)
     if dev is None:
@@ -138,3 +146,6 @@ if __name__ == '__main__':
     print("Generated MAC addr ", ':'.join("{:02x}".format(x) for x in mac1))
 
     flash.write_tessel_flash(basepath, mac1, mac2)
+
+    print("Rebooting device...")
+    reset_openwrt(dev)
