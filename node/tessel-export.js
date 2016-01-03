@@ -980,7 +980,7 @@ Tessel.Network = {
           return state.settings;
         },
         set: function(settings) {
-          util.inherits(state.settings, settings);
+          Object.assign(state.settings, settings);
         }
       }
     });
@@ -1009,6 +1009,7 @@ Tessel.Network.Wifi.prototype.connect = function(settings, callback) {
     .then(commitWireless)
     .then(restartWifi)
     .then(function() {
+      console.log('Done!');
       self.settings = settings;
       callback(null, self.settings);
     })
@@ -1018,16 +1019,17 @@ Tessel.Network.Wifi.prototype.connect = function(settings, callback) {
 };
 
 function connectToNetwork(settings) {
-  var commands = [
-    'uci batch <<EOF',
-    'set wireless.@wifi-iface[0].ssid=' + settings.ssid,
-    'set wireless.@wifi-iface[0].key=' + settings.password,
-    'set wireless.@wifi-iface[0].encryption=' + settings.security,
-    'EOF'
-  ];
+  var commands = `
+    uci batch <<EOF
+    set wireless.@wifi-iface[0].ssid=${settings.ssid}
+    set wireless.@wifi-iface[0].key=${settings.password}
+    set wireless.@wifi-iface[0].encryption=${settings.security}
+    set wireless.@wifi-iface[0].disabled=0
+    EOF
+  `;
 
   return new Promise(function(resolve) {
-    exec(commands.join('\n'), function(err) {
+    exec(commands, function(err) {
       if (err) {
         throw err;
       }
