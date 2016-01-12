@@ -1,6 +1,6 @@
 {
   "name": "tessel",
-  "version": "0.0.0",
+  "version": "0.0.9",
   "description": "",
   "main": "tessel.js",
   "dependencies": {
