@@ -961,18 +961,25 @@ Tessel.Network = {
   Wifi: function() {
     var state = {
       settings: {},
-      connected: false
+      connected: false,
+      busy: false
     };
 
     Object.defineProperties(this, {
       isConnected: {
-        get: function() {
-          return !!state.connected;
-        }
+        get: () => !!state.connected;
+      },
+      isBusy: {
+        get: () => !!state.busy; 
       },
       connected: {
-        set: function(value) {
+        set: (value) => {
           state.connected = value;
+        }
+      },
+      busy: {
+        set: (value) => {
+          state.busy = value;
         }
       },
       settings: {
@@ -987,7 +994,78 @@ Tessel.Network = {
   }
 };
 
-Tessel.Network.Wifi.prototype.connect = function(settings, callback) {
+util.inherits(Tessel.Network.Wifi, EventEmitter);
+
+Tessel.Network.Wifi.prototype.enable = (callback) => {
+  if (typeof callback !== 'function') {
+    callback = function() {};
+  }
+
+  this.busy = true;
+  turnOnWifi()
+    .then(commitWireless)
+    .then(restartWifi)
+    .then(() => {
+      this.emit('connect');
+      this.busy = false;
+      callback();
+    })
+    .catch((error) => {
+      this.busy = false;
+      this.emit('error', error);
+      callback(error);
+    });
+};
+
+Tessel.Network.Wifi.prototype.disable = (callback) => {
+  if (typeof callback !== 'function') {
+    callback = function() {};
+  }
+
+  this.busy = true;
+  turnOffWifi()
+    .then(commitWireless)
+    .then(restartWifi)
+    .then(() => {
+      this.busy = false;
+      this.connected = false;
+      this.emit('disconnect');
+      callback();
+    })
+    .catch((error) => {
+      this.busy = false;
+      this.emit('error', error);
+      callback(error);
+    });
+};
+
+Tessel.Network.Wifi.prototype.reset = (callback) => {
+  if (typeof callback !== 'function') {
+    callback = function() {};
+  }
+  
+  this.busy = true;
+  restartWifi()
+    .then(() => {
+      this.busy = false;
+      callback();
+    })
+    .catch((error) => {
+      this.busy = false;
+      this.emit('error', error);
+      callback(error);
+    });
+};
+
+Tessel.Network.Wifi.prototype.connection = () => {
+  if (this.isConnected) {
+    return this.settings();
+  } else {
+    return null;
+  }
+};
+
+Tessel.Network.Wifi.prototype.connect = (settings, callback) => {
   if (typeof settings !== 'object' || settings.ssid.length === 0) {
     throw new Error('Wifi settings must be an object with at least a "ssid" property.');
   }
@@ -1004,17 +1082,24 @@ Tessel.Network.Wifi.prototype.connect = function(settings, callback) {
     settings.security = 'none';
   }
 
-  var self = this;
+  this.busy = true;
   connectToNetwork(settings)
+    .then(turnOnWifi)
     .then(commitWireless)
     .then(restartWifi)
-    .then(function() {
-      console.log('Done!');
-      self.settings = settings;
-      callback(null, self.settings);
+    .then(() => {
+      this.settings = settings;
+      this.busy = false;
+      this.connected = true;
+      this.emit('connect');
+
+      callback(null, this.settings);
     })
-    .catch(function(err) {
-      callback(err);
+    .catch(function(error) {
+      this.busy = false;
+
+      this.emit('error', error);
+      callback(error);
     });
 };
 
@@ -1024,14 +1109,35 @@ function connectToNetwork(settings) {
     set wireless.@wifi-iface[0].ssid=${settings.ssid}
     set wireless.@wifi-iface[0].key=${settings.password}
     set wireless.@wifi-iface[0].encryption=${settings.security}
-    set wireless.@wifi-iface[0].disabled=0
     EOF
   `;
 
-  return new Promise(function(resolve) {
-    exec(commands, function(err) {
-      if (err) {
-        throw err;
+  return new Promise((resolve) => {
+    exec(commands, (error) => {
+      if (error) {
+        throw error;
+      }
+      resolve();
+    });
+  });
+}
+
+function turnOnWifi() {
+  return new Promise((resolve) => {
+    exec('uci set wireless.@wifi-iface[0].disabled=0', (error) => {
+      if (error) {
+        throw error;
+      }
+      resolve();
+    });
+  });
+}
+
+function turnOffWifi() {
+  return new Promise((resolve) => {
+    exec('uci set wireless.@wifi-iface[0].disabled=1', (error) => {
+      if (error) {
+        throw error;
       }
       resolve();
     });
@@ -1039,10 +1145,10 @@ function connectToNetwork(settings) {
 }
 
 function commitWireless() {
-  return new Promise(function(resolve) {
-    exec('uci commit wireless', function(err) {
-      if (err) {
-        throw err;
+  return new Promise((resolve) => {
+    exec('uci commit wireless', (error) => {
+      if (error) {
+        throw error;
       }
       resolve();
     });
@@ -1050,12 +1156,23 @@ function commitWireless() {
 }
 
 function restartWifi() {
-  return new Promise(function(resolve) {
-    exec('wifi', function(err) {
-      if (err) {
-        throw err;
+  return new Promise((resolve) => {
+    exec('wifi', (error) => {
+      if (error) {
+        throw error;
       }
       resolve();
+    });
+  });
+}
+
+function getWifiInfo() {
+  return new Promise((resolve) => {
+    exec('iwinfo wlan0 scan', (error, results) => {
+      if (error) {
+        throw error;
+      }
+      resolve(results);
     });
   });
 }
