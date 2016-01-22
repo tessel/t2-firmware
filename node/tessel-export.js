@@ -967,10 +967,10 @@ Tessel.Network = {
 
     Object.defineProperties(this, {
       isConnected: {
-        get: () => !!state.connected;
+        get: () => !!state.connected
       },
       isBusy: {
-        get: () => !!state.busy; 
+        get: () => !!state.busy 
       },
       connected: {
         set: (value) => {
@@ -983,10 +983,8 @@ Tessel.Network = {
         }
       },
       settings: {
-        get: function() {
-          return state.settings;
-        },
-        set: function(settings) {
+        get: () => state.settings,
+        set: (settings) => {
           Object.assign(state.settings, settings);
         }
       }
@@ -1087,8 +1085,8 @@ Tessel.Network.Wifi.prototype.connect = (settings, callback) => {
     .then(turnOnWifi)
     .then(commitWireless)
     .then(restartWifi)
-    .then(() => {
-      this.settings = settings;
+    .then((network) => {
+      this.settings = Object.assign(network, settings);
       this.busy = false;
       this.connected = true;
       this.emit('connect');
@@ -1117,6 +1115,7 @@ function connectToNetwork(settings) {
       if (error) {
         throw error;
       }
+
       resolve();
     });
   });
@@ -1156,23 +1155,41 @@ function commitWireless() {
 }
 
 function restartWifi() {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     exec('wifi', (error) => {
       if (error) {
         throw error;
       }
-      resolve();
+
+      getWifiInfo()
+        .then(resolve)
+        .catch(reject);
     });
   });
 }
 
 function getWifiInfo() {
-  return new Promise((resolve) => {
-    exec('iwinfo wlan0 scan', (error, results) => {
+  return new Promise((resolve, reject) => {
+    exec('ubus call iwinfo info {"device":"wlan0"}', (error, results) => {
       if (error) {
         throw error;
       }
-      resolve(results);
+
+      try {
+        var network = JSON.parse(results);
+
+        if (network.ssid === undefined) {
+          var msg = 'Tessel is not connected to Wi-Fi (run "tessel wifi -l" to see available networks)';
+          return reject(msg);
+        }
+      } catch (error) {
+        return reject(error);
+      }
+
+      exec('ifconfig wlan0', (error, ipResults) => {
+        network.ips = ipResults.split('\n');
+        resolve(network);
+      });
     });
   });
 }
