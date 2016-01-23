@@ -3,7 +3,7 @@ var EventEmitter = require('events').EventEmitter;
 var Duplex = require('stream').Duplex;
 var net = require('net');
 var fs = require('fs');
-var exec = require('child_process').exec;
+var childProcess = require('child_process');
 
 var defOptions = {
   ports: {
@@ -68,7 +68,7 @@ function Tessel(options) {
   this.leds = this.led;
 
   this.network = {
-    wifi: new Tessel.Network.Wifi()
+    wifi: new Tessel.Wifi()
   };
 
   // tessel v1 does not have this version number
@@ -957,44 +957,42 @@ Tessel.LED.prototype.read = function(callback) {
   });
 };
 
-Tessel.Network = {
-  Wifi: function() {
-    var state = {
-      settings: {},
-      connected: false,
-      busy: false
-    };
+Tessel.Wifi = function() {
+  var state = {
+    settings: {},
+    connected: false,
+    busy: false
+  };
 
-    Object.defineProperties(this, {
-      isConnected: {
-        get: () => !!state.connected
-      },
-      isBusy: {
-        get: () => !!state.busy 
-      },
-      connected: {
-        set: (value) => {
-          state.connected = value;
-        }
-      },
-      busy: {
-        set: (value) => {
-          state.busy = value;
-        }
-      },
-      settings: {
-        get: () => state.settings,
-        set: (settings) => {
-          Object.assign(state.settings, settings);
-        }
+  Object.defineProperties(this, {
+    isConnected: {
+      get: () => state.connected
+    },
+    isBusy: {
+      get: () => state.busy
+    },
+    connected: {
+      set: (value) => {
+        state.connected = value;
       }
-    });
-  }
+    },
+    busy: {
+      set: (value) => {
+        state.busy = value;
+      }
+    },
+    settings: {
+      get: () => state.settings,
+      set: (settings) => {
+        state.settings = Object.assign(state.settings, settings);
+      }
+    }
+  });
 };
 
-util.inherits(Tessel.Network.Wifi, EventEmitter);
+util.inherits(Tessel.Wifi, EventEmitter);
 
-Tessel.Network.Wifi.prototype.enable = (callback) => {
+Tessel.Wifi.prototype.enable = function(callback) {
   if (typeof callback !== 'function') {
     callback = function() {};
   }
@@ -1015,7 +1013,7 @@ Tessel.Network.Wifi.prototype.enable = (callback) => {
     });
 };
 
-Tessel.Network.Wifi.prototype.disable = (callback) => {
+Tessel.Wifi.prototype.disable = function(callback) {
   if (typeof callback !== 'function') {
     callback = function() {};
   }
@@ -1037,11 +1035,11 @@ Tessel.Network.Wifi.prototype.disable = (callback) => {
     });
 };
 
-Tessel.Network.Wifi.prototype.reset = (callback) => {
+Tessel.Wifi.prototype.reset = function(callback) {
   if (typeof callback !== 'function') {
     callback = function() {};
   }
-  
+
   this.busy = true;
   restartWifi()
     .then(() => {
@@ -1055,15 +1053,15 @@ Tessel.Network.Wifi.prototype.reset = (callback) => {
     });
 };
 
-Tessel.Network.Wifi.prototype.connection = () => {
+Tessel.Wifi.prototype.connection = function() {
   if (this.isConnected) {
-    return this.settings();
+    return this.settings;
   } else {
     return null;
   }
 };
 
-Tessel.Network.Wifi.prototype.connect = (settings, callback) => {
+Tessel.Wifi.prototype.connect = function(settings, callback) {
   if (typeof settings !== 'object' || settings.ssid.length === 0) {
     throw new Error('Wifi settings must be an object with at least a "ssid" property.');
   }
@@ -1089,11 +1087,11 @@ Tessel.Network.Wifi.prototype.connect = (settings, callback) => {
       this.settings = Object.assign(network, settings);
       this.busy = false;
       this.connected = true;
-      this.emit('connect');
+      this.emit('connect', this.settings);
 
       callback(null, this.settings);
     })
-    .catch(function(error) {
+    .catch((error) => {
       this.busy = false;
 
       this.emit('error', error);
@@ -1111,7 +1109,7 @@ function connectToNetwork(settings) {
   `;
 
   return new Promise((resolve) => {
-    exec(commands, (error) => {
+    childProcess.exec(commands, (error) => {
       if (error) {
         throw error;
       }
@@ -1123,7 +1121,7 @@ function connectToNetwork(settings) {
 
 function turnOnWifi() {
   return new Promise((resolve) => {
-    exec('uci set wireless.@wifi-iface[0].disabled=0', (error) => {
+    childProcess.exec('uci set wireless.@wifi-iface[0].disabled=0', (error) => {
       if (error) {
         throw error;
       }
@@ -1134,7 +1132,7 @@ function turnOnWifi() {
 
 function turnOffWifi() {
   return new Promise((resolve) => {
-    exec('uci set wireless.@wifi-iface[0].disabled=1', (error) => {
+    childProcess.exec('uci set wireless.@wifi-iface[0].disabled=1', (error) => {
       if (error) {
         throw error;
       }
@@ -1145,7 +1143,7 @@ function turnOffWifi() {
 
 function commitWireless() {
   return new Promise((resolve) => {
-    exec('uci commit wireless', (error) => {
+    childProcess.exec('uci commit wireless', (error) => {
       if (error) {
         throw error;
       }
@@ -1156,21 +1154,23 @@ function commitWireless() {
 
 function restartWifi() {
   return new Promise((resolve, reject) => {
-    exec('wifi', (error) => {
+    childProcess.exec('wifi', (error) => {
       if (error) {
         throw error;
       }
 
       getWifiInfo()
         .then(resolve)
-        .catch(reject);
+        .catch((error) => {
+          reject(error);
+        });
     });
   });
 }
 
 function getWifiInfo() {
   return new Promise((resolve, reject) => {
-    exec('ubus call iwinfo info {"device":"wlan0"}', (error, results) => {
+    childProcess.exec('ubus call iwinfo info {"device":"wlan0"}', (error, results) => {
       if (error) {
         throw error;
       }
@@ -1183,10 +1183,15 @@ function getWifiInfo() {
           return reject(msg);
         }
       } catch (error) {
-        return reject(error);
+        console.log(error);
+        reject(error);
       }
 
-      exec('ifconfig wlan0', (error, ipResults) => {
+      childProcess.exec('ifconfig wlan0', (error, ipResults) => {
+        if (error) {
+          return reject(error);
+        }
+
         network.ips = ipResults.split('\n');
         resolve(network);
       });
