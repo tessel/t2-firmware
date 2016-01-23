@@ -19,6 +19,7 @@ var EventEmitter = require('events').EventEmitter;
 // var Duplex = require('stream').Duplex;
 var net = require('net');
 var fs = require('fs');
+var childProcess = require('child_process');
 
 function FakeSocket() {
   this.ref = function() {};
@@ -112,6 +113,13 @@ exports['Tessel'] = {
     test.deepEqual(
       this.LED.getCall(3).args, ['blue', '/sys/devices/leds/leds/tessel:blue:user2/brightness']
     );
+
+    test.done();
+  },
+
+  networkWifiInitialized: function(test) {
+    test.expect(1);
+    test.equal(this.tessel.network.wifi instanceof Tessel.Wifi, true);
 
     test.done();
   },
@@ -1615,5 +1623,72 @@ exports['Tessel.SPI'] = {
     test.ok(this.spiDisable.calledOnce, true);
 
     test.done();
+  }
+};
+
+exports['Tessel.Wifi'] = {
+  setUp: function(done) {
+    var self = this;
+    this.Port = sandbox.stub(Tessel, 'Port');
+    this.fsWrite = sandbox.stub(fs, 'writeFile');
+    this.network = {
+      ssid: 'TestNetwork',
+      strength: '30/80'
+    };
+    this.ip = '192.168.1.101';
+    this.exec = (function() {
+      return sandbox.stub(childProcess, 'exec', (cmd, callback) => {
+        this.cmd = cmd;
+
+        if (cmd === 'ifconfig wlan0') {
+          callback(null, self.ip);
+        } else if (cmd === 'ubus call iwinfo info {"device":"wlan0"}') {
+          callback(null, JSON.stringify(self.network));
+        } else {
+          callback();
+        }
+      });
+    }());
+    this.tessel = new Tessel();
+    done();
+  },
+
+  tearDown: function(done) {
+    Tessel.instance = null;
+    sandbox.restore();
+    done();
+  },
+
+  connect: function(test) {
+    test.expect(6);
+
+    var settings = {
+      ssid: 'TestNetwork',
+      password: 'TestPassword',
+      security: 'psk2'
+    };
+
+    var results = Object.assign({
+      ips: [this.ip]
+    }, settings, this.network);
+
+    this.tessel.network.wifi.on('connect', (networkSettings) => {
+      test.deepEqual(networkSettings, results, 'correct settings');
+    });
+
+    this.tessel.network.wifi.connect(settings, (error, networkSettings) => {
+      if (error) {
+        test.fail(error);
+        test.done();
+      }
+
+      test.deepEqual(networkSettings, results, 'correct settings');
+      test.deepEqual(this.tessel.network.wifi.settings, results, 'correct settings property');
+      test.equal(this.tessel.network.wifi.isBusy, false, 'wifi is not busy');
+      test.equal(this.tessel.network.wifi.isConnected, true, 'wifi is now connected');
+      test.equal(this.exec.callCount, 6, 'exec called correctly');
+
+      test.done();
+    });
   }
 };
