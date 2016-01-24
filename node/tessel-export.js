@@ -1002,12 +1002,14 @@ Tessel.Wifi.prototype.enable = function(callback) {
     .then(commitWireless)
     .then(restartWifi)
     .then(() => {
-      this.emit('connect');
+      this.emit('connect', this.settings);
+      this.connected = true;
       this.busy = false;
       callback();
     })
     .catch((error) => {
       this.busy = false;
+      this.connected = false;
       this.emit('error', error);
       callback(error);
     });
@@ -1041,9 +1043,13 @@ Tessel.Wifi.prototype.reset = function(callback) {
   }
 
   this.busy = true;
+  this.connected = false;
+  this.emit('disconnect', 'Resetting connection');
   restartWifi()
     .then(() => {
       this.busy = false;
+      this.connected = true;
+      this.emit('connect', this.settings);
       callback();
     })
     .catch((error) => {
@@ -1083,6 +1089,7 @@ Tessel.Wifi.prototype.connect = function(settings, callback) {
     .then(turnOnWifi)
     .then(commitWireless)
     .then(restartWifi)
+    .then(getWifiInfo)
     .then((network) => {
       this.settings = Object.assign(network, settings);
       this.busy = false;
@@ -1153,17 +1160,13 @@ function commitWireless() {
 }
 
 function restartWifi() {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     childProcess.exec('wifi', (error) => {
       if (error) {
         throw error;
       }
 
-      getWifiInfo()
-        .then(resolve)
-        .catch((error) => {
-          reject(error);
-        });
+      resolve();
     });
   });
 }
