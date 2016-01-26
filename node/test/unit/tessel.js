@@ -1993,5 +1993,105 @@ exports['Tessel.Wifi'] = {
         test.done();
       }
     });
+  },
+
+  findAvailableNetworks: function(test) {
+    test.expect(2);
+
+    var networks =
+      `Cell 01 - Address: 14:35:8B:11:30:F0
+              ESSID: "technicallyHome"
+              Mode: Master  Channel: 11
+              Signal: -55 dBm  Quality: 55/70
+              Encryption: mixed WPA/WPA2 PSK (TKIP, CCMP)
+
+    Cell 02 - Address: 6C:70:9F:D9:7A:5C
+              ESSID: "Fried Chicken Sandwich"
+              Mode: Master  Channel: 2
+              Signal: -51 dBm  Quality: 59/70
+              Encryption: WPA2 PSK (CCMP)
+
+`;
+
+    this.exec.restore();
+    this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
+      if (cmd === 'iwinfo wlan0 scan') {
+        callback(null, networks);
+      } else {
+        callback();
+      }
+    });
+
+    this.tessel.network.wifi.findAvailableNetworks((error, found) => {
+      test.equal(found.length, 2);
+      test.equal(found[0].ssid, 'Fried Chicken Sandwich');
+      test.done();
+    });
+  },
+
+  findNoNetworks: function(test) {
+    test.expect(1);
+
+    var networks = '';
+
+    this.exec.restore();
+    this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
+      if (cmd === 'iwinfo wlan0 scan') {
+        callback(null, networks);
+      } else {
+        callback();
+      }
+    });
+
+    this.tessel.network.wifi.findAvailableNetworks((error, found) => {
+      test.equal(found.length, 0);
+      test.done();
+    });
+  },
+
+  findNetworksSafe: function(test) {
+    test.expect(7);
+
+    var networks = `Cell 01 - Address: 14:35:8B:11:30:F0
+              ESSID: "worst"
+              Mode: Master  Channel: 11
+              Signal: -55 dBm  Quality: 30/
+              Encryption: mixed WPA/WPA2 PSK (TKIP, CCMP)
+
+    Cell 02 - Address: 6C:70:9F:D9:7A:5C
+              ESSID: "middle"
+              Mode: Master  Channel: 2
+              Signal: -57 dBm  Quality: 5/70
+              Encryption: WPA2 PSK (CCMP)
+
+    Cell 03 - Address: 6C:70:9F:D9:7A:5C
+            ESSID: "best"
+            Mode: Master  Channel: 2
+            Signal: -57 dBm  Quality: 100
+            Encryption: WPA2 PSK (CCMP)
+
+`;
+    // Do not remove the blank line at the end of preceding string!!
+
+    this.exec.restore();
+    this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
+      if (cmd === 'iwinfo wlan0 scan') {
+        callback(null, networks);
+      } else {
+        callback();
+      }
+    });
+
+    this.tessel.network.wifi.findAvailableNetworks((error, found) => {
+      test.equal(found.length, 3);
+      test.equal(found[0].ssid, 'best');
+      test.equal(found[1].ssid, 'middle');
+      test.equal(found[2].ssid, 'worst');
+
+      test.equal(found[0].quality, '100');
+      test.equal(found[1].quality, '5/70');
+      test.equal(found[2].quality, '30/');
+      test.done();
+    });
   }
 };
