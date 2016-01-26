@@ -1106,6 +1106,25 @@ Tessel.Wifi.prototype.connect = function(settings, callback) {
     });
 };
 
+Tessel.Wifi.prototype.findAvailableNetworks = function(callback) {
+  if (typeof callback !== 'function') {
+    throw new Error('Must include a callback function');
+  }
+
+  this.busy = true;
+  scanWifi()
+    .then((networks) => {
+      this.busy = false;
+      callback(null, networks);
+    })
+    .catch((error) => {
+      this.busy = false;
+
+      this.emit('error', error);
+      callback(error);
+    });
+};
+
 function connectToNetwork(settings) {
   var commands = `
     uci batch <<EOF
@@ -1182,11 +1201,10 @@ function getWifiInfo() {
         var network = JSON.parse(results);
 
         if (network.ssid === undefined) {
-          var msg = 'Tessel is not connected to Wi-Fi (run "tessel wifi -l" to see available networks)';
+          var msg = 'Tessel is not connected to Wi-Fi (use tessel.network.wifi.findAvailableNetworks() to find available networks)';
           return reject(msg);
         }
       } catch (error) {
-        console.log(error);
         reject(error);
       }
 
@@ -1200,6 +1218,66 @@ function getWifiInfo() {
       });
     });
   });
+}
+
+function scanWifi() {
+  return new Promise((resolve) => {
+    childProcess.exec('iwinfo wlan0 scan', (error, results) => {
+      if (error) {
+        throw error;
+      }
+
+      var ssidRegex = /ESSID: "(.*)"/;
+      var qualityRegex = /Quality: (.*)/;
+      var encryptionRegex = /Encryption: (.*)/;
+
+      var networks = results.trim().split('\n\n').reduce((networks, entry) => {
+        try {
+          var networkInfo = {
+            // Parse out the SSID
+            ssid: ssidRegex.exec(entry)[1],
+            // Parse out the quality of the connection
+            quality: qualityRegex.exec(entry)[1],
+            // Parse the security type - unused at the moment
+            security: encryptionRegex.exec(entry)[1],
+          };
+          // Add this parsed network to our array
+          networks.push(networkInfo);
+        } catch (error) {
+          // suppress errors created by entries that cannot be parsed
+        }
+
+        return networks;
+      }, []).sort(compareBySignal);
+
+      resolve(networks);
+    });
+  });
+}
+
+function safeQualityExprEvaluation(expr) {
+  var parsed = /(\d.*)(?:\/)(\d.*)/.exec(expr);
+  var isNumber = parsed === null && typeof + expr === 'number' && !Number.isNaN(+expr);
+
+  // If the expression doesn't match "\d.*/\d.*",
+  // but IS a number, then return the number. Otherwise,
+  // evaluate the expression as division. ToNumber is
+  // applied implicitly. If the expression didn't parse
+  // safely, return 0.
+  return isNumber ? +expr : (parsed && parsed.length === 3 ? parsed[1] / parsed[2] : 0);
+}
+
+function compareBySignal(a, b) {
+  var ae = safeQualityExprEvaluation(a.quality);
+  var be = safeQualityExprEvaluation(b.quality);
+
+  if (ae > be) {
+    return -1;
+  } else if (ae < be) {
+    return 1;
+  } else {
+    return 0;
+  }
 }
 
 if (process.env.IS_TEST_MODE) {
