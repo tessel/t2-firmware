@@ -1644,9 +1644,8 @@ exports['Tessel.Wifi'] = {
   },
 
   initialized: function(test) {
-    test.expect(3);
+    test.expect(2);
 
-    test.equal(this.tessel.network.wifi.isBusy, false, 'not busy by default');
     test.equal(this.tessel.network.wifi.isConnected, false, 'not connected by default');
     test.deepEqual(this.tessel.network.wifi.settings, {}, 'no setings by default');
 
@@ -1654,7 +1653,7 @@ exports['Tessel.Wifi'] = {
   },
 
   connect: function(test) {
-    test.expect(6);
+    test.expect(5);
 
     var settings = {
       ssid: 'TestNetwork',
@@ -1694,7 +1693,6 @@ exports['Tessel.Wifi'] = {
 
       test.deepEqual(networkSettings, results, 'correct settings');
       test.deepEqual(this.tessel.network.wifi.settings, results, 'correct settings property');
-      test.equal(this.tessel.network.wifi.isBusy, false, 'wifi is not busy');
       test.equal(this.tessel.network.wifi.isConnected, true, 'wifi is now connected');
       test.equal(this.exec.callCount, 6, 'exec called correctly');
 
@@ -1717,7 +1715,7 @@ exports['Tessel.Wifi'] = {
   },
 
   connectWithoutCallback: function(test) {
-    test.expect(5);
+    test.expect(4);
 
     var settings = {
       ssid: 'TestNetwork',
@@ -1748,7 +1746,6 @@ exports['Tessel.Wifi'] = {
     this.tessel.network.wifi.on('connect', (networkSettings) => {
       test.deepEqual(networkSettings, results, 'correct settings');
       test.deepEqual(this.tessel.network.wifi.settings, results, 'correct settings property');
-      test.equal(this.tessel.network.wifi.isBusy, false, 'wifi is not busy');
       test.equal(this.tessel.network.wifi.isConnected, true, 'wifi is now connected');
       test.equal(this.exec.callCount, 6, 'exec called correctly');
       test.done();
@@ -1763,7 +1760,7 @@ exports['Tessel.Wifi'] = {
   },
 
   connectWithoutSecurity: function(test) {
-    test.expect(6);
+    test.expect(5);
 
     var settings = {
       ssid: 'TestNetwork',
@@ -1803,7 +1800,6 @@ exports['Tessel.Wifi'] = {
 
       test.deepEqual(networkSettings, results, 'correct settings');
       test.deepEqual(this.tessel.network.wifi.settings, results, 'correct settings property');
-      test.equal(this.tessel.network.wifi.isBusy, false, 'wifi is not busy');
       test.equal(this.tessel.network.wifi.isConnected, true, 'wifi is now connected');
       test.equal(this.exec.callCount, 6, 'exec called correctly');
 
@@ -1812,7 +1808,7 @@ exports['Tessel.Wifi'] = {
   },
 
   connectWithoutPassword: function(test) {
-    test.expect(6);
+    test.expect(5);
 
     var settings = {
       ssid: 'TestNetwork'
@@ -1851,7 +1847,6 @@ exports['Tessel.Wifi'] = {
 
       test.deepEqual(networkSettings, results, 'correct settings');
       test.deepEqual(this.tessel.network.wifi.settings, results, 'correct settings property');
-      test.equal(this.tessel.network.wifi.isBusy, false, 'wifi is not busy');
       test.equal(this.tessel.network.wifi.isConnected, true, 'wifi is now connected');
       test.equal(this.exec.callCount, 6, 'exec called correctly');
 
@@ -1860,7 +1855,7 @@ exports['Tessel.Wifi'] = {
   },
 
   connectThrowsError: function(test) {
-    test.expect(4);
+    test.expect(3);
 
     var settings = {
       ssid: 'TestNetwork'
@@ -1884,7 +1879,6 @@ exports['Tessel.Wifi'] = {
     this.tessel.network.wifi.connect(settings, (error) => {
       if (error) {
         test.equal(error, testError, 'error should be passed into callback');
-        test.equal(this.tessel.network.wifi.isBusy, false, 'wifi is not busy');
         test.equal(this.tessel.network.wifi.isConnected, false, 'wifi is not connected');
         test.done();
       } else {
@@ -1936,7 +1930,7 @@ exports['Tessel.Wifi'] = {
   },
 
   reset: function(test) {
-    test.expect(4);
+    test.expect(3);
 
     this.tessel.network.wifi.on('disconnect', () => {
       test.ok(true, 'disconnect event is fired');
@@ -1950,7 +1944,6 @@ exports['Tessel.Wifi'] = {
         test.fail(error);
         test.done();
       } else {
-        test.equal(this.tessel.network.wifi.isBusy, false, 'wifi is not busy');
         test.equal(this.tessel.network.wifi.isConnected, true, 'wifi is not connected');
         test.done();
       }
@@ -1958,7 +1951,7 @@ exports['Tessel.Wifi'] = {
   },
 
   disable: function(test) {
-    test.expect(3);
+    test.expect(2);
 
     this.tessel.network.wifi.on('disconnect', () => {
       test.ok(true, 'disconnect event is fired');
@@ -1969,7 +1962,6 @@ exports['Tessel.Wifi'] = {
         test.fail(error);
         test.done();
       } else {
-        test.equal(this.tessel.network.wifi.isBusy, false, 'wifi is not busy');
         test.equal(this.tessel.network.wifi.isConnected, false, 'wifi is not connected');
         test.done();
       }
@@ -1977,7 +1969,7 @@ exports['Tessel.Wifi'] = {
   },
 
   enable: function(test) {
-    test.expect(3);
+    test.expect(2);
 
     this.tessel.network.wifi.on('connect', () => {
       test.ok(true, 'connect event is fired');
@@ -1988,7 +1980,6 @@ exports['Tessel.Wifi'] = {
         test.fail(error);
         test.done();
       } else {
-        test.equal(this.tessel.network.wifi.isBusy, false, 'wifi is not busy');
         test.equal(this.tessel.network.wifi.isConnected, true, 'wifi is not connected');
         test.done();
       }
