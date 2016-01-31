@@ -1670,7 +1670,7 @@ exports['Tessel.Wifi'] = {
     this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
       if (cmd === 'ifconfig wlan0') {
         callback(null, ip);
-      } else if (cmd === 'ubus call iwinfo info {"device":"wlan0"}') {
+      } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
         callback(null, JSON.stringify(network));
       } else {
         callback();
@@ -1680,6 +1680,7 @@ exports['Tessel.Wifi'] = {
     var results = Object.assign({
       ips: [ip]
     }, settings, network);
+    delete results.password;
 
     this.tessel.network.wifi.on('connect', (networkSettings) => {
       test.deepEqual(networkSettings, results, 'correct settings');
@@ -1732,7 +1733,7 @@ exports['Tessel.Wifi'] = {
     this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
       if (cmd === 'ifconfig wlan0') {
         callback(null, ip);
-      } else if (cmd === 'ubus call iwinfo info {"device":"wlan0"}') {
+      } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
         callback(null, JSON.stringify(network));
       } else {
         callback();
@@ -1742,6 +1743,7 @@ exports['Tessel.Wifi'] = {
     var results = Object.assign({
       ips: [ip]
     }, settings, network);
+    delete results.password;
 
     this.tessel.network.wifi.on('connect', (networkSettings) => {
       test.deepEqual(networkSettings, results, 'correct settings');
@@ -1776,7 +1778,7 @@ exports['Tessel.Wifi'] = {
     this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
       if (cmd === 'ifconfig wlan0') {
         callback(null, ip);
-      } else if (cmd === 'ubus call iwinfo info {"device":"wlan0"}') {
+      } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
         callback(null, JSON.stringify(network));
       } else {
         callback();
@@ -1787,6 +1789,7 @@ exports['Tessel.Wifi'] = {
       ips: [ip],
       security: 'psk2'
     }, settings, network);
+    delete results.password;
 
     this.tessel.network.wifi.on('connect', (networkSettings) => {
       test.deepEqual(networkSettings, results, 'correct settings');
@@ -1823,7 +1826,7 @@ exports['Tessel.Wifi'] = {
     this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
       if (cmd === 'ifconfig wlan0') {
         callback(null, ip);
-      } else if (cmd === 'ubus call iwinfo info {"device":"wlan0"}') {
+      } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
         callback(null, JSON.stringify(network));
       } else {
         callback();
@@ -1904,7 +1907,7 @@ exports['Tessel.Wifi'] = {
     this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
       if (cmd === 'ifconfig wlan0') {
         callback(null, ip);
-      } else if (cmd === 'ubus call iwinfo info {"device":"wlan0"}') {
+      } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
         callback(null, JSON.stringify(network));
       } else {
         callback();
