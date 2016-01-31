@@ -1105,8 +1105,8 @@ Tessel.Wifi.prototype.findAvailableNetworks = function(callback) {
 function connectToNetwork(settings) {
   var commands = `
     uci batch <<EOF
-    set wireless.@wifi-iface[0].ssid=${settings.ssid}
-    set wireless.@wifi-iface[0].key=${settings.password}
+    set wireless.@wifi-iface[0].ssid="${settings.ssid}"
+    set wireless.@wifi-iface[0].key="${settings.password}"
     set wireless.@wifi-iface[0].encryption=${settings.security}
     EOF
   `;
