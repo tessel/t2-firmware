@@ -1063,6 +1063,7 @@ Tessel.Wifi.prototype.connect = function(settings, callback) {
   }
 
   if (!settings.password && (!settings.security || settings.security === 'none')) {
+    settings.password = '';
     settings.security = 'none';
   }
 
@@ -1072,6 +1073,8 @@ Tessel.Wifi.prototype.connect = function(settings, callback) {
     .then(restartWifi)
     .then(getWifiInfo)
     .then((network) => {
+      delete settings.password;
+
       this.settings = Object.assign(network, settings);
       this.connected = true;
       this.emit('connect', this.settings);
@@ -1166,7 +1169,7 @@ function restartWifi() {
 
 function getWifiInfo() {
   return new Promise((resolve, reject) => {
-    childProcess.exec('ubus call iwinfo info {"device":"wlan0"}', (error, results) => {
+    childProcess.exec(`ubus call iwinfo info '{"device":"wlan0"}'`, (error, results) => {
       if (error) {
         throw error;
       }
