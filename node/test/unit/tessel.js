@@ -975,15 +975,16 @@ exports['Tessel.Pin'] = {
   },
 
   initializationA: function(test) {
-    test.expect(38);
+    test.expect(46);
 
     var pins = [];
 
     for (var i = 0; i < 8; i++) {
-      var intSupported = [2, 5, 6, 7].indexOf(i) !== -1;
-      var adcSupported = i === 4 || i === 7;
+      var intSupported = Tessel.Pin.interruptCapablePins.indexOf(i) !== -1;
+      var adcSupported = Tessel.Pin.adcCapablePins.indexOf(i) !== -1;
+      var pullSupported = Tessel.Pin.pullCapablePins.indexOf(i) !== -1;
       pins.push(
-        new Tessel.Pin(i, this.a, intSupported, adcSupported)
+        new Tessel.Pin(i, this.a, intSupported, adcSupported, pullSupported)
       );
     }
 
@@ -1017,6 +1018,16 @@ exports['Tessel.Pin'] = {
     test.equal(pins[4].analogSupported, true);
     test.equal(pins[7].analogSupported, true);
 
+    // Pull resistors on 2-7
+    test.equal(pins[0].pullSupported, false);
+    test.equal(pins[1].pullSupported, false);
+    test.equal(pins[2].pullSupported, true);
+    test.equal(pins[3].pullSupported, true);
+    test.equal(pins[4].pullSupported, true);
+    test.equal(pins[5].pullSupported, true);
+    test.equal(pins[6].pullSupported, true);
+    test.equal(pins[7].pullSupported, true);
+
     // Present Interrupt Mode
     test.equal(pins[0].interruptMode, null);
     test.equal(pins[1].interruptMode, null);
@@ -1041,14 +1052,15 @@ exports['Tessel.Pin'] = {
   },
 
   initializationB: function(test) {
-    test.expect(44);
+    test.expect(52);
 
     var pins = [];
 
     for (var i = 0; i < 8; i++) {
-      var intSupported = [2, 5, 6, 7].indexOf(i) !== -1;
+      var intSupported = Tessel.Pin.interruptCapablePins.indexOf(i) !== -1;
+      var pullSupported = Tessel.Pin.pullCapablePins.indexOf(i) !== -1;
       pins.push(
-        new Tessel.Pin(i, this.b, intSupported, true)
+        new Tessel.Pin(i, this.b, intSupported, true, pullSupported)
       );
     }
 
@@ -1087,6 +1099,16 @@ exports['Tessel.Pin'] = {
     test.equal(pins[5].analogSupported, true);
     test.equal(pins[6].analogSupported, true);
     test.equal(pins[7].analogSupported, true);
+
+    // Pull resistors on 2-7
+    test.equal(pins[0].pullSupported, false);
+    test.equal(pins[1].pullSupported, false);
+    test.equal(pins[2].pullSupported, true);
+    test.equal(pins[3].pullSupported, true);
+    test.equal(pins[4].pullSupported, true);
+    test.equal(pins[5].pullSupported, true);
+    test.equal(pins[6].pullSupported, true);
+    test.equal(pins[7].pullSupported, true);
 
     // Present Interrupt Mode
     test.equal(pins[0].interruptMode, null);
@@ -1283,7 +1305,60 @@ exports['Tessel.Pin'] = {
       this._simple_cmd.reset();
     }, this);
     test.done();
-  }
+  },
+
+  // It should throw an error if an invalid pull mode is provided
+  invalidPullParam: function(test) {
+    test.expect(1);
+
+    test.throws(function() {
+      this.a.pin[2].pull('invalid');
+    }, Error);
+
+    test.done();
+  },
+
+  // It should throw an error if a pin is not compatible with pulls
+  pullIncompatiblePin: function(test) {
+    test.expect(1);
+
+    test.throws(function() {
+      this.a.pin[0].pull('pullup');
+    }, Error);
+
+    test.done();
+  },
+
+  // It should default to `none` pull if one was not provided
+  noModeDefaultNone: function(test) {
+    test.expect(2);
+    var pin = 2;
+    this.a.pin[pin].pull();
+
+    test.equal(this._simple_cmd.callCount, 1);
+
+    test.deepEqual(
+      this._simple_cmd.lastCall.args[0], [CMD.GPIO_PULL, pin | (Tessel.Pin.pullModes['none'] << 4)]
+    );
+
+    test.done();
+  },
+
+  // It should send the right packets for valid pull modes
+  setAllValidModes: function(test) {
+    test.expect(6);
+    var pin = 2;
+    ['pulldown', 'pullup', 'none', ].forEach(function(pullMode) {
+      this.a.pin[pin].pull(pullMode);
+
+      test.equal(this._simple_cmd.callCount, 1);
+      test.deepEqual(
+        this._simple_cmd.lastCall.args[0], [CMD.GPIO_PULL, pin | (Tessel.Pin.pullModes[pullMode] << 4)]
+      );
+      this._simple_cmd.reset();
+    }, this);
+    test.done();
+  },
 };
 
 exports['Tessel.I2C'] = {

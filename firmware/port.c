@@ -16,6 +16,7 @@ typedef enum PortCmd {
     CMD_GPIO_HIGH = 4, // switch to output and write high
     CMD_GPIO_LOW = 5, // switch to output and write low
     CMD_GPIO_TOGGLE = 21, // switch to output and toggle low/high
+    CMD_GPIO_PULL = 26, // Set the pin state to a specific pull value
     CMD_GPIO_CFG = 6,
     CMD_GPIO_WAIT = 7,
     CMD_GPIO_INT = 8, // set interrupt on pin
@@ -56,6 +57,12 @@ typedef enum PortMode {
     MODE_I2C,
     MODE_UART,
 } PortMode;
+
+typedef enum PullMode {
+  PULL_DOWN = 0,
+  PULL_UP = 1,
+  PULL_NONE = 2
+} PullMode;
 
 typedef enum ExecStatus {
     EXEC_DONE = PORT_READ_CMD,
@@ -166,6 +173,7 @@ int port_cmd_args(PortCmd cmd) {
         case CMD_GPIO_INPUT:
         case CMD_GPIO_RAW_READ:
         case CMD_ANALOG_READ:
+        case CMD_GPIO_PULL:
             return 1;
 
         case CMD_ANALOG_WRITE:
@@ -302,6 +310,35 @@ ExecStatus port_begin_cmd(PortData *p) {
             pin_toggle(port_selected_pin(p));
             pin_out(port_selected_pin(p));
             return EXEC_DONE;
+
+        case CMD_GPIO_PULL: {
+          // Extract the pin number
+          u8 pin = p->arg[0] & 0x7;
+          // Extract the type of pull
+          u8 mode = (p->arg[0] >> 4);
+
+          // Based on the type of pull
+          switch(mode) {
+            // If it is a pull down
+            case PULL_DOWN:
+              // Explicitly pull down that pin
+              pin_pull_down(p->port->gpio[pin]);
+              return EXEC_DONE;
+            // If it is a pull up
+            case PULL_UP:
+              // Explicitly pull up that pin
+              pin_pull_up(p->port->gpio[pin]);
+              return EXEC_DONE;
+            // If it is a float
+            case PULL_NONE:
+              // Just let that pin float
+              pin_float(p->port->gpio[pin]);
+              return EXEC_DONE;
+            // Otherwise just skip this command, it's invalid...
+            default:
+              return EXEC_DONE;
+          }
+        }
 
         case CMD_GPIO_INT: {
             u8 pin = p->arg[0] & 0x7;
