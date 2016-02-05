@@ -1092,7 +1092,17 @@ Tessel.Wifi.prototype.findAvailableNetworks = function(callback) {
     throw new Error('Must include a callback function');
   }
 
-  scanWifi()
+  isEnabled()
+    .then((enabled) => {
+      if (enabled) {
+        return scanWifi();
+      } else {
+        return turnOnWifi()
+          .then(commitWireless)
+          .then(restartWifi)
+          .then(scanWifi);
+      }
+    })
     .then((networks) => {
       callback(null, networks);
     })
@@ -1167,6 +1177,18 @@ function restartWifi() {
   });
 }
 
+function isEnabled() {
+  return new Promise((resolve) => {
+    childProcess.exec('uci get wireless.@wifi-iface[0].disabled', (error, result) => {
+      if (error) {
+        throw error;
+      }
+
+      resolve(!Number(result));
+    });
+  });
+}
+
 function getWifiInfo() {
   return new Promise((resolve, reject) => {
     childProcess.exec(`ubus call iwinfo info '{"device":"wlan0"}'`, (error, results) => {
@@ -1199,36 +1221,50 @@ function getWifiInfo() {
 
 function scanWifi() {
   return new Promise((resolve) => {
-    childProcess.exec('iwinfo wlan0 scan', (error, results) => {
-      if (error) {
-        throw error;
-      }
+    var checkCount = 0;
 
-      var ssidRegex = /ESSID: "(.*)"/;
-      var qualityRegex = /Quality: (.*)/;
-      var encryptionRegex = /Encryption: (.*)/;
+    function recursiveScan(resolve) {
+      setImmediate(() => {
+        childProcess.exec('iwinfo wlan0 scan', (error, results) => {
+          if (error) {
+            recursiveScan(resolve);
+          }
 
-      var networks = results.trim().split('\n\n').reduce((networks, entry) => {
-        try {
-          var networkInfo = {
-            // Parse out the SSID
-            ssid: ssidRegex.exec(entry)[1],
-            // Parse out the quality of the connection
-            quality: qualityRegex.exec(entry)[1],
-            // Parse the security type - unused at the moment
-            security: encryptionRegex.exec(entry)[1],
-          };
-          // Add this parsed network to our array
-          networks.push(networkInfo);
-        } catch (error) {
-          // suppress errors created by entries that cannot be parsed
-        }
+          var ssidRegex = /ESSID: "(.*)"/;
+          var qualityRegex = /Quality: (.*)/;
+          var encryptionRegex = /Encryption: (.*)/;
 
-        return networks;
-      }, []).sort(compareBySignal);
+          var networks = results.trim().split('\n\n').reduce((networks, entry) => {
+            try {
+              var networkInfo = {
+                // Parse out the SSID
+                ssid: ssidRegex.exec(entry)[1],
+                // Parse out the quality of the connection
+                quality: qualityRegex.exec(entry)[1],
+                // Parse the security type - unused at the moment
+                security: encryptionRegex.exec(entry)[1],
+              };
+              // Add this parsed network to our array
+              networks.push(networkInfo);
+            } catch (error) {
+              // suppress errors created by entries that cannot be parsed
+            }
 
-      resolve(networks);
-    });
+            return networks;
+          }, []).sort(compareBySignal);
+
+          // after 13 attempts to scan, resolve with an empty array
+          if (networks.length === 0 && checkCount < 13) {
+            checkCount++;
+            recursiveScan(resolve);
+          } else {
+            resolve(networks);
+          }
+        });
+      });
+    }
+
+    recursiveScan(resolve);
   });
 }
 
