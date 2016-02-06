@@ -237,8 +237,10 @@ Tessel.Port = function(name, socketPath, board) {
 
   this.pin = [];
   for (var i = 0; i < 8; i++) {
-    var adcSupported = name === 'B' || [4, 7].indexOf(i) !== -1 ? true : false;
-    this.pin.push(new Tessel.Pin(i, this, [2, 5, 6, 7].indexOf(i) !== -1, adcSupported));
+    var interruptSupported = Tessel.Pin.interruptCapablePins.indexOf(i) !== -1;
+    var adcSupported = (name === 'B' || Tessel.Pin.adcCapablePins.indexOf(i) !== -1);
+    var pullSupported = Tessel.Pin.pullCapablePins.indexOf(i) !== -1;
+    this.pin.push(new Tessel.Pin(i, this, interruptSupported, adcSupported, pullSupported));
   }
 
   // Deprecated properties for Tessel 1 backwards compatibility:
@@ -408,16 +410,21 @@ Tessel.Port.PATH = {
   'B': '/var/run/tessel/port_b'
 };
 
-Tessel.Pin = function(pin, port, interruptSupported, analogSupported) {
+Tessel.Pin = function(pin, port, interruptSupported, analogSupported, pullSupported) {
   this.pin = pin;
   this._port = port;
   this.interruptSupported = interruptSupported || false;
   this.analogSupported = analogSupported || false;
+  this.pullSupported = pullSupported || false;
   this.interruptMode = null;
   this.isPWM = false;
 };
 
 util.inherits(Tessel.Pin, EventEmitter);
+
+Tessel.Pin.adcCapablePins = [4, 7];
+Tessel.Pin.pullCapablePins = [2, 3, 4, 5, 6, 7];
+Tessel.Pin.interruptCapablePins = [2, 5, 6, 7];
 
 Tessel.Pin.interruptModes = {
   rise: 1,
@@ -425,6 +432,12 @@ Tessel.Pin.interruptModes = {
   change: 3,
   high: 4,
   low: 5,
+};
+
+Tessel.Pin.pullModes = {
+  pulldown: 0,
+  pullup: 1,
+  none: 2,
 };
 
 Tessel.Pin.prototype.removeListener = function(event, listener) {
@@ -553,6 +566,29 @@ Tessel.Pin.prototype.read = function(cb) {
   }
   this._readPin(CMD.GPIO_IN, cb);
   return this;
+};
+
+Tessel.Pin.prototype.pull = function(pullType, cb) {
+
+  // Ensure this pin supports being pulled
+  if (!this.pullSupported) {
+    throw new Error('Internal pull resistors are not available on this pin. Please use pins 2-7.');
+  }
+
+  // Set a default value to 'none';
+  if (pullType === undefined) {
+    pullType = 'none';
+  }
+
+  var mode = Tessel.Pin.pullModes[pullType];
+
+  // Ensure a valid mode was requested
+  if (mode === undefined) {
+    throw new Error('Invalid pull type. Must be one of: "pullup", "pulldown", or "none"');
+  }
+
+  // Send the command to the coprocessor
+  this._port._simple_cmd([CMD.GPIO_PULL, (this.pin | (mode << 4))], cb);
 };
 
 Tessel.Pin.prototype.readPulse = function( /* type, timeout, callback */ ) {
@@ -801,6 +837,7 @@ var CMD = {
   GPIO_INT: 8,
   GPIO_INPUT: 22,
   GPIO_RAW_READ: 23,
+  GPIO_PULL: 26,
   ANALOG_READ: 24,
   ANALOG_WRITE: 25,
   ENABLE_SPI: 10,
