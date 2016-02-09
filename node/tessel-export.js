@@ -1191,31 +1191,45 @@ function isEnabled() {
 
 function getWifiInfo() {
   return new Promise((resolve, reject) => {
-    childProcess.exec(`ubus call iwinfo info '{"device":"wlan0"}'`, (error, results) => {
-      if (error) {
-        throw error;
-      }
+    var checkCount = 0;
 
-      try {
-        var network = JSON.parse(results);
+    function recursiveWifi() {
+      setImmediate(() => {
+        childProcess.exec(`ubus call iwinfo info '{"device":"wlan0"}'`, (error, results) => {
+          if (error) {
+            recursiveWifi();
+          } else {
+            try {
+              var network = JSON.parse(results);
 
-        if (network.ssid === undefined) {
-          var msg = 'Tessel is not connected to Wi-Fi (use tessel.network.wifi.findAvailableNetworks() to find available networks)';
-          return reject(msg);
-        }
-      } catch (error) {
-        reject(error);
-      }
-
-      childProcess.exec('ifconfig wlan0', (error, ipResults) => {
-        if (error) {
-          return reject(error);
-        }
-
-        network.ips = ipResults.split('\n');
-        resolve(network);
+              if (network.ssid === undefined) {
+                // using 6 because it's the lowest count with accurate results after testing
+                if (checkCount < 6) {
+                  checkCount++;
+                  recursiveWifi();
+                } else {
+                  var msg = 'Tessel is not connected to Wi-Fi (use tessel.network.wifi.findAvailableNetworks() to find available networks)';
+                  throw msg;
+                }
+              } else {
+                childProcess.exec('ifconfig wlan0', (error, ipResults) => {
+                  if (error) {
+                    reject(error);
+                  } else {
+                    network.ips = ipResults.split('\n');
+                    resolve(network);
+                  }
+                });
+              }
+            } catch (error) {
+              reject(error);
+            }
+          }
+        });
       });
-    });
+    }
+
+    recursiveWifi();
   });
 }
 
@@ -1223,11 +1237,11 @@ function scanWifi() {
   return new Promise((resolve) => {
     var checkCount = 0;
 
-    function recursiveScan(resolve) {
+    function recursiveScan() {
       setImmediate(() => {
         childProcess.exec('iwinfo wlan0 scan', (error, results) => {
           if (error) {
-            recursiveScan(resolve);
+            recursiveScan();
           }
 
           var ssidRegex = /ESSID: "(.*)"/;
@@ -1256,7 +1270,7 @@ function scanWifi() {
           // after 13 attempts to scan, resolve with an empty array
           if (networks.length === 0 && checkCount < 13) {
             checkCount++;
-            recursiveScan(resolve);
+            recursiveScan();
           } else {
             resolve(networks);
           }
@@ -1264,7 +1278,7 @@ function scanWifi() {
       });
     }
 
-    recursiveScan(resolve);
+    recursiveScan();
   });
 }
 
