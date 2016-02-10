@@ -3,6 +3,7 @@ var EventEmitter = require('events').EventEmitter;
 var Duplex = require('stream').Duplex;
 var net = require('net');
 var fs = require('fs');
+var childProcess = require('child_process');
 
 var defOptions = {
   ports: {
@@ -65,6 +66,10 @@ function Tessel(options) {
   }, ]);
 
   this.leds = this.led;
+
+  this.network = {
+    wifi: new Tessel.Wifi()
+  };
 
   // tessel v1 does not have this version number
   // this is useful for libraries to adapt to changes
@@ -988,6 +993,356 @@ Tessel.LED.prototype.read = function(callback) {
     callback(null, value);
   });
 };
+
+Tessel.Wifi = function() {
+  var state = {
+    settings: {},
+    connected: false
+  };
+
+  Object.defineProperties(this, {
+    isConnected: {
+      get: () => state.connected
+    },
+    connected: {
+      set: (value) => {
+        state.connected = value;
+      }
+    },
+    settings: {
+      get: () => state.settings,
+      set: (settings) => {
+        state.settings = Object.assign(state.settings, settings);
+      }
+    }
+  });
+};
+
+util.inherits(Tessel.Wifi, EventEmitter);
+
+Tessel.Wifi.prototype.enable = function(callback) {
+  if (typeof callback !== 'function') {
+    callback = function() {};
+  }
+
+  turnOnWifi()
+    .then(commitWireless)
+    .then(restartWifi)
+    .then(() => {
+      this.emit('connect', this.settings);
+      this.connected = true;
+      callback();
+    })
+    .catch((error) => {
+      this.connected = false;
+      this.emit('error', error);
+      callback(error);
+    });
+};
+
+Tessel.Wifi.prototype.disable = function(callback) {
+  if (typeof callback !== 'function') {
+    callback = function() {};
+  }
+
+  turnOffWifi()
+    .then(commitWireless)
+    .then(restartWifi)
+    .then(() => {
+      this.connected = false;
+      this.emit('disconnect');
+      callback();
+    })
+    .catch((error) => {
+      this.emit('error', error);
+      callback(error);
+    });
+};
+
+Tessel.Wifi.prototype.reset = function(callback) {
+  if (typeof callback !== 'function') {
+    callback = function() {};
+  }
+
+  this.connected = false;
+  this.emit('disconnect', 'Resetting connection');
+  restartWifi()
+    .then(() => {
+      this.connected = true;
+      this.emit('connect', this.settings);
+      callback();
+    })
+    .catch((error) => {
+      this.emit('error', error);
+      callback(error);
+    });
+};
+
+Tessel.Wifi.prototype.connection = function() {
+  if (this.isConnected) {
+    return this.settings;
+  } else {
+    return null;
+  }
+};
+
+Tessel.Wifi.prototype.connect = function(settings, callback) {
+  if (typeof settings !== 'object' || settings.ssid.length === 0) {
+    throw new Error('Wifi settings must be an object with at least a "ssid" property.');
+  }
+
+  if (typeof callback !== 'function') {
+    callback = function() {};
+  }
+
+  if (settings.password && !settings.security) {
+    settings.security = 'psk2';
+  }
+
+  if (!settings.password && (!settings.security || settings.security === 'none')) {
+    settings.password = '';
+    settings.security = 'none';
+  }
+
+  connectToNetwork(settings)
+    .then(turnOnWifi)
+    .then(commitWireless)
+    .then(restartWifi)
+    .then(getWifiInfo)
+    .then((network) => {
+      delete settings.password;
+
+      this.settings = Object.assign(network, settings);
+      this.connected = true;
+      this.emit('connect', this.settings);
+
+      callback(null, this.settings);
+    })
+    .catch((error) => {
+      this.emit('error', error);
+      callback(error);
+    });
+};
+
+Tessel.Wifi.prototype.findAvailableNetworks = function(callback) {
+  if (typeof callback !== 'function') {
+    throw new Error('Must include a callback function');
+  }
+
+  isEnabled()
+    .then((enabled) => {
+      if (enabled) {
+        return scanWifi();
+      } else {
+        return turnOnWifi()
+          .then(commitWireless)
+          .then(restartWifi)
+          .then(scanWifi);
+      }
+    })
+    .then((networks) => {
+      callback(null, networks);
+    })
+    .catch((error) => {
+      this.emit('error', error);
+      callback(error);
+    });
+};
+
+function connectToNetwork(settings) {
+  var commands = `
+    uci batch <<EOF
+    set wireless.@wifi-iface[0].ssid="${settings.ssid}"
+    set wireless.@wifi-iface[0].key="${settings.password}"
+    set wireless.@wifi-iface[0].encryption=${settings.security}
+    EOF
+  `;
+
+  return new Promise((resolve) => {
+    childProcess.exec(commands, (error) => {
+      if (error) {
+        throw error;
+      }
+
+      resolve();
+    });
+  });
+}
+
+function turnOnWifi() {
+  return new Promise((resolve) => {
+    childProcess.exec('uci set wireless.@wifi-iface[0].disabled=0', (error) => {
+      if (error) {
+        throw error;
+      }
+      resolve();
+    });
+  });
+}
+
+function turnOffWifi() {
+  return new Promise((resolve) => {
+    childProcess.exec('uci set wireless.@wifi-iface[0].disabled=1', (error) => {
+      if (error) {
+        throw error;
+      }
+      resolve();
+    });
+  });
+}
+
+function commitWireless() {
+  return new Promise((resolve) => {
+    childProcess.exec('uci commit wireless', (error) => {
+      if (error) {
+        throw error;
+      }
+      resolve();
+    });
+  });
+}
+
+function restartWifi() {
+  return new Promise((resolve) => {
+    childProcess.exec('wifi', (error) => {
+      if (error) {
+        throw error;
+      }
+
+      resolve();
+    });
+  });
+}
+
+function isEnabled() {
+  return new Promise((resolve) => {
+    childProcess.exec('uci get wireless.@wifi-iface[0].disabled', (error, result) => {
+      if (error) {
+        throw error;
+      }
+
+      resolve(!Number(result));
+    });
+  });
+}
+
+function getWifiInfo() {
+  return new Promise((resolve, reject) => {
+    var checkCount = 0;
+
+    function recursiveWifi() {
+      setImmediate(() => {
+        childProcess.exec(`ubus call iwinfo info '{"device":"wlan0"}'`, (error, results) => {
+          if (error) {
+            recursiveWifi();
+          } else {
+            try {
+              var network = JSON.parse(results);
+
+              if (network.ssid === undefined) {
+                // using 6 because it's the lowest count with accurate results after testing
+                if (checkCount < 6) {
+                  checkCount++;
+                  recursiveWifi();
+                } else {
+                  var msg = 'Tessel is unable to connect, please check your credentials or list of available networks (using tessel.network.wifi.findAvailableNetworks()) and try again.';
+                  throw msg;
+                }
+              } else {
+                childProcess.exec('ifconfig wlan0', (error, ipResults) => {
+                  if (error) {
+                    reject(error);
+                  } else {
+                    network.ips = ipResults.split('\n');
+                    resolve(network);
+                  }
+                });
+              }
+            } catch (error) {
+              reject(error);
+            }
+          }
+        });
+      });
+    }
+
+    recursiveWifi();
+  });
+}
+
+function scanWifi() {
+  return new Promise((resolve) => {
+    var checkCount = 0;
+
+    function recursiveScan() {
+      setImmediate(() => {
+        childProcess.exec('iwinfo wlan0 scan', (error, results) => {
+          if (error) {
+            recursiveScan();
+          }
+
+          var ssidRegex = /ESSID: "(.*)"/;
+          var qualityRegex = /Quality: (.*)/;
+          var encryptionRegex = /Encryption: (.*)/;
+
+          var networks = results.trim().split('\n\n').reduce((networks, entry) => {
+            try {
+              var networkInfo = {
+                // Parse out the SSID
+                ssid: ssidRegex.exec(entry)[1],
+                // Parse out the quality of the connection
+                quality: qualityRegex.exec(entry)[1],
+                // Parse the security type - unused at the moment
+                security: encryptionRegex.exec(entry)[1],
+              };
+              // Add this parsed network to our array
+              networks.push(networkInfo);
+            } catch (error) {
+              // suppress errors created by entries that cannot be parsed
+            }
+
+            return networks;
+          }, []).sort(compareBySignal);
+
+          // after 13 attempts to scan, resolve with an empty array
+          if (networks.length === 0 && checkCount < 13) {
+            checkCount++;
+            recursiveScan();
+          } else {
+            resolve(networks);
+          }
+        });
+      });
+    }
+
+    recursiveScan();
+  });
+}
+
+function safeQualityExprEvaluation(expr) {
+  var parsed = /(\d.*)(?:\/)(\d.*)/.exec(expr);
+  var isNumber = parsed === null && typeof + expr === 'number' && !Number.isNaN(+expr);
+
+  // If the expression doesn't match "\d.*/\d.*",
+  // but IS a number, then return the number. Otherwise,
+  // evaluate the expression as division. ToNumber is
+  // applied implicitly. If the expression didn't parse
+  // safely, return 0.
+  return isNumber ? +expr : (parsed && parsed.length === 3 ? parsed[1] / parsed[2] : 0);
+}
+
+function compareBySignal(a, b) {
+  var ae = safeQualityExprEvaluation(a.quality);
+  var be = safeQualityExprEvaluation(b.quality);
+
+  if (ae > be) {
+    return -1;
+  } else if (ae < be) {
+    return 1;
+  } else {
+    return 0;
+  }
+}
 
 if (process.env.IS_TEST_MODE) {
   Tessel.CMD = CMD;
