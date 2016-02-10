@@ -1208,7 +1208,7 @@ function getWifiInfo() {
                   checkCount++;
                   recursiveWifi();
                 } else {
-                  var msg = 'Tessel is not connected to Wi-Fi (use tessel.network.wifi.findAvailableNetworks() to find available networks)';
+                  var msg = 'Tessel is unable to connect, please check your credentials or list of available networks (using tessel.network.wifi.findAvailableNetworks()) and try again.';
                   throw msg;
                 }
               } else {
