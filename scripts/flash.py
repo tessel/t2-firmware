@@ -125,6 +125,8 @@ def randbyte():
 def reset_openwrt(device):
     # Reset the USB interface
     device.reset();
+    # Control transfer to put RST line high
+    device.ctrl_transfer(0x40, 0x10, 1, 0, '')
     # Control transfer to put RST line low
     device.ctrl_transfer(0x40, 0x10, 0, 0, '')
     # Control transfer to put RST line high
