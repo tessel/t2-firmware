@@ -43,8 +43,6 @@ typedef struct ConfigDesc {
 	USB_ConfigurationDescriptor Config;
 	USB_InterfaceDescriptor dfu_intf_flash;
 	DFU_FunctionalDescriptor dfu_desc_flash;
-	USB_InterfaceDescriptor dfu_intf_ram;
-	DFU_FunctionalDescriptor dfu_desc_ram;
 } ConfigDesc;
 
 const ConfigDesc configuration_descriptor = {
@@ -70,25 +68,6 @@ const ConfigDesc configuration_descriptor = {
 		.iInterface = 0x10
 	},
 	.dfu_desc_flash = {
-		.bLength = sizeof(DFU_FunctionalDescriptor),
-		.bDescriptorType = DFU_DESCRIPTOR_TYPE,
-		.bmAttributes = DFU_ATTR_CAN_DOWNLOAD | DFU_ATTR_WILL_DETACH,
-		.wDetachTimeout = 0,
-		.wTransferSize = DFU_TRANSFER_SIZE,
-		.bcdDFUVersion = 0x0101,
-	},
-	.dfu_intf_ram = {
-		.bLength = sizeof(USB_InterfaceDescriptor),
-		.bDescriptorType = USB_DTYPE_Interface,
-		.bInterfaceNumber = 0,
-		.bAlternateSetting = 1,
-		.bNumEndpoints = 0,
-		.bInterfaceClass = DFU_INTERFACE_CLASS,
-		.bInterfaceSubClass = DFU_INTERFACE_SUBCLASS,
-		.bInterfaceProtocol = DFU_INTERFACE_PROTOCOL,
-		.iInterface = 0x11
-	},
-	.dfu_desc_ram = {
 		.bLength = sizeof(DFU_FunctionalDescriptor),
 		.bDescriptorType = DFU_DESCRIPTOR_TYPE,
 		.bmAttributes = DFU_ATTR_CAN_DOWNLOAD | DFU_ATTR_WILL_DETACH,
@@ -156,9 +135,6 @@ uint16_t usb_cb_get_descriptor(uint8_t type, uint8_t index, const uint8_t** ptr)
 					break;
 				case 0x10:
 					address = usb_string_to_descriptor("Flash");
-					break;
-				case 0x11:
-					address = usb_string_to_descriptor("SRAM");
 					break;
 				case 0xf0:
 					address = usb_string_to_descriptor("");
