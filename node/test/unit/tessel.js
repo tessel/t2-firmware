@@ -305,7 +305,7 @@ exports['Tessel.Port'] = {
     test.ok(Array.isArray(port.pin));
     test.equal(port.pin.length, 8);
     test.ok(Array.isArray(port.pwm));
-    test.equal(port.pwm.length, 0);
+    test.equal(port.pwm.length, 2);
     test.ok(port.sock);
     test.ok(port.I2C);
     test.equal(port.I2C.enabled, false);
@@ -2162,5 +2162,347 @@ exports['Tessel.Wifi'] = {
       test.equal(found[2].quality, '30/');
       test.done();
     });
+  }
+};
+
+exports['Tessel.port.pwm'] = {
+  setUp: function(done) {
+    this.socket = new FakeSocket();
+
+    this.createConnection = sandbox.stub(net, 'createConnection', function() {
+      this.socket.cork = sandbox.spy();
+      this.socket.uncork = sandbox.spy();
+      this.socket.write = sandbox.spy();
+      return this.socket;
+    }.bind(this));
+
+    this.tessel = new Tessel();
+    done();
+  },
+  tearDown: function(done) {
+    Tessel.instance = null;
+    sandbox.restore();
+    done();
+  },
+  pwmArray: function(test) {
+    test.expect(26);
+
+    test.equal(this.tessel.port.A.pwm.length, 2);
+    test.equal(this.tessel.port.A.pwm[0], this.tessel.port.A.digital[0]);
+    test.ok(this.tessel.port.A.digital[0].pwmSupported);
+    test.equal(this.tessel.port.A.pwm[1], this.tessel.port.A.digital[1]);
+    test.ok(this.tessel.port.A.digital[1].pwmSupported);
+    test.equal(this.tessel.port.B.pwm.length, 2);
+    test.equal(this.tessel.port.B.pwm[0], this.tessel.port.B.digital[0]);
+    test.ok(this.tessel.port.B.digital[0].pwmSupported);
+    test.equal(this.tessel.port.B.pwm[1], this.tessel.port.B.digital[1]);
+    test.ok(this.tessel.port.B.digital[1].pwmSupported);
+
+    test.equal(this.tessel.port.A.pin[0].pwmSupported, false);
+    test.equal(this.tessel.port.A.pin[1].pwmSupported, false);
+    test.equal(this.tessel.port.A.pin[2].pwmSupported, false);
+    test.equal(this.tessel.port.A.pin[3].pwmSupported, false);
+    test.equal(this.tessel.port.A.pin[4].pwmSupported, false);
+    test.equal(this.tessel.port.A.pin[5].pwmSupported, true);
+    test.equal(this.tessel.port.A.pin[6].pwmSupported, true);
+    test.equal(this.tessel.port.A.pin[7].pwmSupported, false);
+
+    test.equal(this.tessel.port.B.pin[0].pwmSupported, false);
+    test.equal(this.tessel.port.B.pin[1].pwmSupported, false);
+    test.equal(this.tessel.port.B.pin[2].pwmSupported, false);
+    test.equal(this.tessel.port.B.pin[3].pwmSupported, false);
+    test.equal(this.tessel.port.B.pin[4].pwmSupported, false);
+    test.equal(this.tessel.port.B.pin[5].pwmSupported, true);
+    test.equal(this.tessel.port.B.pin[6].pwmSupported, true);
+    test.equal(this.tessel.port.B.pin[7].pwmSupported, false);
+    test.done();
+  }
+};
+
+exports['determineDutyCycleAndPrescalar'] = {
+  setUp: function(done) {
+    done();
+  },
+  tearDown: function(done) {
+    done();
+  },
+  onekHz: function(test) {
+    test.expect(2);
+
+    var frequency = 1000;
+    var expectedPrescalar = 1;
+    var results = Tessel.determineDutyCycleAndPrescalar(frequency);
+    test.equal(results.period, 48000000/frequency);
+    test.equal(results.prescalarIndex, Tessel.pwmPrescalars.indexOf(expectedPrescalar));
+    test.done();
+  },
+  oneHundredHz: function(test) {
+    test.expect(2);
+
+    var frequency = 100;
+    var expectedPrescalar = 8;
+    var results = Tessel.determineDutyCycleAndPrescalar(frequency);
+    test.equal(results.period, 48000000/frequency/expectedPrescalar);
+    test.equal(results.prescalarIndex, Tessel.pwmPrescalars.indexOf(expectedPrescalar));
+    test.done();
+  },
+  oneHz: function(test) {
+    test.expect(2);
+
+    var frequency = 1;
+    var expectedPrescalar = 1024;
+    var results = Tessel.determineDutyCycleAndPrescalar(frequency);
+    test.equal(results.period, 48000000/frequency/expectedPrescalar);
+    test.equal(results.prescalarIndex, Tessel.pwmPrescalars.indexOf(expectedPrescalar));
+    test.done();
+  },
+  frequencyTooLow: function(test) {
+    test.expect(1);
+    var frequency = 0.1;
+    try {
+      Tessel.determineDutyCycleAndPrescalar(frequency);
+    }
+    catch (err) {
+      test.ok(err);
+    }
+
+    test.done();
+  }
+};
+
+exports['tessel.pwmFrequency'] = {
+  setUp: function(done) {
+    this.socket = new FakeSocket();
+
+    this.createConnection = sandbox.stub(net, 'createConnection', function() {
+      this.socket.cork = sandbox.spy();
+      this.socket.uncork = sandbox.spy();
+      this.socket.write = sandbox.spy();
+      return this.socket;
+    }.bind(this));
+
+    this.tessel = new Tessel();
+
+    this.cork = sandbox.stub(Tessel.Port.prototype, 'cork');
+    this.uncork = sandbox.stub(Tessel.Port.prototype, 'uncork');
+    this._tx = sandbox.stub(Tessel.Port.prototype, '_tx');
+    this._rx = sandbox.stub(Tessel.Port.prototype, '_rx');
+    this._simple_cmd = sandbox.stub(Tessel.Port.prototype, '_simple_cmd');
+
+    this.port = new Tessel.Port('foo', '/foo/bar/baz', this.tessel);
+
+    this.pwmFrequency = sandbox.spy(Tessel.prototype, 'pwmFrequency');
+
+    done();
+  },
+
+  tearDown: function(done) {
+    Tessel.instance = null;
+    sandbox.restore();
+    done();
+  },
+  // Should throw an error if the frequency is outside the specified range
+  frequencyTooLow: function(test) {
+    test.expect(2);
+    var frequency = Tessel.pwmMinFrequency / 2;
+
+    // test.throws is not handling the thrown error for whatever reason
+    try {
+      // Attempt to set the frequency
+      this.tessel.pwmFrequency(frequency);
+    }
+    catch (err) {
+      // Ensure an error was thrown
+      test.ok(err);
+      test.ok(err instanceof RangeError);
+      test.done();
+    }
+  },
+  // Should throw an error if the frequency is outside the specified range
+  frequencyTooHigh: function(test) {
+    test.expect(2);
+    var frequency = Tessel.pwmMaxFrequency + 1;
+
+    // test.throws is not handling the thrown error for whatever reason
+    try {
+      // Attempt to set the frequency
+      this.tessel.pwmFrequency(frequency);
+    }
+    catch (err) {
+      // Ensure an error was thrown
+      test.ok(err);
+      test.ok(err instanceof RangeError);
+      test.done();
+    }
+  },
+
+  testPacketStructure: function(test) {
+    var frequency = 100;
+    this.tessel.pwmFrequency(frequency, (err) => {
+      // Ensure no error was thrown
+      test.ifError(err);
+      // Finish the test
+      test.done();
+    });
+
+    var results = Tessel.determineDutyCycleAndPrescalar(frequency);
+
+    test.equal(this.socket.write.callCount, 1);
+    var packet = this.socket.write.lastCall.args[0];
+    var cb = this.socket.write.lastCall.args[1];
+    // Ensure the callback was provided
+    test.ok(typeof cb === 'function');
+    // Ensure four bytes were passed
+    test.ok(packet.length === 4);
+    // Ensure the first packet is the PWM period
+    test.ok(packet[0] === CMD.PWM_PERIOD);
+    // Next four bits are TCC ID (always zero)
+    test.ok((packet[1] & 0x7) === 0);
+    // Next four bits are prescalar
+    test.ok((packet[1] >> 4) === results.prescalarIndex);
+    // Final two bits are period
+    test.ok((packet[2] << 8) + packet[3] === results.period);
+    // Call our callback
+    cb();
+  }
+};
+
+exports['pin.pwmDutyCycle'] = {
+  setUp: function(done) {
+    this.socket = new FakeSocket();
+
+    this.createConnection = sandbox.stub(net, 'createConnection', function() {
+      this.socket.cork = sandbox.spy();
+      this.socket.uncork = sandbox.spy();
+      this.socket.write = sandbox.spy();
+      return this.socket;
+    }.bind(this));
+
+    this.tessel = new Tessel();
+
+    this.cork = sandbox.stub(Tessel.Port.prototype, 'cork');
+    this.uncork = sandbox.stub(Tessel.Port.prototype, 'uncork');
+    this._tx = sandbox.stub(Tessel.Port.prototype, '_tx');
+    this._rx = sandbox.stub(Tessel.Port.prototype, '_rx');
+    this._simple_cmd = sandbox.stub(Tessel.Port.prototype, '_simple_cmd');
+
+    this.port = new Tessel.Port('foo', '/foo/bar/baz', this.tessel);
+
+    this.pwmFrequency = sandbox.spy(Tessel.prototype, 'pwmFrequency');
+
+    done();
+  },
+
+  tearDown: function(done) {
+    Tessel.instance = null;
+    sandbox.restore();
+    done();
+  },
+  // Should throw an error if the pin does not support PWM
+  pwmNotSupportedPin: function(test) {
+    test.expect(2);
+
+    // test.throws is not handling the thrown error for whatever reason
+    try {
+      // Attempt to set the duty cycle
+      this.tessel.port.A.digital[2].pwmDutyCycle(1);
+    }
+    catch (err) {
+      // Ensure an error was thrown
+      test.ok(err);
+      test.ok(err instanceof RangeError);
+      test.done();
+    }
+  },
+  dutyCycleNotNumber: function(test) {
+    test.expect(2);
+
+    // test.throws is not handling the thrown error for whatever reason
+    try {
+      // Attempt to set the duty cycle
+      this.tessel.port.A.pwm[0].pwmDutyCycle('five');
+    }
+    catch (err) {
+      // Ensure an error was thrown
+      test.ok(err);
+      test.ok(err instanceof RangeError);
+      test.done();
+    }
+  },
+  dutyCycleTooHigh: function(test) {
+    test.expect(2);
+
+    // test.throws is not handling the thrown error for whatever reason
+    try {
+      // Attempt to set the duty cycle
+      this.tessel.port.A.pwm[0].pwmDutyCycle(1.5);
+    }
+    catch (err) {
+      // Ensure an error was thrown
+      test.ok(err);
+      test.ok(err instanceof RangeError);
+      test.done();
+    }
+  },
+  dutyCycleTooLow: function(test) {
+    test.expect(2);
+
+    // test.throws is not handling the thrown error for whatever reason
+    try {
+      // Attempt to set the duty cycle
+      this.tessel.port.A.pwm[0].pwmDutyCycle(-0.5);
+    }
+    catch (err) {
+      // Ensure an error was thrown
+      test.ok(err);
+      test.ok(err instanceof RangeError);
+      test.done();
+    }
+  },
+  periodNotSet: function(test) {
+    test.expect(2);
+
+    // test.throws is not handling the thrown error for whatever reason
+    try {
+      // Reset the pwmPeriod
+      Tessel.pwmBankSettings.period = 0;
+      // Attempt to set the duty cycle
+      this.tessel.port.A.pwm[0].pwmDutyCycle(0.5);
+    }
+    catch (err) {
+      // Ensure an error was thrown
+      test.ok(err);
+      test.ok(err.toString().includes('Frequency is not configured'));
+      test.done();
+    }
+  },
+  standardUsageSucceeds: function(test) {
+    // Set some arbitrary non-zero period
+    Tessel.pwmBankSettings.period = 10000;
+    // Set some valid duty cycle value
+    var dutyCycle = 0.5;
+    var pin = this.tessel.port.A.pwm[0];
+    pin.pwmDutyCycle(dutyCycle, (err) => {
+      // Ensure no error was thrown
+      test.ifError(err);
+      // Finish the test
+      test.done();
+    });
+
+    test.equal(this.socket.write.callCount, 1);
+    var packet = this.socket.write.lastCall.args[0];
+    var cb = this.socket.write.lastCall.args[1];
+    // Ensure the callback was provided
+    test.ok(typeof cb === 'function');
+    // Ensure four bytes were passed
+    test.ok(packet.length === 4);
+    // Ensure the first packet is the PWM duty cycle command
+    test.ok(packet[0] === CMD.PWM_DUTY_CYCLE);
+    // Next byte is the pin ID
+    test.ok(packet[1] === pin.pin);
+    // Next two bytes are the duty cycle converted to ticks
+    test.ok((packet[2] << 8) + packet[3] === dutyCycle * Tessel.pwmBankSettings.period);
+    // Call our callback
+    cb();
   }
 };

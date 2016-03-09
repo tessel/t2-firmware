@@ -134,7 +134,7 @@ void init_breathing_animation() {
 void boot_delay_ms(int delay){
     tc(TC_BOOT)->COUNT16.CTRLA.reg
         = TC_CTRLA_WAVEGEN_MPWM
-        | TC_CTRLA_PRESCALER_DIV1024; 
+        | TC_CTRLA_PRESCALER_DIV1024;
 
     tc(TC_BOOT)->COUNT16.CC[0].reg = delay*50;
     while (tc(TC_BOOT)->COUNT16.STATUS.bit.SYNCBUSY);
@@ -147,7 +147,7 @@ void boot_delay_ms(int delay){
 
     // clear match flag
     tc(TC_BOOT)->COUNT16.INTFLAG.bit.MC0 = 1;
-    
+
     // disable boot counter
     tc(TC_BOOT)->COUNT16.CTRLA.bit.ENABLE = 0;
 }
@@ -230,7 +230,7 @@ int main(void) {
 
     __enable_irq();
     SCB->SCR |= SCB_SCR_SLEEPONEXIT_Msk;
-    
+
     init_breathing_animation();
 
     while (1) { __WFI(); }
