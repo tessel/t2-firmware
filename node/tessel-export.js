@@ -79,7 +79,8 @@ function Tessel(options) {
   this.leds = this.led;
 
   this.network = {
-    wifi: new Tessel.Wifi()
+    wifi: new Tessel.Wifi(),
+    ap: new Tessel.AP()
   };
 
   // tessel v1 does not have this version number
@@ -1479,6 +1480,82 @@ function compareBySignal(a, b) {
   } else {
     return 0;
   }
+}
+
+// Access Point
+Tessel.AP = function() {
+  var state = {
+    settings: {}
+  };
+
+  Object.defineProperties(this, {
+    settings: {
+      get: () => state.settings,
+      set: (settings) => {
+        state.settings = Object.assign(state.settings, settings);
+      }
+    }
+  });
+};
+
+util.inherits(Tessel.AP, EventEmitter);
+
+Tessel.AP.prototype.enable = function(callback) {
+  if (typeof callback !== 'function') {
+    callback = function() {};
+  }
+
+  turnOnAP()
+    .then(commitWireless)
+    .then(restartWifi)
+    .then(() => {
+      this.emit('connect', this.settings);
+      callback();
+    })
+    .catch((error) => {
+      this.emit('error', error);
+      callback(error);
+    });
+};
+
+Tessel.AP.prototype.disable = function(callback) {
+  if (typeof callback !== 'function') {
+    callback = function() {};
+  }
+
+  turnOffAP()
+    .then(commitWireless)
+    .then(restartWifi)
+    .then(() => {
+      this.emit('disconnect');
+      callback();
+    })
+    .catch((error) => {
+      this.emit('error', error);
+      callback(error);
+    });
+};
+
+function turnOnAP() {
+  return new Promise((resolve) => {
+    childProcess.exec('uci set wireless.@wifi-iface[1].disabled=0', (error) => {
+      if (error) {
+        throw error;
+      }
+      resolve();
+    });
+  });
+}
+
+function turnOffAP() {
+  return new Promise((resolve) => {
+    childProcess.exec('uci set wireless.@wifi-iface[1].disabled=1', (error) => {
+      if (error) {
+        throw error;
+      }
+      resolve();
+    });
+  });
 }
 
 if (process.env.IS_TEST_MODE) {
