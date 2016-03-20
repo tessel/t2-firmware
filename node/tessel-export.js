@@ -1542,6 +1542,7 @@ Tessel.AP.prototype.reset = function(callback) {
   }
 
   this.emit('reset', 'Resetting connection');
+  this.emit('off', 'Resetting connection');
   restartWifi()
     .then(() => {
       this.emit('on', this.settings);
@@ -1577,7 +1578,9 @@ Tessel.AP.prototype.create = function(settings, callback) {
     .then(restartWifi)
     .then(getAccessPointIP)
     .then((ip) => {
-      this.settings = Object.assign(settings, {ip});
+      this.settings = Object.assign(settings, {
+        ip
+      });
       this.emit('create', this.settings);
 
       callback(null, this.settings);
