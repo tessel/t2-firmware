@@ -1465,6 +1465,74 @@ exports['Tessel.I2C'] = {
     test.done();
   },
 
+  frequencyStandardMode: function(test) {
+    test.expect(5);
+
+    var device1 = new Tessel.I2C({
+      addr: 0x04,
+      freq: 1e5,
+      port: this.port,
+    });
+    var device2 = new Tessel.I2C({
+      addr: 0x04,
+      freq: 1e5,
+      port: this.port,
+    });
+
+    test.notEqual(device1, device2);
+
+    test.equal(device1._baud, 234);
+    test.equal(device1._freq, 100000);
+
+    test.equal(device2._baud, 234);
+    test.equal(device2._freq, 100000);
+    test.done();
+  },
+
+  frequencyFastMode: function(test) {
+    test.expect(5);
+
+    var device1 = new Tessel.I2C({
+      addr: 0x04,
+      freq: 4e5,
+      port: this.port,
+    });
+    var device2 = new Tessel.I2C({
+      addr: 0x04,
+      freq: 4e5,
+      port: this.port,
+    });
+
+    test.notEqual(device1, device2);
+
+    test.equal(device1._baud, 54);
+    test.equal(device1._freq, 400000);
+
+    test.equal(device2._baud, 54);
+    test.equal(device2._freq, 400000);
+    test.done();
+  },
+
+  frequencyInvalid: function(test) {
+    test.expect(2);
+
+    test.throws(() => {
+      new Tessel.I2C({
+        addr: 0x04,
+        freq: 4e5 + 1,
+        port: this.port,
+      });
+    });
+    test.throws(() => {
+      new Tessel.I2C({
+        addr: 0x04,
+        freq: 1e5 - 1,
+        port: this.port,
+      });
+    });
+
+    test.done();
+  },
   explicitFreqChangesBaud: function(test) {
     test.expect(1);
 
