@@ -1448,13 +1448,11 @@ exports['Tessel.I2C'] = {
 
     new Tessel.I2C({
       address: 0x01,
-      mode: undefined,
       port: this.port
     });
 
     new Tessel.I2C({
       address: 0x01,
-      mode: undefined,
       port: this.port
     });
 
@@ -1481,11 +1479,11 @@ exports['Tessel.I2C'] = {
 
     test.notEqual(device1, device2);
 
-    test.equal(device1._baud, 234);
-    test.equal(device1._freq, 100000);
+    test.equal(device1.baudrate, 234);
+    test.equal(device1.frequency, 100000);
 
-    test.equal(device2._baud, 234);
-    test.equal(device2._freq, 100000);
+    test.equal(device2.baudrate, 234);
+    test.equal(device2.frequency, 100000);
     test.done();
   },
 
@@ -1505,11 +1503,11 @@ exports['Tessel.I2C'] = {
 
     test.notEqual(device1, device2);
 
-    test.equal(device1._baud, 54);
-    test.equal(device1._freq, 400000);
+    test.equal(device1.baudrate, 54);
+    test.equal(device1.frequency, 400000);
 
-    test.equal(device2._baud, 54);
-    test.equal(device2._freq, 400000);
+    test.equal(device2.baudrate, 54);
+    test.equal(device2.frequency, 400000);
     test.done();
   },
 

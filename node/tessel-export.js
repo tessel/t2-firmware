@@ -641,22 +641,38 @@ Tessel.Pin.prototype.analogWrite = function(val) {
 };
 
 Tessel.I2C = function(params) {
-  this.addr = params.addr;
+  var frequency = 1e5;
+
+  Object.defineProperties(this, {
+    frequency: {
+      get: function() {
+        return frequency;
+      },
+      set: function(value) {
+        // Restrict to between 100kHz and 400kHz.
+        // Can actually go up to 4mhz without clk modification
+        if (value !== 1e5 && value !== 4e5) {
+          // http://asf.atmel.com/docs/3.15.0/samd21/html/group__asfdoc__sam0__sercom__i2c__group.html#gace1e0023f2eee92565496a2e30006548
+          throw new Error('I2C frequency must be 100kHz or 400kHz');
+        }
+
+        frequency = value;
+      }
+    },
+    baudrate: {
+      get: function() {
+        return Tessel.I2C.computeBaud(frequency);
+      }
+    }
+  });
+
   this._port = params.port;
-  this._freq = params.freq ? params.freq : 100000; // 100khz
-
-  // Restrict to between 100kHz and 400kHz.
-  // Can actually go up to 4mhz without clk modification
-  if (this._freq < 1e5 || this._freq > 4e5) {
-    // http://asf.atmel.com/docs/3.15.0/samd21/html/group__asfdoc__sam0__sercom__i2c__group.html#gace1e0023f2eee92565496a2e30006548
-    throw new Error('I2C frequency should be between 100kHz and 400kHz');
-  }
-
-  this._baud = Tessel.I2C.computeBaud(this._freq);
+  this.addr = params.addr;
+  this.frequency = params.freq ? params.freq : 100000; // 100khz
 
   // Send the ENABLE_I2C command when the first I2C device is instantiated
   if (!this._port.I2C.enabled) {
-    this._port._simple_cmd([CMD.ENABLE_I2C, this._baud]);
+    this._port._simple_cmd([CMD.ENABLE_I2C, this.baudrate]);
     // Note that this bus is enabled now
     this._port.I2C.enabled = true;
   }
