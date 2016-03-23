@@ -808,7 +808,7 @@ Tessel.SPI.prototype.transfer = function(data, callback) {
 Tessel.UART = function(port, options) {
   Duplex.call(this, {});
 
-  var baudrate = options.baudrate || 9600;
+  var baudrate = 9600;
 
   Object.defineProperties(this, {
     baudrate: {
@@ -825,6 +825,8 @@ Tessel.UART = function(port, options) {
           throw new Error('UART baudrate must be between 9600 and 115200');
         }
 
+        baudrate = value;
+
         var computed = Math.floor(65536 * (1 - 16 * (baudrate / 48e6)));
 
         this._port._simple_cmd([CMD.ENABLE_UART, computed >> 8, computed & 0xFF]);
@@ -833,7 +835,7 @@ Tessel.UART = function(port, options) {
   });
 
   this._port = port;
-  this.baudrate = baudrate;
+  this.baudrate = options.baudrate || 9600;
 };
 
 util.inherits(Tessel.UART, Duplex);

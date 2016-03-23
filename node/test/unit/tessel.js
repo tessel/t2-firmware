@@ -1692,6 +1692,67 @@ exports['Tessel.UART'] = {
     done();
   },
 
+  baudrateCmd: function(test) {
+    test.expect(2);
+
+    var b1 = 9600;
+
+    new this.port.UART({
+      baudrate: b1
+    });
+
+    test.equal(this._simple_cmd.callCount, 1);
+    test.deepEqual(this._simple_cmd.lastCall.args[0], [14, 255, 46]);
+    test.done();
+  },
+
+  baudrateSetterCmd: function(test) {
+    test.expect(3);
+
+    var b1 = 9600;
+
+    var uart = new this.port.UART({
+      baudrate: b1
+    });
+
+    uart.baudrate = 115200;
+
+    test.equal(uart.baudrate, 115200);
+    test.equal(this._simple_cmd.callCount, 2);
+    test.deepEqual(this._simple_cmd.lastCall.args[0], [14, 246, 43]);
+    test.done();
+  },
+
+  baudrateInvalidLow: function(test) {
+    test.expect(2);
+
+    var b1 = 9600;
+
+    var uart = new this.port.UART({
+      baudrate: b1
+    });
+
+    test.throws(() => uart.baudrate = 0);
+    test.equal(uart.baudrate, b1);
+
+    test.done();
+  },
+
+  baudrateInvalidHigh: function(test) {
+    test.expect(2);
+
+    var b1 = 9600;
+
+    var uart = new this.port.UART({
+      baudrate: b1
+    });
+
+    test.throws(() => uart.baudrate = 115201);
+    test.equal(uart.baudrate, b1);
+
+    test.done();
+  },
+
   interfaceChange: function(test) {
     test.expect(3);
 
