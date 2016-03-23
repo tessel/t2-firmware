@@ -1702,7 +1702,7 @@ exports['Tessel.UART'] = {
       baudrate: b1
     });
 
-    test.equal(uart._baudrate, b1);
+    test.equal(uart.baudrate, b1);
 
     uart = new this.port.UART({
       baudrate: b2
@@ -1710,7 +1710,7 @@ exports['Tessel.UART'] = {
 
     test.ok(this.uartDisable.calledOnce, true);
 
-    test.equal(uart._baudrate, b2);
+    test.equal(uart.baudrate, b2);
 
     test.done();
   },

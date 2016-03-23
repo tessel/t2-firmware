@@ -645,10 +645,10 @@ Tessel.I2C = function(params) {
 
   Object.defineProperties(this, {
     frequency: {
-      get: function() {
+      get: () => {
         return frequency;
       },
-      set: function(value) {
+      set: (value) => {
         // Restrict to between 100kHz and 400kHz.
         // Can actually go up to 4mhz without clk modification
         if (value !== 1e5 && value !== 4e5) {
@@ -660,7 +660,7 @@ Tessel.I2C = function(params) {
       }
     },
     baudrate: {
-      get: function() {
+      get: () => {
         return Tessel.I2C.computeBaud(frequency);
       }
     }
@@ -808,21 +808,32 @@ Tessel.SPI.prototype.transfer = function(data, callback) {
 Tessel.UART = function(port, options) {
   Duplex.call(this, {});
 
+  var baudrate = options.baudrate || 9600;
+
+  Object.defineProperties(this, {
+    baudrate: {
+      get: () => {
+        return baudrate;
+      },
+      set: (value) => {
+        // baud is given by the following:
+        // baud = 65536*(1-(samples_per_bit)*(f_wanted/f_ref))
+        // samples_per_bit = 16, 8, or 3
+        // f_ref = 48e6
+
+        if (value < 9600 || value > 115200) {
+          throw new Error('UART baudrate must be between 9600 and 115200');
+        }
+
+        var computed = Math.floor(65536 * (1 - 16 * (baudrate / 48e6)));
+
+        this._port._simple_cmd([CMD.ENABLE_UART, computed >> 8, computed & 0xFF]);
+      }
+    }
+  });
+
   this._port = port;
-
-  // baud is given by the following:
-  // baud = 65536*(1-(samples_per_bit)*(f_wanted/f_ref))
-  // samples_per_bit = 16, 8, or 3
-  // f_ref = 48e6
-  this._baudrate = options.baudrate || 9600;
-  // make sure baudrate is in between 9600 and 115200
-  if (this._baudrate < 9600 || this._baudrate > 115200) {
-    throw new Error('UART baudrate must be between 9600 and 115200');
-  }
-  this._baud = Math.floor(65536 * (1 - 16 * (this._baudrate / 48e6)));
-
-  // split _baud up into two bytes & send
-  this._port._simple_cmd([CMD.ENABLE_UART, this._baud >> 8, this._baud & 0xFF]);
+  this.baudrate = baudrate;
 };
 
 util.inherits(Tessel.UART, Duplex);
