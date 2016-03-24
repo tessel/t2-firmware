@@ -653,7 +653,7 @@ Tessel.I2C = function(params) {
         // Can actually go up to 4mhz without clk modification
         if (value !== 1e5 && value !== 4e5) {
           // http://asf.atmel.com/docs/3.15.0/samd21/html/group__asfdoc__sam0__sercom__i2c__group.html#gace1e0023f2eee92565496a2e30006548
-          throw new Error('I2C frequency must be 100kHz or 400kHz');
+          throw new RangeError('I2C frequency must be 100kHz or 400kHz');
         }
 
         frequency = value;
@@ -740,8 +740,8 @@ Tessel.SPI = function(params, port) {
   this.clockSpeed = params.clockSpeed ? params.clockSpeed : 2e6;
 
   // if speed is slower than 93750 then we need a clock divisor
-  if (this.clockSpeed > 24e6 || this.clockSpeed < 368) {
-    throw new Error('SPI Clock needs to be between 24e6 and 368Hz.');
+  if (this.clockSpeed < 368 || this.clockSpeed > 24e6) {
+    throw new RangeError('SPI clock must be between 368Hz and 24MHz');
   }
 
   this._clockReg = Math.floor(48e6 / (2 * this.clockSpeed) - 1);

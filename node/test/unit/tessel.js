@@ -1520,14 +1520,14 @@ exports['Tessel.I2C'] = {
         freq: 4e5 + 1,
         port: this.port,
       });
-    });
+    }, RangeError);
     test.throws(() => {
       new Tessel.I2C({
         addr: 0x04,
         freq: 1e5 - 1,
         port: this.port,
       });
-    });
+    }, RangeError);
 
     test.done();
   },
@@ -1846,6 +1846,24 @@ exports['Tessel.SPI'] = {
     test.ok(this.spiDisable.calledOnce, true);
 
     test.equal(spi.clockSpeed, s2);
+
+    test.done();
+  },
+
+  clockSpeedRangeError: function(test) {
+    test.expect(2);
+
+    test.throws(() => {
+      new this.port.SPI({
+        clockSpeed: 368 - 1
+      });
+    }, RangeError);
+
+    test.throws(() => {
+      new this.port.SPI({
+        clockSpeed: 24e6 + 1
+      });
+    }, RangeError);
 
     test.done();
   },
