@@ -627,13 +627,13 @@ Tessel.Pin.prototype.analogRead = function(cb) {
 Tessel.Pin.prototype.analogWrite = function(val) {
   // throw an error if this isn't the adc pin (port b, pin 7)
   if (this._port.name !== 'B' || this.pin !== 7) {
-    throw new Error('Analog write can only be used on Pin 7 (G3) of Port B.');
+    throw new RangeError('Analog write can only be used on Pin 7 (G3) of Port B.');
   }
 
   // v_dac = data/(0x3ff)*reference voltage
-  var data = val / (3.3) * 0x3ff;
+  var data = val / 3.3 * 0x3ff;
   if (data > 1023 || data < 0) {
-    throw new Error('Analog write must be between 0 and 3.3');
+    throw new RangeError('Analog write must be between 0 and 3.3');
   }
 
   this._port.sock.write(new Buffer([CMD.ANALOG_WRITE, data >> 8, data & 0xff]));

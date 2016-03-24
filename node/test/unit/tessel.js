@@ -1368,6 +1368,47 @@ exports['Tessel.Pin'] = {
     }, this);
     test.done();
   },
+
+  analogWritePortAndPinRangeError: function(test) {
+    test.expect(16);
+
+    this.a.pin.forEach(pin => {
+      test.throws(() => {
+        pin.analogWrite(1);
+      }, RangeError);
+    });
+
+    this.b.pin.slice(0, -1).forEach(pin => {
+      test.throws(() => {
+        pin.analogWrite(1);
+      }, RangeError);
+    });
+
+    test.doesNotThrow(() => {
+      this.b.pin[7].analogWrite(1);
+    });
+
+    test.done();
+  },
+
+  analogWriteValueRangeError: function(test) {
+    test.expect(3);
+
+    test.throws(() => {
+      this.b.pin[7].analogWrite(-1);
+    }, RangeError);
+
+    test.throws(() => {
+      this.b.pin[7].analogWrite(255);
+    }, RangeError);
+
+    test.throws(() => {
+      this.b.pin[7].analogWrite(3.4);
+    }, RangeError);
+
+    test.done();
+  },
+
 };
 
 exports['Tessel.I2C'] = {
