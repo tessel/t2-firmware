@@ -734,7 +734,16 @@ void port_handle_extint(PortData *p, u32 flags) {
             if (port_pin_supports_interrupt(p, pin)) {
                 Pin sys_pin = p->port->gpio[pin];
                 if (flags & (1 << pin_extint(sys_pin))) {
-                    port_send_status(p, REPLY_ASYNC_PIN_CHANGE_N + pin);
+                    u8 response = REPLY_ASYNC_PIN_CHANGE_N + pin;
+
+                    // If the pin's state is high, set bit 3
+                    // of the response byte. This will be used to
+                    // inform "change" listeners of the present state
+                    // at the moment of the interrupt.
+                    if (pin_read(port_selected_pin(p))) {
+                        response |= 1 << 3;
+                    }
+                    port_send_status(p, response);
                     if (eic_read_config(sys_pin) & EIC_CONFIG_SENSE_LEVEL) {
                         // Async level interrupts only trigger once
                         eic_config(sys_pin, EIC_CONFIG_SENSE_NONE);
