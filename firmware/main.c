@@ -134,7 +134,7 @@ void init_breathing_animation() {
 void boot_delay_ms(int delay){
     tc(TC_BOOT)->COUNT16.CTRLA.reg
         = TC_CTRLA_WAVEGEN_MPWM
-        | TC_CTRLA_PRESCALER_DIV1024; 
+        | TC_CTRLA_PRESCALER_DIV1024;
 
     tc(TC_BOOT)->COUNT16.CC[0].reg = delay*50;
     while (tc(TC_BOOT)->COUNT16.STATUS.bit.SYNCBUSY);
@@ -147,9 +147,59 @@ void boot_delay_ms(int delay){
 
     // clear match flag
     tc(TC_BOOT)->COUNT16.INTFLAG.bit.MC0 = 1;
-    
+
     // disable boot counter
     tc(TC_BOOT)->COUNT16.CTRLA.bit.ENABLE = 0;
+}
+
+void tmp_dev_pulse_capture() {
+
+  // TODO: programmatically fetch TCC channel
+  uint8_t PULSE_TCC_CHAN = 0;
+  // TODO: assign appropriate channel to each pin
+  uint8_t PULSE_CC_CHAN = 1;
+  // TODO: Abstract this
+  // Test pin to use
+  Pin test_pin = PORT_A.g3;
+  // Setup the pin to be used with the TCC
+  pin_mux(test_pin);
+  // Use the pin as an input
+  pin_dir(test_pin, false);
+
+  // Perform software reset on the TCC
+  // TODO: don't do this if it's being used by another pin...
+  tcc(PULSE_TCC_CHAN)->CTRLA.bit.SWRST = TCC_CTRLA_SWRST;
+  while (tcc(PULSE_TCC_CHAN)->SYNCBUSY.bit.SWRST) {} // Wait for operation to complete
+
+  // Enable capture on channel 1, Wrap on prescalar value, No prescalar value (GCLK)
+  tcc(PULSE_TCC_CHAN)->CTRLA.reg = TCC_CTRLA_CPTEN1 | TCC_CTRLA_PRESCSYNC_GCLK | TCC_CTRLA_PRESCALER_DIV1;
+
+  tcc(PULSE_TCC_CHAN)->CTRLBSET.reg = TCC_CTRLBSET_ONESHOT; // Enable one-shot operation
+  while (tcc(PULSE_TCC_CHAN)->SYNCBUSY.bit.CTRLB) {} // Wait for operation to complete
+
+  // Enable event match output, input, counter event input???
+  tcc(PULSE_TCC_CHAN)->EVCTRL.reg = TCC_EVCTRL_MCEI1 | TCC_EVCTRL_MCEO1 | TCC_EVCTRL_TCEI1;
+
+  // TODO: Accept incoming value
+  // If the event expects a low pulse, we must invert
+  // if (LOW_PULSE) {
+  //   tcc(PULSE_TCC_CHAN)->EVCTRL.bit.TCINV = TCC_EVCTRL_TCINV1;
+  // }
+
+  // Enable overflow event, setup pulse capture event
+  tcc(PULSE_TCC_CHAN)->EVCTRL.reg |= TCC_EVCTRL_OVFEO | TCC_EVCTRL_EVACT1_PPW;
+
+  // Enable interrupts on overflow and capture in channel 1
+  tcc(PULSE_TCC_CHAN)->INTENSET.reg = TCC_INTENSET_OVF | TCC_INTENSET_MC1;
+
+  // Reset the count
+  tcc(PULSE_TCC_CHAN)->COUNT.reg = TCC_COUNT_RESETVALUE;
+
+  // TODO: Accept incoming value
+  tcc(PULSE_TCC_CHAN)->CCB[PULSE_CC_CHAN].reg = 10000;
+
+  // Enable the TCC
+  tcc(PULSE_TCC_CHAN)->CTRLA.reg |= TCC_CTRLA_ENABLE;
 }
 
 int main(void) {
@@ -230,7 +280,9 @@ int main(void) {
 
     __enable_irq();
     SCB->SCR |= SCB_SCR_SLEEPONEXIT_Msk;
-    
+
+    tmp_dev_pulse_capture();
+
     init_breathing_animation();
 
     while (1) { __WFI(); }

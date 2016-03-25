@@ -100,7 +100,7 @@ const static TesselPort PORT_A = {
     .mosi = {.group = 1, .pin = 2,  .mux = MUX_PB02D_SERCOM5_PAD0, .chan = 10},
     .tx =   {.group = 0, .pin = 14, .mux = MUX_PA14D_SERCOM4_PAD2 },
     .rx =   {.group = 0, .pin = 15, .mux = MUX_PA15D_SERCOM4_PAD3 },
-    .g3 =   {.group = 1, .pin = 8, .chan = 2},
+    .g3 =   {.group = 1, .pin = 8, .chan = 2, .mux=MUX_PA14F_TCC0_WO4},
     .pin_interrupts
         = (1 << (23 & 0xf)) // GPIO 2
         | (1 << (14 & 0xf)) // GPIO 5
