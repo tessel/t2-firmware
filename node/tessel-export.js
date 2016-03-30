@@ -12,6 +12,17 @@ var defOptions = {
   }
 };
 
+// Maximum number of ticks before period completes
+const PWM_MAX_PERIOD = 0xFFFF;
+// Actual lowest frequency is ~0.72Hz but 1Hz is easier to remember.
+// 5000 is the max because any higher and the resolution drops
+// below 7% (0xFFFF/5000 ~ 7.69) which is confusing
+const PWM_MAX_FREQUENCY = 5000;
+const PWM_MIN_FREQUENCY = 1;
+const PWM_PRESCALARS = [1, 2, 4, 8, 16, 64, 256, 1024];
+// Maximum number of unscaled ticks in a second (48 MHz)
+const SAMD21_TICKS_PER_SECOND = 48000000;
+
 function Tessel(options) {
   if (Tessel.instance) {
     return Tessel.instance;
@@ -77,6 +88,11 @@ function Tessel(options) {
   this.version = 2;
 }
 
+var pwmBankSettings = {
+  period : 0,
+  prescalarIndex : 0,
+};
+
 Tessel.prototype.close = function() {
   ['A', 'B'].forEach(function(name) {
     if (this.port[name]) {
@@ -84,6 +100,64 @@ Tessel.prototype.close = function() {
     }
   }, this);
 };
+
+Tessel.prototype.pwmFrequency = function(frequency, cb) {
+  if (frequency < PWM_MIN_FREQUENCY || frequency > PWM_MAX_FREQUENCY) {
+    throw new RangeError(`pwmFrequency value must be between ${PWM_MIN_FREQUENCY} and ${PWM_MAX_FREQUENCY}`);
+  }
+
+  var results = determineDutyCycleAndPrescalar(frequency);
+
+  pwmBankSettings.period = results.period;
+  pwmBankSettings.prescalarIndex = results.prescalarIndex;
+
+  // We are currently only using TCC Bank 0
+  // This may be expanded in the future to enable PWM on more pins
+  const TCC_ID = 0;
+
+  var packet = new Buffer(4);
+  // Write the command id first
+  packet.writeUInt8(CMD.PWM_PERIOD, 0);
+  // Write our prescalar to the top 4 bits and TCC id to the bottom 4 bits
+  packet.writeUInt8((pwmBankSettings.prescalarIndex << 4) | TCC_ID, 1);
+  // Write our period (16 bits)
+  packet.writeUInt16BE(pwmBankSettings.period, 2);
+
+  // Send the packet off to the samd21
+  // on the first available port object (regardless of name)
+  this.port[['A', 'B'].find(name => this.ports[name] !== null)].sock.write(packet, cb);
+};
+
+/*
+ Takes in a desired frequency setting and outputs the
+ necessary prescalar and duty cycle settings based on set period.
+ Outputs an object in the form of:
+ {
+  prescalar: number (0-7),
+  period: number (0-0xFFFF)
+ }
+*/
+function determineDutyCycleAndPrescalar(frequency) {
+  // Current setting for the prescalar
+  var prescalarIndex = 0;
+  // Current period setting
+  var period = 0;
+
+  // If the current frequency would require a period greater than the max
+  while ((period = Math.floor((SAMD21_TICKS_PER_SECOND / PWM_PRESCALARS[prescalarIndex])/frequency)) > PWM_MAX_PERIOD) {
+    // Increase our clock prescalar
+    prescalarIndex++;
+
+    // If we have no higher prescalars
+    if (prescalarIndex === PWM_PRESCALARS.length) {
+      // Throw an error because this frequency is too low for our possible parameters
+      throw new Error('Unable to find prescalar/duty cycle parameter match for frequency');
+    }
+  }
+
+  // We have found a period inside a suitable prescalar, return results
+  return {period: period, prescalarIndex: prescalarIndex};
+}
 
 Tessel.Port = function(name, socketPath, board) {
   var port = this;
@@ -245,7 +319,8 @@ Tessel.Port = function(name, socketPath, board) {
     var interruptSupported = Tessel.Pin.interruptCapablePins.indexOf(i) !== -1;
     var adcSupported = (name === 'B' || Tessel.Pin.adcCapablePins.indexOf(i) !== -1);
     var pullSupported = Tessel.Pin.pullCapablePins.indexOf(i) !== -1;
-    this.pin.push(new Tessel.Pin(i, this, interruptSupported, adcSupported, pullSupported));
+    var pwmSupported = Tessel.Pin.pwmCapablePins.indexOf(i) !== -1;
+    this.pin.push(new Tessel.Pin(i, this, interruptSupported, adcSupported, pullSupported, pwmSupported));
   }
 
   // Deprecated properties for Tessel 1 backwards compatibility:
@@ -254,7 +329,7 @@ Tessel.Port = function(name, socketPath, board) {
   this.pin.G3 = this.pin.g3 = this.pin[7];
   this.digital = [this.pin[5], this.pin[6], this.pin[7]];
 
-  this.pwm = [];
+  this.pwm = [this.pin[5], this.pin[6]];
 
   this.I2C = function I2CInit(address, mode) {
     return new Tessel.I2C({
@@ -415,12 +490,13 @@ Tessel.Port.PATH = {
   'B': '/var/run/tessel/port_b'
 };
 
-Tessel.Pin = function(pin, port, interruptSupported, analogSupported, pullSupported) {
+Tessel.Pin = function(pin, port, interruptSupported, analogSupported, pullSupported, pwmSupported) {
   this.pin = pin;
   this._port = port;
   this.interruptSupported = interruptSupported || false;
   this.analogSupported = analogSupported || false;
   this.pullSupported = pullSupported || false;
+  this.pwmSupported = pwmSupported || false;
   this.interruptMode = null;
   this.isPWM = false;
 };
@@ -430,6 +506,7 @@ util.inherits(Tessel.Pin, EventEmitter);
 Tessel.Pin.adcCapablePins = [4, 7];
 Tessel.Pin.pullCapablePins = [2, 3, 4, 5, 6, 7];
 Tessel.Pin.interruptCapablePins = [2, 5, 6, 7];
+Tessel.Pin.pwmCapablePins = [5, 6];
 
 Tessel.Pin.interruptModes = {
   rise: 1,
@@ -637,6 +714,33 @@ Tessel.Pin.prototype.analogWrite = function(val) {
   }
 
   this._port.sock.write(new Buffer([CMD.ANALOG_WRITE, data >> 8, data & 0xff]));
+  return this;
+};
+
+// Duty cycle should be a value between 0 and 1
+Tessel.Pin.prototype.pwmDutyCycle = function(dutyCycle, cb) {
+  // throw an error if this pin doesn't support PWM
+  if (!this.pwmSupported) {
+    throw new RangeError('PWM can only be used on TX (pin 5) and RX (pin 6) of either module port.');
+  }
+
+  if (typeof dutyCycle !== 'number' || dutyCycle > 1.0 || dutyCycle < 0) {
+    throw new RangeError('PWM duty cycle must be a number between 0 and 1');
+  }
+
+  // The frequency must be set prior to setting the duty cycle
+  if (pwmBankSettings.period === 0) {
+    throw new Error('PWM Frequency is not configured. You must call Tessel.pwmFrequency before setting duty cycle.');
+  }
+
+  // Calculate number of ticks for specified duty cycle
+  var dutyCycleTicks = Math.floor(dutyCycle * pwmBankSettings.period);
+  // Construct packet
+  var packet = new Buffer([CMD.PWM_DUTY_CYCLE, this.pin, dutyCycleTicks >> 8, dutyCycleTicks & 0xff]);
+
+  // Write it to the socket
+  this._port.sock.write(packet, cb);
+
   return this;
 };
 
@@ -856,6 +960,8 @@ var CMD = {
   TXRX: 18,
   START: 19,
   STOP: 20,
+  PWM_DUTY_CYCLE : 27,
+  PWM_PERIOD: 28,
 };
 
 var REPLY = {
@@ -1347,6 +1453,11 @@ function compareBySignal(a, b) {
 if (process.env.IS_TEST_MODE) {
   Tessel.CMD = CMD;
   Tessel.REPLY = REPLY;
+  Tessel.pwmBankSettings = pwmBankSettings;
+  Tessel.pwmMinFrequency = PWM_MIN_FREQUENCY;
+  Tessel.pwmMaxFrequency = PWM_MAX_FREQUENCY;
+  Tessel.pwmPrescalars = PWM_PRESCALARS;
+  Tessel.determineDutyCycleAndPrescalar = determineDutyCycleAndPrescalar;
 }
 
 

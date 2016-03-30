@@ -14,6 +14,9 @@ typedef struct Pin {
   u8 group;
   u8 pin;
   u8 chan;
+  u8 tcc_id;
+  u8 cc_chan;
+  u8 alt_mux;
 } Pin;
 
 #define SERCOM_HANDLER_(ID) SERCOM ## ID ## _Handler()

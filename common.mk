@@ -12,6 +12,7 @@ $(TARGET)_SRC += \
   common/sercom.c \
   common/timer.c \
   common/analog.c \
+  common/pwm.c \
   build/version.c
 
 $(TARGET)_CFLAGS += -Wall --std=gnu99 -Os -g3 -flto

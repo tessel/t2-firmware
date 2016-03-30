@@ -98,8 +98,8 @@ const static TesselPort PORT_A = {
     .sck =  {.group = 1, .pin = 23, .mux = MUX_PB23D_SERCOM5_PAD3 },
     .miso = {.group = 1, .pin = 22, .mux = MUX_PB22D_SERCOM5_PAD2 },
     .mosi = {.group = 1, .pin = 2,  .mux = MUX_PB02D_SERCOM5_PAD0, .chan = 10},
-    .tx =   {.group = 0, .pin = 14, .mux = MUX_PA14D_SERCOM4_PAD2 },
-    .rx =   {.group = 0, .pin = 15, .mux = MUX_PA15D_SERCOM4_PAD3 },
+    .tx =   {.group = 0, .pin = 14, .mux = MUX_PA14D_SERCOM4_PAD2, .tcc_id = 0, .cc_chan = 0, .alt_mux = MUX_PA14F_TCC0_WO4 },
+    .rx =   {.group = 0, .pin = 15, .mux = MUX_PA15D_SERCOM4_PAD3, .tcc_id = 0, .cc_chan = 1, .alt_mux = MUX_PA15F_TCC0_WO5 },
     .g3 =   {.group = 1, .pin = 8, .chan = 2},
     .pin_interrupts
         = (1 << (23 & 0xf)) // GPIO 2
@@ -121,8 +121,8 @@ const static TesselPort PORT_B = {
     .sck =  {.group = 0, .pin = 5,  .mux = MUX_PA05D_SERCOM0_PAD1, .chan = 5 },
     .miso = {.group = 0, .pin = 7,  .mux = MUX_PA07D_SERCOM0_PAD3, .chan = 7 },
     .mosi = {.group = 0, .pin = 4,  .mux = MUX_PA04D_SERCOM0_PAD0, .chan = 4 },
-    .tx =   {.group = 0, .pin = 10, .mux = MUX_PA10D_SERCOM2_PAD2, .chan = 18 },
-    .rx =   {.group = 0, .pin = 11, .mux = MUX_PA11D_SERCOM2_PAD3, .chan = 19 },
+    .tx =   {.group = 0, .pin = 10, .mux = MUX_PA10D_SERCOM2_PAD2, .chan = 18, .tcc_id = 0, .cc_chan = 2, .alt_mux = MUX_PA14F_TCC0_WO4 },
+    .rx =   {.group = 0, .pin = 11, .mux = MUX_PA11D_SERCOM2_PAD3, .chan = 19, .tcc_id = 0, .cc_chan = 3, .alt_mux = MUX_PA14F_TCC0_WO4 },
     .g3 =   {.group = 0, .pin = 2, .chan = 0 },
     .pin_interrupts
         = (1 << (5  & 0xf)) // GPIO 2

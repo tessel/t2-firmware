@@ -15,6 +15,17 @@ inline static void pin_mux(Pin p) {
   PORT->Group[p.group].PINCFG[p.pin].bit.PMUXEN = 1;
 }
 
+// TODO: Somehow integrate with pin_mux
+inline static void pin_alt_mux(Pin p) {
+  if (p.pin & 1) {
+    PORT->Group[p.group].PMUX[p.pin/2].bit.PMUXO = p.alt_mux;
+  } else {
+    PORT->Group[p.group].PMUX[p.pin/2].bit.PMUXE = p.alt_mux;
+  }
+
+  PORT->Group[p.group].PINCFG[p.pin].bit.PMUXEN = 1;
+}
+
 // all adc functions are on peripherial B (0x01)
 inline static void pin_analog(Pin p) {
   if (p.pin & 1) {
@@ -236,6 +247,14 @@ void timer_clock_enable(TimerId id);
 void tcc_delay_start(TimerId id, u32 ticks);
 void tcc_delay_disable(TimerId id);
 void tcc_delay_enable(TimerId id);
+
+// PWM
+
+void pwm_bank_enable(TimerId id);
+void pwm_bank_reset(TimerId id);
+void pwm_bank_disable(TimerId id);
+void pwm_bank_set_period(TimerId id, u8 new_prescalar, u16 new_period);
+void pwm_set_pin_duty(Pin p, u16 duty_cycle);
 
 // wdt
 
