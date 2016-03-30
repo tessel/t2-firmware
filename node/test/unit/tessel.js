@@ -1448,13 +1448,11 @@ exports['Tessel.I2C'] = {
 
     new Tessel.I2C({
       address: 0x01,
-      mode: undefined,
       port: this.port
     });
 
     new Tessel.I2C({
       address: 0x01,
-      mode: undefined,
       port: this.port
     });
 
@@ -1465,6 +1463,74 @@ exports['Tessel.I2C'] = {
     test.done();
   },
 
+  frequencyStandardMode: function(test) {
+    test.expect(5);
+
+    var device1 = new Tessel.I2C({
+      addr: 0x04,
+      freq: 1e5,
+      port: this.port,
+    });
+    var device2 = new Tessel.I2C({
+      addr: 0x04,
+      freq: 1e5,
+      port: this.port,
+    });
+
+    test.notEqual(device1, device2);
+
+    test.equal(device1.baudrate, 234);
+    test.equal(device1.frequency, 100000);
+
+    test.equal(device2.baudrate, 234);
+    test.equal(device2.frequency, 100000);
+    test.done();
+  },
+
+  frequencyFastMode: function(test) {
+    test.expect(5);
+
+    var device1 = new Tessel.I2C({
+      addr: 0x04,
+      freq: 4e5,
+      port: this.port,
+    });
+    var device2 = new Tessel.I2C({
+      addr: 0x04,
+      freq: 4e5,
+      port: this.port,
+    });
+
+    test.notEqual(device1, device2);
+
+    test.equal(device1.baudrate, 54);
+    test.equal(device1.frequency, 400000);
+
+    test.equal(device2.baudrate, 54);
+    test.equal(device2.frequency, 400000);
+    test.done();
+  },
+
+  frequencyInvalid: function(test) {
+    test.expect(2);
+
+    test.throws(() => {
+      new Tessel.I2C({
+        addr: 0x04,
+        freq: 4e5 + 1,
+        port: this.port,
+      });
+    }, RangeError);
+    test.throws(() => {
+      new Tessel.I2C({
+        addr: 0x04,
+        freq: 1e5 - 1,
+        port: this.port,
+      });
+    }, RangeError);
+
+    test.done();
+  },
   explicitFreqChangesBaud: function(test) {
     test.expect(1);
 
@@ -1626,6 +1692,67 @@ exports['Tessel.UART'] = {
     done();
   },
 
+  baudrateCmd: function(test) {
+    test.expect(2);
+
+    var b1 = 9600;
+
+    new this.port.UART({
+      baudrate: b1
+    });
+
+    test.equal(this._simple_cmd.callCount, 1);
+    test.deepEqual(this._simple_cmd.lastCall.args[0], [14, 255, 46]);
+    test.done();
+  },
+
+  baudrateSetterCmd: function(test) {
+    test.expect(3);
+
+    var b1 = 9600;
+
+    var uart = new this.port.UART({
+      baudrate: b1
+    });
+
+    uart.baudrate = 115200;
+
+    test.equal(uart.baudrate, 115200);
+    test.equal(this._simple_cmd.callCount, 2);
+    test.deepEqual(this._simple_cmd.lastCall.args[0], [14, 246, 43]);
+    test.done();
+  },
+
+  baudrateInvalidLow: function(test) {
+    test.expect(2);
+
+    var b1 = 9600;
+
+    var uart = new this.port.UART({
+      baudrate: b1
+    });
+
+    test.throws(() => uart.baudrate = 0);
+    test.equal(uart.baudrate, b1);
+
+    test.done();
+  },
+
+  baudrateInvalidHigh: function(test) {
+    test.expect(2);
+
+    var b1 = 9600;
+
+    var uart = new this.port.UART({
+      baudrate: b1
+    });
+
+    test.throws(() => uart.baudrate = 115201);
+    test.equal(uart.baudrate, b1);
+
+    test.done();
+  },
+
   interfaceChange: function(test) {
     test.expect(3);
 
@@ -1636,7 +1763,7 @@ exports['Tessel.UART'] = {
       baudrate: b1
     });
 
-    test.equal(uart._baudrate, b1);
+    test.equal(uart.baudrate, b1);
 
     uart = new this.port.UART({
       baudrate: b2
@@ -1644,7 +1771,7 @@ exports['Tessel.UART'] = {
 
     test.ok(this.uartDisable.calledOnce, true);
 
-    test.equal(uart._baudrate, b2);
+    test.equal(uart.baudrate, b2);
 
     test.done();
   },
@@ -1719,6 +1846,24 @@ exports['Tessel.SPI'] = {
     test.ok(this.spiDisable.calledOnce, true);
 
     test.equal(spi.clockSpeed, s2);
+
+    test.done();
+  },
+
+  clockSpeedRangeError: function(test) {
+    test.expect(2);
+
+    test.throws(() => {
+      new this.port.SPI({
+        clockSpeed: 368 - 1
+      });
+    }, RangeError);
+
+    test.throws(() => {
+      new this.port.SPI({
+        clockSpeed: 24e6 + 1
+      });
+    }, RangeError);
 
     test.done();
   },

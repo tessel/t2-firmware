@@ -745,20 +745,38 @@ Tessel.Pin.prototype.pwmDutyCycle = function(dutyCycle, cb) {
 };
 
 Tessel.I2C = function(params) {
-  this.addr = params.addr;
+  var frequency = 1e5;
+
+  Object.defineProperties(this, {
+    frequency: {
+      get: () => {
+        return frequency;
+      },
+      set: (value) => {
+        // Restrict to between 100kHz and 400kHz.
+        // Can actually go up to 4mhz without clk modification
+        if (value !== 1e5 && value !== 4e5) {
+          // http://asf.atmel.com/docs/3.15.0/samd21/html/group__asfdoc__sam0__sercom__i2c__group.html#gace1e0023f2eee92565496a2e30006548
+          throw new RangeError('I2C frequency must be 100kHz or 400kHz');
+        }
+
+        frequency = value;
+      }
+    },
+    baudrate: {
+      get: () => {
+        return Tessel.I2C.computeBaud(frequency);
+      }
+    }
+  });
+
   this._port = params.port;
-  this._freq = params.freq ? params.freq : 100000; // 100khz
-
-  // Restrict to between 400khz and 90khz. can actually go up to 4mhz without clk modification
-  if (this._freq > 4e5 || this._freq < 9e4) {
-    throw new Error('I2C frequency should be between 400khz and 90khz');
-  }
-
-  this._baud = Tessel.I2C.computeBaud(this._freq);
+  this.addr = params.addr;
+  this.frequency = params.freq ? params.freq : 100000; // 100khz
 
   // Send the ENABLE_I2C command when the first I2C device is instantiated
   if (!this._port.I2C.enabled) {
-    this._port._simple_cmd([CMD.ENABLE_I2C, this._baud]);
+    this._port._simple_cmd([CMD.ENABLE_I2C, this.baudrate]);
     // Note that this bus is enabled now
     this._port.I2C.enabled = true;
   }
@@ -826,8 +844,8 @@ Tessel.SPI = function(params, port) {
   this.clockSpeed = params.clockSpeed ? params.clockSpeed : 2e6;
 
   // if speed is slower than 93750 then we need a clock divisor
-  if (this.clockSpeed > 24e6 || this.clockSpeed < 368) {
-    throw new Error('SPI Clock needs to be between 24e6 and 368Hz.');
+  if (this.clockSpeed < 368 || this.clockSpeed > 24e6) {
+    throw new RangeError('SPI clock must be between 368Hz and 24MHz');
   }
 
   this._clockReg = Math.floor(48e6 / (2 * this.clockSpeed) - 1);
@@ -894,21 +912,34 @@ Tessel.SPI.prototype.transfer = function(data, callback) {
 Tessel.UART = function(port, options) {
   Duplex.call(this, {});
 
+  var baudrate = 9600;
+
+  Object.defineProperties(this, {
+    baudrate: {
+      get: () => {
+        return baudrate;
+      },
+      set: (value) => {
+        // baud is given by the following:
+        // baud = 65536*(1-(samples_per_bit)*(f_wanted/f_ref))
+        // samples_per_bit = 16, 8, or 3
+        // f_ref = 48e6
+
+        if (value < 9600 || value > 115200) {
+          throw new Error('UART baudrate must be between 9600 and 115200');
+        }
+
+        baudrate = value;
+
+        var computed = Math.floor(65536 * (1 - 16 * (baudrate / 48e6)));
+
+        this._port._simple_cmd([CMD.ENABLE_UART, computed >> 8, computed & 0xFF]);
+      }
+    }
+  });
+
   this._port = port;
-
-  // baud is given by the following:
-  // baud = 65536*(1-(samples_per_bit)*(f_wanted/f_ref))
-  // samples_per_bit = 16, 8, or 3
-  // f_ref = 48e6
-  this._baudrate = options.baudrate || 9600;
-  // make sure baudrate is in between 9600 and 115200
-  if (this._baudrate < 9600 || this._baudrate > 115200) {
-    throw new Error('UART baudrate must be between 9600 and 115200');
-  }
-  this._baud = Math.floor(65536 * (1 - 16 * (this._baudrate / 48e6)));
-
-  // split _baud up into two bytes & send
-  this._port._simple_cmd([CMD.ENABLE_UART, this._baud >> 8, this._baud & 0xFF]);
+  this.baudrate = options.baudrate || 9600;
 };
 
 util.inherits(Tessel.UART, Duplex);
