@@ -2365,11 +2365,13 @@ exports['Tessel.port.pwm'] = {
     this.tessel = new Tessel();
     done();
   },
+
   tearDown: function(done) {
     Tessel.instance = null;
     sandbox.restore();
     done();
   },
+
   pwmArray: function(test) {
     test.expect(26);
 
@@ -2690,5 +2692,296 @@ exports['pin.pwmDutyCycle'] = {
     test.ok((packet[2] << 8) + packet[3] === dutyCycle * Tessel.pwmBankSettings.period);
     // Call our callback
     cb();
+  }
+};
+  
+exports['Tessel.AP'] = {
+  setUp: function(done) {
+    this.Port = sandbox.stub(Tessel, 'Port');
+    this.fsWrite = sandbox.stub(fs, 'writeFile');
+    this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
+      callback();
+    });
+    this.tessel = new Tessel();
+    done();
+  },
+
+  tearDown: function(done) {
+    Tessel.instance = null;
+    sandbox.restore();
+    done();
+  },
+
+  initialized: function(test) {
+    test.expect(1);
+
+    test.deepEqual(this.tessel.network.ap.settings, {}, 'no setings by default');
+
+    test.done();
+  },
+
+  create: function(test) {
+    test.expect(4);
+
+    var settings = {
+      ssid: 'TestNetwork',
+      password: 'TestPassword',
+      security: 'psk2'
+    };
+    var ip = '192.168.1.101';
+
+    this.exec.restore();
+    this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
+      if (cmd === 'uci get network.lan.ipaddr') {
+        callback(null, ip);
+      } else {
+        callback();
+      }
+    });
+
+    var results = Object.assign({
+      ip: ip
+    }, settings);
+
+    this.tessel.network.ap.on('create', (networkSettings) => {
+      test.deepEqual(networkSettings, results, 'correct settings');
+    });
+
+    this.tessel.network.ap.create(settings, (error, apSettings) => {
+      if (error) {
+        test.fail(error);
+        test.done();
+      }
+
+      test.deepEqual(apSettings, results, 'correct settings');
+      test.deepEqual(this.tessel.network.ap.settings, results, 'correct settings property');
+      test.equal(this.exec.callCount, 5, 'exec called correctly');
+
+      test.done();
+    });
+  },
+
+  createErrorNoSettings: function(test) {
+    test.expect(1);
+
+    test.throws(this.tessel.network.ap.create, 'throws without settings');
+    test.done();
+  },
+
+  createErrorNoSSID: function(test) {
+    test.expect(1);
+
+    test.throws(this.tessel.network.ap.create.bind({}), 'throws without ssid');
+    test.done();
+  },
+
+  createWithoutCallback: function(test) {
+    test.expect(3);
+
+    var settings = {
+      ssid: 'TestNetwork',
+      password: 'TestPassword',
+      security: 'psk2'
+    };
+    var ip = '192.168.1.101';
+
+    this.exec.restore();
+    this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
+      if (cmd === 'uci get network.lan.ipaddr') {
+        callback(null, ip);
+      } else {
+        callback();
+      }
+    });
+
+    var results = Object.assign({
+      ip: ip
+    }, settings);
+
+    this.tessel.network.ap.on('create', (networkSettings) => {
+      test.deepEqual(networkSettings, results, 'correct settings');
+      test.deepEqual(this.tessel.network.ap.settings, results, 'correct settings property');
+      test.equal(this.exec.callCount, 5, 'exec called correctly');
+      test.done();
+    });
+
+    this.tessel.network.ap.on('error', (error) => {
+      test.fail(error);
+      test.done();
+    });
+
+    this.tessel.network.ap.create(settings);
+  },
+
+  createWithoutSecurity: function(test) {
+    test.expect(4);
+
+    var settings = {
+      ssid: 'TestNetwork',
+      password: 'TestPassword'
+    };
+    var ip = '192.168.1.101';
+
+    this.exec.restore();
+    this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
+      if (cmd === 'uci get network.lan.ipaddr') {
+        callback(null, ip);
+      } else {
+        callback();
+      }
+    });
+
+    var results = Object.assign({
+      ip: ip,
+      security: 'psk2'
+    }, settings);
+
+    this.tessel.network.ap.on('create', (networkSettings) => {
+      test.deepEqual(networkSettings, results, 'correct settings');
+    });
+
+    this.tessel.network.ap.create(settings, (error, networkSettings) => {
+      if (error) {
+        test.fail(error);
+        test.done();
+      }
+
+      test.deepEqual(networkSettings, results, 'correct settings');
+      test.deepEqual(this.tessel.network.ap.settings, results, 'correct settings property');
+      test.equal(this.exec.callCount, 5, 'exec called correctly');
+
+      test.done();
+    });
+  },
+
+  createWithoutPassword: function(test) {
+    test.expect(4);
+
+    var settings = {
+      ssid: 'TestNetwork'
+    };
+    var ip = '192.168.1.101';
+
+    this.exec.restore();
+    this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
+      if (cmd === 'uci get network.lan.ipaddr') {
+        callback(null, ip);
+      } else {
+        callback();
+      }
+    });
+
+    var results = Object.assign({
+      ip: ip,
+      password: '',
+      security: 'none'
+    }, settings);
+
+    this.tessel.network.ap.on('create', (networkSettings) => {
+      test.deepEqual(networkSettings, results, 'correct settings');
+    });
+
+    this.tessel.network.ap.create(settings, (error, networkSettings) => {
+      if (error) {
+        test.fail(error);
+        test.done();
+      }
+
+      test.deepEqual(networkSettings, results, 'correct settings');
+      test.deepEqual(this.tessel.network.ap.settings, results, 'correct settings property');
+      test.equal(this.exec.callCount, 5, 'exec called correctly');
+
+      test.done();
+    });
+  },
+
+  createThrowsError: function(test) {
+    test.expect(2);
+
+    var settings = {
+      ssid: 'TestNetwork'
+    };
+    var testError = 'This is a test';
+
+    this.exec.restore();
+    this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
+      callback(testError);
+    });
+
+    this.tessel.network.ap.on('create', () => {
+      test.fail('should not connect');
+      test.done();
+    });
+
+    this.tessel.network.ap.on('error', (error) => {
+      test.equal(error, testError, 'error event fires correctly');
+    });
+
+    this.tessel.network.ap.create(settings, (error) => {
+      if (error) {
+        test.equal(error, testError, 'error should be passed into callback');
+        test.done();
+      } else {
+        test.fail('should not connect');
+        test.done();
+      }
+    });
+  },
+
+  reset: function(test) {
+    test.expect(3);
+
+    this.tessel.network.ap.on('reset', () => {
+      test.ok(true, 'reset event is fired');
+    });
+    this.tessel.network.ap.on('off', () => {
+      test.ok(true, 'off event is fired');
+    });
+    this.tessel.network.ap.on('on', () => {
+      test.ok(true, 'on event is fired');
+    });
+
+    this.tessel.network.ap.reset((error) => {
+      if (error) {
+        test.fail(error);
+        test.done();
+      } else {
+        test.done();
+      }
+    });
+  },
+
+  disable: function(test) {
+    test.expect(1);
+
+    this.tessel.network.ap.on('off', () => {
+      test.ok(true, 'off event is fired');
+    });
+
+    this.tessel.network.ap.disable((error) => {
+      if (error) {
+        test.fail(error);
+        test.done();
+      } else {
+        test.done();
+      }
+    });
+  },
+
+  enable: function(test) {
+    test.expect(1);
+
+    this.tessel.network.ap.on('on', () => {
+      test.ok(true, 'on event is fired');
+    });
+
+    this.tessel.network.ap.enable((error) => {
+      if (error) {
+        test.fail(error);
+        test.done();
+      } else {
+        test.done();
+      }
+    });
   }
 };

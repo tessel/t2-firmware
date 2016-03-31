@@ -79,7 +79,8 @@ function Tessel(options) {
   this.leds = this.led;
 
   this.network = {
-    wifi: new Tessel.Wifi()
+    wifi: new Tessel.Wifi(),
+    ap: new Tessel.AP()
   };
 
   // tessel v1 does not have this version number
@@ -1479,6 +1480,170 @@ function compareBySignal(a, b) {
   } else {
     return 0;
   }
+}
+
+// Access Point
+Tessel.AP = function() {
+  var state = {
+    settings: {}
+  };
+
+  Object.defineProperties(this, {
+    settings: {
+      get: () => state.settings,
+      set: (settings) => {
+        state.settings = Object.assign(state.settings, settings);
+      }
+    }
+  });
+};
+
+util.inherits(Tessel.AP, EventEmitter);
+
+Tessel.AP.prototype.enable = function(callback) {
+  if (typeof callback !== 'function') {
+    callback = function() {};
+  }
+
+  turnOnAP()
+    .then(commitWireless)
+    .then(restartWifi)
+    .then(() => {
+      this.emit('on', this.settings);
+      callback();
+    })
+    .catch((error) => {
+      this.emit('error', error);
+      callback(error);
+    });
+};
+
+Tessel.AP.prototype.disable = function(callback) {
+  if (typeof callback !== 'function') {
+    callback = function() {};
+  }
+
+  turnOffAP()
+    .then(commitWireless)
+    .then(restartWifi)
+    .then(() => {
+      this.emit('off');
+      callback();
+    })
+    .catch((error) => {
+      this.emit('error', error);
+      callback(error);
+    });
+};
+
+Tessel.AP.prototype.reset = function(callback) {
+  if (typeof callback !== 'function') {
+    callback = function() {};
+  }
+
+  this.emit('reset', 'Resetting connection');
+  this.emit('off', 'Resetting connection');
+  restartWifi()
+    .then(() => {
+      this.emit('on', this.settings);
+      callback();
+    })
+    .catch((error) => {
+      this.emit('error', error);
+      callback(error);
+    });
+};
+
+Tessel.AP.prototype.create = function(settings, callback) {
+  if (typeof settings !== 'object' || settings.ssid.length === 0) {
+    throw new Error('Access point settings must be an object with at least a "ssid" property.');
+  }
+
+  if (typeof callback !== 'function') {
+    callback = function() {};
+  }
+
+  if (settings.password && !settings.security) {
+    settings.security = 'psk2';
+  }
+
+  if (!settings.password && (!settings.security || settings.security === 'none')) {
+    settings.password = '';
+    settings.security = 'none';
+  }
+
+  createNetwork(settings)
+    .then(turnOnAP)
+    .then(commitWireless)
+    .then(restartWifi)
+    .then(getAccessPointIP)
+    .then((ip) => {
+      this.settings = Object.assign(settings, {
+        ip
+      });
+      this.emit('create', this.settings);
+
+      callback(null, this.settings);
+    })
+    .catch((error) => {
+      this.emit('error', error);
+      callback(error);
+    });
+};
+
+function createNetwork(settings) {
+  var commands = `
+    uci batch <<EOF
+    set wireless.@wifi-iface[1].ssid="${settings.ssid}"
+    set wireless.@wifi-iface[1].key="${settings.password}"
+    set wireless.@wifi-iface[1].encryption="${settings.security}"
+    EOF
+  `;
+
+  return new Promise((resolve) => {
+    childProcess.exec(commands, (error) => {
+      if (error) {
+        throw error;
+      }
+
+      resolve();
+    });
+  });
+}
+
+function getAccessPointIP() {
+  return new Promise((resolve) => {
+    childProcess.exec('uci get network.lan.ipaddr', (error, ip) => {
+      if (error) {
+        throw error;
+      }
+
+      ip = ip.replace('\n', '').trim();
+      resolve(ip);
+    });
+  });
+}
+
+function turnOnAP() {
+  return new Promise((resolve) => {
+    childProcess.exec('uci set wireless.@wifi-iface[1].disabled=0', (error) => {
+      if (error) {
+        throw error;
+      }
+      resolve();
+    });
+  });
+}
+
+function turnOffAP() {
+  return new Promise((resolve) => {
+    childProcess.exec('uci set wireless.@wifi-iface[1].disabled=1', (error) => {
+      if (error) {
+        throw error;
+      }
+      resolve();
+    });
+  });
 }
 
 if (process.env.IS_TEST_MODE) {
