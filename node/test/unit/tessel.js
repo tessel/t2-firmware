@@ -2420,7 +2420,7 @@ exports['determineDutyCycleAndPrescalar'] = {
     var frequency = 1000;
     var expectedPrescalar = 1;
     var results = Tessel.determineDutyCycleAndPrescalar(frequency);
-    test.equal(results.period, 48000000/frequency);
+    test.equal(results.period, 48000000 / frequency);
     test.equal(results.prescalarIndex, Tessel.pwmPrescalars.indexOf(expectedPrescalar));
     test.done();
   },
@@ -2430,7 +2430,7 @@ exports['determineDutyCycleAndPrescalar'] = {
     var frequency = 100;
     var expectedPrescalar = 8;
     var results = Tessel.determineDutyCycleAndPrescalar(frequency);
-    test.equal(results.period, 48000000/frequency/expectedPrescalar);
+    test.equal(results.period, 48000000 / frequency / expectedPrescalar);
     test.equal(results.prescalarIndex, Tessel.pwmPrescalars.indexOf(expectedPrescalar));
     test.done();
   },
@@ -2440,7 +2440,7 @@ exports['determineDutyCycleAndPrescalar'] = {
     var frequency = 1;
     var expectedPrescalar = 1024;
     var results = Tessel.determineDutyCycleAndPrescalar(frequency);
-    test.equal(results.period, 48000000/frequency/expectedPrescalar);
+    test.equal(results.period, 48000000 / frequency / expectedPrescalar);
     test.equal(results.prescalarIndex, Tessel.pwmPrescalars.indexOf(expectedPrescalar));
     test.done();
   },
@@ -2449,8 +2449,7 @@ exports['determineDutyCycleAndPrescalar'] = {
     var frequency = 0.1;
     try {
       Tessel.determineDutyCycleAndPrescalar(frequency);
-    }
-    catch (err) {
+    } catch (err) {
       test.ok(err);
     }
 
@@ -2498,8 +2497,7 @@ exports['tessel.pwmFrequency'] = {
     try {
       // Attempt to set the frequency
       this.tessel.pwmFrequency(frequency);
-    }
-    catch (err) {
+    } catch (err) {
       // Ensure an error was thrown
       test.ok(err);
       test.ok(err instanceof RangeError);
@@ -2515,8 +2513,7 @@ exports['tessel.pwmFrequency'] = {
     try {
       // Attempt to set the frequency
       this.tessel.pwmFrequency(frequency);
-    }
-    catch (err) {
+    } catch (err) {
       // Ensure an error was thrown
       test.ok(err);
       test.ok(err instanceof RangeError);
@@ -2594,8 +2591,7 @@ exports['pin.pwmDutyCycle'] = {
     try {
       // Attempt to set the duty cycle
       this.tessel.port.A.digital[2].pwmDutyCycle(1);
-    }
-    catch (err) {
+    } catch (err) {
       // Ensure an error was thrown
       test.ok(err);
       test.ok(err instanceof RangeError);
@@ -2609,8 +2605,7 @@ exports['pin.pwmDutyCycle'] = {
     try {
       // Attempt to set the duty cycle
       this.tessel.port.A.pwm[0].pwmDutyCycle('five');
-    }
-    catch (err) {
+    } catch (err) {
       // Ensure an error was thrown
       test.ok(err);
       test.ok(err instanceof RangeError);
@@ -2624,8 +2619,7 @@ exports['pin.pwmDutyCycle'] = {
     try {
       // Attempt to set the duty cycle
       this.tessel.port.A.pwm[0].pwmDutyCycle(1.5);
-    }
-    catch (err) {
+    } catch (err) {
       // Ensure an error was thrown
       test.ok(err);
       test.ok(err instanceof RangeError);
@@ -2639,8 +2633,7 @@ exports['pin.pwmDutyCycle'] = {
     try {
       // Attempt to set the duty cycle
       this.tessel.port.A.pwm[0].pwmDutyCycle(-0.5);
-    }
-    catch (err) {
+    } catch (err) {
       // Ensure an error was thrown
       test.ok(err);
       test.ok(err instanceof RangeError);
@@ -2656,8 +2649,7 @@ exports['pin.pwmDutyCycle'] = {
       Tessel.pwmBankSettings.period = 0;
       // Attempt to set the duty cycle
       this.tessel.port.A.pwm[0].pwmDutyCycle(0.5);
-    }
-    catch (err) {
+    } catch (err) {
       // Ensure an error was thrown
       test.ok(err);
       test.ok(err.toString().includes('Frequency is not configured'));
@@ -2694,7 +2686,7 @@ exports['pin.pwmDutyCycle'] = {
     cb();
   }
 };
-  
+
 exports['Tessel.AP'] = {
   setUp: function(done) {
     this.Port = sandbox.stub(Tessel, 'Port');
@@ -2929,16 +2921,24 @@ exports['Tessel.AP'] = {
   },
 
   reset: function(test) {
-    test.expect(3);
+    test.expect(5);
 
     this.tessel.network.ap.on('reset', () => {
       test.ok(true, 'reset event is fired');
     });
+
     this.tessel.network.ap.on('off', () => {
       test.ok(true, 'off event is fired');
     });
     this.tessel.network.ap.on('on', () => {
       test.ok(true, 'on event is fired');
+    });
+
+    this.tessel.network.ap.on('disable', () => {
+      test.ok(true, 'disable event is fired');
+    });
+    this.tessel.network.ap.on('enable', () => {
+      test.ok(true, 'enable event is fired');
     });
 
     this.tessel.network.ap.reset((error) => {
@@ -2952,10 +2952,14 @@ exports['Tessel.AP'] = {
   },
 
   disable: function(test) {
-    test.expect(1);
+    test.expect(2);
 
     this.tessel.network.ap.on('off', () => {
       test.ok(true, 'off event is fired');
+    });
+
+    this.tessel.network.ap.on('disable', () => {
+      test.ok(true, 'disable event is fired');
     });
 
     this.tessel.network.ap.disable((error) => {
@@ -2969,10 +2973,14 @@ exports['Tessel.AP'] = {
   },
 
   enable: function(test) {
-    test.expect(1);
+    test.expect(2);
 
     this.tessel.network.ap.on('on', () => {
       test.ok(true, 'on event is fired');
+    });
+
+    this.tessel.network.ap.on('enable', () => {
+      test.ok(true, 'enable event is fired');
     });
 
     this.tessel.network.ap.enable((error) => {
