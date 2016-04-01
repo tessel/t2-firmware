@@ -90,8 +90,8 @@ function Tessel(options) {
 }
 
 var pwmBankSettings = {
-  period : 0,
-  prescalarIndex : 0,
+  period: 0,
+  prescalarIndex: 0,
 };
 
 Tessel.prototype.close = function() {
@@ -145,7 +145,7 @@ function determineDutyCycleAndPrescalar(frequency) {
   var period = 0;
 
   // If the current frequency would require a period greater than the max
-  while ((period = Math.floor((SAMD21_TICKS_PER_SECOND / PWM_PRESCALARS[prescalarIndex])/frequency)) > PWM_MAX_PERIOD) {
+  while ((period = Math.floor((SAMD21_TICKS_PER_SECOND / PWM_PRESCALARS[prescalarIndex]) / frequency)) > PWM_MAX_PERIOD) {
     // Increase our clock prescalar
     prescalarIndex++;
 
@@ -157,7 +157,10 @@ function determineDutyCycleAndPrescalar(frequency) {
   }
 
   // We have found a period inside a suitable prescalar, return results
-  return {period: period, prescalarIndex: prescalarIndex};
+  return {
+    period: period,
+    prescalarIndex: prescalarIndex
+  };
 }
 
 Tessel.Port = function(name, socketPath, board) {
@@ -992,7 +995,7 @@ var CMD = {
   TXRX: 18,
   START: 19,
   STOP: 20,
-  PWM_DUTY_CYCLE : 27,
+  PWM_DUTY_CYCLE: 27,
   PWM_PERIOD: 28,
 };
 
@@ -1510,6 +1513,7 @@ Tessel.AP.prototype.enable = function(callback) {
     .then(restartWifi)
     .then(() => {
       this.emit('on', this.settings);
+      this.emit('enable', this.settings);
       callback();
     })
     .catch((error) => {
@@ -1528,6 +1532,7 @@ Tessel.AP.prototype.disable = function(callback) {
     .then(restartWifi)
     .then(() => {
       this.emit('off');
+      this.emit('disable');
       callback();
     })
     .catch((error) => {
@@ -1542,10 +1547,12 @@ Tessel.AP.prototype.reset = function(callback) {
   }
 
   this.emit('reset', 'Resetting connection');
-  this.emit('off', 'Resetting connection');
+  this.emit('off');
+  this.emit('disable');
   restartWifi()
     .then(() => {
       this.emit('on', this.settings);
+      this.emit('enable', this.settings);
       callback();
     })
     .catch((error) => {
