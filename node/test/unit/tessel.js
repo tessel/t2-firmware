@@ -1262,6 +1262,64 @@ exports['Tessel.Pin'] = {
     test.done();
   },
 
+  interruptChangeStateLow: function(test) {
+    test.expect(17);
+
+    var spy = sandbox.spy();
+
+    [2, 5, 6, 7].forEach(function(pinIndex) {
+      this.a.pin[pinIndex].on('change', spy);
+      this.b.pin[pinIndex].on('change', spy);
+
+      test.equal(this.a.pin[pinIndex].interruptMode, 'change');
+      test.equal(this.b.pin[pinIndex].interruptMode, 'change');
+
+      // Simulate receipt of pin state changes
+      this.a.sock.read.returns(new Buffer([REPLY.ASYNC_PIN_CHANGE_N + pinIndex]));
+      this.a.sock.emit('readable');
+
+      this.b.sock.read.returns(new Buffer([REPLY.ASYNC_PIN_CHANGE_N + pinIndex]));
+      this.b.sock.emit('readable');
+    }, this);
+
+    test.equal(spy.callCount, 8);
+
+    for (var i = 0; i < 8; i++) {
+      test.equal(spy.getCall(i).args[0], 0);
+    }
+
+    test.done();
+  },
+
+  interruptChangeStateHigh: function(test) {
+    test.expect(17);
+
+    var spy = sandbox.spy();
+
+    [2, 5, 6, 7].forEach(function(pinIndex) {
+      this.a.pin[pinIndex].on('change', spy);
+      this.b.pin[pinIndex].on('change', spy);
+
+      test.equal(this.a.pin[pinIndex].interruptMode, 'change');
+      test.equal(this.b.pin[pinIndex].interruptMode, 'change');
+
+      // Simulate receipt of pin state changes
+      this.a.sock.read.returns(new Buffer([(REPLY.ASYNC_PIN_CHANGE_N + pinIndex) | (1 << 3)]));
+      this.a.sock.emit('readable');
+
+      this.b.sock.read.returns(new Buffer([(REPLY.ASYNC_PIN_CHANGE_N + pinIndex) | (1 << 3)]));
+      this.b.sock.emit('readable');
+    }, this);
+
+    test.equal(spy.callCount, 8);
+
+    for (var i = 0; i < 8; i++) {
+      test.equal(spy.getCall(i).args[0], 1);
+    }
+
+    test.done();
+  },
+
   removeListener: function(test) {
     test.expect(14);
 

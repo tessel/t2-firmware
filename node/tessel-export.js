@@ -235,9 +235,9 @@ Tessel.Port = function(name, socketPath, board) {
         // This is some other async transaction
       } else if (byte >= REPLY.MIN_ASYNC) {
         // If this is a pin change
-        if (byte >= REPLY.ASYNC_PIN_CHANGE_N && byte < REPLY.ASYNC_PIN_CHANGE_N + 8) {
-          // Pull out which pin it is
-          var pin = this.pin[byte - REPLY.ASYNC_PIN_CHANGE_N];
+        if (byte >= REPLY.ASYNC_PIN_CHANGE_N && byte < REPLY.ASYNC_PIN_CHANGE_N + 16) {
+          // Pull out the pin number (requires clearing the value bit)
+          var pin = this.pin[(byte - REPLY.ASYNC_PIN_CHANGE_N) & ~(1 << 3)];
           // Get the mode change
           var mode = pin.interruptMode;
 
@@ -250,7 +250,13 @@ Tessel.Port = function(name, socketPath, board) {
           }
 
           // Emit the change
-          pin.emit(mode);
+          if (mode === 'change') {
+            // "change" is otherwise ambiguous.
+            pin.emit('change', (byte >> 3) & 1);
+          } else {
+            // high, low, rise & fall are _not_ ambiguous
+            pin.emit(mode);
+          }
         } else {
           // Some other async event
           this.emit('async-event', byte);
