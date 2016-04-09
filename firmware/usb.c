@@ -16,7 +16,7 @@ __attribute__((__aligned__(4))) const USB_DeviceDescriptor device_descriptor = {
 	.bMaxPacketSize0        = 64,
 	.idVendor               = 0x1209,
 	.idProduct              = 0x7551,
-	.bcdDevice              = 0x0110,
+	.bcdDevice              = 0x0111,
 
 	.iManufacturer          = 0x01,
 	.iProduct               = 0x02,
@@ -212,20 +212,35 @@ __attribute__((__aligned__(4))) const USB_StringDescriptor msft_os = {
 	.bString = u"MSFT100\xee"
 };
 
-__attribute__((__aligned__(4))) const USB_MicrosoftCompatibleDescriptor msft_compatible = {
-	.dwLength = sizeof(USB_MicrosoftCompatibleDescriptor) + sizeof(USB_MicrosoftCompatibleDescriptor_Interface),
+// TODO: this doesn't need to be in RAM if it is copied into usb_ep0_out one packet at a time
+__attribute__((__aligned__(4), __section__(".data"))) const USB_MicrosoftCompatibleDescriptor msft_compatible = {
+	.dwLength = sizeof(USB_MicrosoftCompatibleDescriptor) + 3 * sizeof(USB_MicrosoftCompatibleDescriptor_Interface),
 	.bcdVersion = 0x0100,
 	.wIndex = 0x0004,
-	.bCount = 1,
+	.bCount = 3,
 	.reserved = {0, 0, 0, 0, 0, 0, 0},
 	.interfaces = {
 		{
 			.bFirstInterfaceNumber = 0,
-			.reserved1 = 0,
+			.reserved1 = 0x01,
 			.compatibleID = "WINUSB\0\0",
 			.subCompatibleID = {0, 0, 0, 0, 0, 0, 0, 0},
 			.reserved2 = {0, 0, 0, 0, 0, 0},
-		}
+		},
+		{
+			.bFirstInterfaceNumber = 1,
+			.reserved1 = 0x01,
+			.compatibleID = "WINUSB\0\0",
+			.subCompatibleID = {0, 0, 0, 0, 0, 0, 0, 0},
+			.reserved2 = {0, 0, 0, 0, 0, 0},
+		},
+		{
+			.bFirstInterfaceNumber = 2,
+			.reserved1 = 0x01,
+			.compatibleID = "WINUSB\0\0",
+			.subCompatibleID = {0, 0, 0, 0, 0, 0, 0, 0},
+			.reserved2 = {0, 0, 0, 0, 0, 0},
+		},
 	}
 };
 
@@ -366,11 +381,25 @@ void req_boot_status() {
 	return usb_ep0_in(len);
 }
 
+// TODO: Use the version in the USB library after making it handle descriptors larger than 64 bytes
+static void handle_msft_compatible(const USB_MicrosoftCompatibleDescriptor* msft_compatible) {
+	if (usb_setup.wIndex == 0x0004) {
+		uint16_t len = usb_setup.wLength;
+		if (len > msft_compatible->dwLength) {
+			len = msft_compatible->dwLength;
+		}
+		usb_ep_start_in(0x80, (uint8_t*) msft_compatible, len, true);
+		usb_ep0_out();
+	} else {
+		return usb_ep0_stall();
+	}
+}
+
 void usb_cb_control_setup(void) {
 	uint8_t recipient = usb_setup.bmRequestType & USB_REQTYPE_RECIPIENT_MASK;
 	if (recipient == USB_RECIPIENT_DEVICE) {
 		switch(usb_setup.bRequest) {
-			case 0xee:	  return usb_handle_msft_compatible(&msft_compatible);
+			case 0xee:	  return handle_msft_compatible(&msft_compatible);
 			case REQ_PWR: return req_gpio(usb_setup.wIndex, usb_setup.wValue);
 			case REQ_INFO: return req_info(usb_setup.wIndex);
 			case REQ_BOOT: return req_boot();
