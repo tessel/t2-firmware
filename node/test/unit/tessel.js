@@ -1142,6 +1142,68 @@ exports['Tessel.Pin'] = {
     test.done();
   },
 
+  interruptErroMessages: function(test) {
+    test.expect(2);
+
+    var spy = sandbox.spy();
+
+    try {
+      this.a.pin[0].once('low', spy);
+    } catch (error) {
+      test.equal(error.message, 'Interrupts are not supported on pin 0. Pins 2, 5, 6, and 7 on either port support interrupts.');
+    }
+
+    try {
+      this.a.pin[2].once('rise', spy);
+      this.a.pin[2].once('fall', spy);
+    } catch (error) {
+      test.equal(error.message, 'Cannot set pin interrupt mode to fall; already listening for rise');
+    }
+
+    test.done();
+  },
+
+  levelInterruptInvalidPin: function(test) {
+    test.expect(16);
+
+    var spy = sandbox.spy();
+
+    [0, 1, 3, 4].forEach(pinIndex => {
+      test.throws(() => this.a.pin[pinIndex].once('high', spy));
+      test.throws(() => this.a.pin[pinIndex].once('low', spy));
+      test.throws(() => this.b.pin[pinIndex].once('high', spy));
+      test.throws(() => this.b.pin[pinIndex].once('low', spy));
+    });
+
+    test.done();
+  },
+
+  interruptRiseInvalidPin: function(test) {
+    test.expect(8);
+
+    var spy = sandbox.spy();
+
+    [0, 1, 3, 4].forEach(pinIndex => {
+      test.throws(() => this.a.pin[pinIndex].on('rise', spy));
+      test.throws(() => this.b.pin[pinIndex].on('rise', spy));
+    });
+
+    test.done();
+  },
+
+  interruptFallInvalidPin: function(test) {
+    test.expect(8);
+
+    var spy = sandbox.spy();
+
+    [0, 1, 3, 4].forEach(pinIndex => {
+      test.throws(() => this.a.pin[pinIndex].on('fall', spy));
+      test.throws(() => this.b.pin[pinIndex].on('fall', spy));
+    });
+
+    test.done();
+  },
+
   interruptHigh: function(test) {
     test.expect(9);
 

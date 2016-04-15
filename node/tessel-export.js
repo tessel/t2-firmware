@@ -554,7 +554,7 @@ Tessel.Pin.prototype.removeAllListeners = function(event) {
 Tessel.Pin.prototype.addListener = function(mode, callback) {
   if (typeof Tessel.Pin.interruptModes[mode] !== 'undefined') {
     if (!this.interruptSupported) {
-      throw new Error('Interrupts are not supported on pin ' + this.pin + '. Pins 2, 5, 6, and 7 on either port support interrupts.');
+      throw new Error(`Interrupts are not supported on pin ${this.pin}. Pins 2, 5, 6, and 7 on either port support interrupts.`);
     }
 
     if ((mode === 'high' || mode === 'low') && !callback.listener) {
@@ -563,8 +563,7 @@ Tessel.Pin.prototype.addListener = function(mode, callback) {
 
     if (this.interruptMode !== mode) {
       if (this.interruptMode) {
-        throw new Error('Cannot set pin interrupt mode to ' + mode +
-          '; already listening for ' + this.interruptMode);
+        throw new Error(`Cannot set pin interrupt mode to ${mode}; already listening for ${this.interruptMode}`);
       }
       // Set the socket reference so the script doesn't exit
       this._port.ref();
