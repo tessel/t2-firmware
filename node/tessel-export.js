@@ -240,24 +240,29 @@ Tessel.Port = function(name, socketPath, board) {
           var pin = this.pin[(byte - REPLY.ASYNC_PIN_CHANGE_N) & ~(1 << 3)];
           // Get the mode change
           var mode = pin.interruptMode;
+          // Get pinValue
+          var pinValue = ((byte >> 3) & 1);
 
-          // If this was a one-time mode
+          // For one-time 'low' or 'high' event
           if (mode === 'low' || mode === 'high') {
+            pin.emit(mode);
             // Reset the pin interrupt state (prevent constant interrupts)
             pin.interruptMode = null;
             // Decrement the number of tasks waiting on the socket
             this.unref();
           }
-
-          // Emit the change
-          if (mode === 'change') {
-            // "change" is otherwise ambiguous.
-            pin.emit('change', (byte >> 3) & 1);
-          } else {
-            // high, low, rise & fall are _not_ ambiguous
-            pin.emit(mode);
+          // Emit the change and rise or fall
+          else if (pinValue) {
+            pin.emit('change', pinValue);
+            pin.emit('rise');
           }
-        } else {
+          else {
+            pin.emit('change', pinValue);
+            pin.emit('fall');
+          }
+
+        }
+        else {
           // Some other async event
           this.emit('async-event', byte);
         }
@@ -557,17 +562,21 @@ Tessel.Pin.prototype.addListener = function(mode, callback) {
       throw new Error(`Interrupts are not supported on pin ${this.pin}. Pins 2, 5, 6, and 7 on either port support interrupts.`);
     }
 
-    if ((mode === 'high' || mode === 'low') && !callback.listener) {
-      throw new Error('Cannot use "on" with level interrupts. You can only use "once".');
-    }
-
-    if (this.interruptMode !== mode) {
+    // For one-time 'low' or 'high' event
+    if (mode === 'low' || mode === 'high') {
+      if (!callback.listener) {
+        throw new Error('Cannot use "on" with level interrupts. You can only use "once".');
+      }
+      // Can't set multiple listeners when using 'low' or 'high'
       if (this.interruptMode) {
         throw new Error(`Cannot set pin interrupt mode to ${mode}; already listening for ${this.interruptMode}`);
       }
+    }
+
+    // Only needed the first time a listener is added
+    if (this.interruptMode !== mode) {
       // Set the socket reference so the script doesn't exit
       this._port.ref();
-
       this._setInterruptMode(mode);
     }
   }
