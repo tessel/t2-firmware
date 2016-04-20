@@ -563,22 +563,20 @@ Tessel.Pin.prototype.addListener = function(mode, callback) {
     }
 
     // For one-time 'low' or 'high' event
-    if (mode === 'low' || mode === 'high') {
-      if (!callback.listener) {
-        throw new Error('Cannot use "on" with level interrupts. You can only use "once".');
-      }
-      // Can't set multiple listeners when using 'low' or 'high'
-      if (this.interruptMode) {
-        throw new Error(`Cannot set pin interrupt mode to ${mode}; already listening for ${this.interruptMode}`);
+    if ((mode === 'low' || mode === 'high') && !callback.listener) {
+      throw new Error('Cannot use "on" with level interrupts. You can only use "once".');
+    }
+
+    // Can't set multiple listeners when using 'low' or 'high'
+    if (this.interruptMode) {
+      if ((mode === 'low' || mode === 'high') || (this.listeners('low')[0] || this.listeners('high')[0])) {
+        throw new Error(`Cannot set pin interrupt mode to ${mode}; already listening for ${this.interruptMode}. Can only set multiple listeners with change, rise & fall`);
       }
     }
 
-    // Only needed the first time a listener is added
-    if (this.interruptMode !== mode) {
-      // Set the socket reference so the script doesn't exit
-      this._port.ref();
-      this._setInterruptMode(mode);
-    }
+    // Set the socket reference so the script doesn't exit
+    this._port.ref();
+    this._setInterruptMode(mode);
   }
 
   // Add the event listener
@@ -587,7 +585,8 @@ Tessel.Pin.prototype.addListener = function(mode, callback) {
 Tessel.Pin.prototype.on = Tessel.Pin.prototype.addListener;
 
 Tessel.Pin.prototype._setInterruptMode = function(mode) {
-  this.interruptMode = mode;
+  // rise and fall events will be emitted by change event
+  (mode === 'rise' || mode === 'fall') ? this.interruptMode = 'change' : this.interruptMode = mode;
   var bits = mode ? Tessel.Pin.interruptModes[mode] << 4 : 0;
   this._port._simple_cmd([CMD.GPIO_INT, this.pin | bits]);
 };
