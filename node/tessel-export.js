@@ -341,12 +341,45 @@ Tessel.Port = function(name, socketPath, board) {
 
   this.pwm = [this.pin[5], this.pin[6]];
 
-  this.I2C = function I2CInit(address, mode) {
-    return new Tessel.I2C({
-      addr: address,
-      mode: mode,
-      port: port
-    });
+  this.I2C = function I2CInit(address) {
+    var options = {};
+
+    if (typeof address === 'object' && address != null) {
+      /*
+        {
+          addr: address,
+          freq: frequency,
+          port: port,
+        }
+      */
+      Object.assign(options, address);
+    } else {
+      /*
+        (address)
+      */
+      options.address = address;
+    }
+
+    /*
+      Always ensure that the options
+      object contains a port property
+      with this port as its value.
+    */
+    if (!options.port) {
+      options.port = port;
+    } else {
+      /*
+        When receiving an object containing
+        options information, it's possible that
+        the calling code accidentally sends
+        a "port" that isn't this port.
+      */
+      if (options.port !== port) {
+        options.port = port;
+      }
+    }
+
+    return new Tessel.I2C(options);
   };
 
   this.I2C.enabled = false;
@@ -756,6 +789,10 @@ Tessel.Pin.prototype.pwmDutyCycle = function(dutyCycle, cb) {
 Tessel.I2C = function(params) {
   var frequency = 1e5;
 
+  if (params.address == null) {
+    throw new Error('Tessel.I2C expected an address');
+  }
+
   Object.defineProperties(this, {
     frequency: {
       get: () => {
@@ -780,8 +817,12 @@ Tessel.I2C = function(params) {
   });
 
   this._port = params.port;
-  this.addr = params.addr;
-  this.frequency = params.freq ? params.freq : 100000; // 100khz
+
+  // For t1-firmware compatibility, this.addr = ...
+  this.addr = this.address = params.address;
+
+  // This is setting the accessor defined above
+  this.frequency = params.frequency ? params.frequency : 100000; // 100khz
 
   // Send the ENABLE_I2C command when the first I2C device is instantiated
   if (!this._port.I2C.enabled) {
@@ -801,7 +842,7 @@ Tessel.I2C.computeBaud = function(frequency) {
 
 Tessel.I2C.prototype.send = function(data, callback) {
   this._port.cork();
-  this._port._simple_cmd([CMD.START, this.addr << 1]);
+  this._port._simple_cmd([CMD.START, this.address << 1]);
   this._port._tx(data);
   this._port._simple_cmd([CMD.STOP], callback);
   this._port.uncork();
@@ -809,7 +850,7 @@ Tessel.I2C.prototype.send = function(data, callback) {
 
 Tessel.I2C.prototype.read = function(length, callback) {
   this._port.cork();
-  this._port._simple_cmd([CMD.START, this.addr << 1 | 1]);
+  this._port._simple_cmd([CMD.START, this.address << 1 | 1]);
   this._port._rx(length, callback);
   this._port._simple_cmd([CMD.STOP]);
   this._port.uncork();
@@ -818,10 +859,10 @@ Tessel.I2C.prototype.read = function(length, callback) {
 Tessel.I2C.prototype.transfer = function(txbuf, rxlen, callback) {
   this._port.cork();
   if (txbuf.length > 0) {
-    this._port._simple_cmd([CMD.START, this.addr << 1]);
+    this._port._simple_cmd([CMD.START, this.address << 1]);
     this._port._tx(txbuf);
   }
-  this._port._simple_cmd([CMD.START, this.addr << 1 | 1]);
+  this._port._simple_cmd([CMD.START, this.address << 1 | 1]);
   this._port._rx(rxlen, callback);
   this._port._simple_cmd([CMD.STOP]);
   this._port.uncork();

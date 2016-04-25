@@ -565,7 +565,20 @@ exports['Tessel.Port.prototype'] = {
     test.done();
   },
 
-  I2C: function(test) {
+  I2CnoArgsAlwaysHasPort: function(test) {
+    test.expect(3);
+
+    var device1 = new this.port.I2C();
+
+    test.equal(device1 instanceof Tessel.I2C, true);
+
+    test.equal(Tessel.I2C.callCount, 1);
+    test.equal(Tessel.I2C.firstCall.args[0].port, this.port);
+
+    test.done();
+  },
+
+  I2CwithAddressArg: function(test) {
     test.expect(6);
 
     var device1 = new this.port.I2C(0x00);
@@ -578,6 +591,55 @@ exports['Tessel.Port.prototype'] = {
 
     test.equal(Tessel.I2C.firstCall.args[0].port, this.port);
     test.equal(Tessel.I2C.lastCall.args[0].port, this.port);
+
+    test.done();
+  },
+
+  I2CwithOptsAlwaysHasPort: function(test) {
+    test.expect(4);
+
+    var device1 = new this.port.I2C({
+      address: 0x00
+    });
+
+    test.equal(device1 instanceof Tessel.I2C, true);
+    test.equal(Tessel.I2C.callCount, 1);
+    test.equal(Tessel.I2C.firstCall.args[0].address, 0x00);
+    test.equal(Tessel.I2C.firstCall.args[0].port, this.port);
+
+    test.done();
+  },
+
+  I2CwithOptsWrongPortOverridden: function(test) {
+    test.expect(3);
+
+    var device1 = new this.port.I2C({
+      address: 0x00,
+      port: this.b
+    });
+
+    test.equal(device1 instanceof Tessel.I2C, true);
+    // The correct port always overrides...
+    test.equal(Tessel.I2C.firstCall.args[0].address, 0x00);
+    test.equal(Tessel.I2C.firstCall.args[0].port, this.port);
+
+    test.done();
+  },
+
+  I2CwithOptsForwarded: function(test) {
+    test.expect(4);
+
+    var device1 = new this.port.I2C({
+      address: 0x00,
+      frequency: 1e5,
+      port: this.b
+    });
+
+    test.equal(device1 instanceof Tessel.I2C, true);
+    // The correct port always overrides...
+    test.equal(Tessel.I2C.firstCall.args[0].address, 0x00);
+    test.equal(Tessel.I2C.firstCall.args[0].frequency, 1e5);
+    test.equal(Tessel.I2C.firstCall.args[0].port, this.port);
 
     test.done();
   },
@@ -1561,6 +1623,36 @@ exports['Tessel.I2C'] = {
     done();
   },
 
+  shape: function(test) {
+    test.expect(5);
+
+    var device = new Tessel.I2C({
+      address: 0x01,
+      frequency: 1e5,
+      port: this.port,
+    });
+
+    test.equal(typeof device.address !== 'undefined', true);
+    test.equal(typeof device.addr !== 'undefined', true);
+    test.equal(typeof device.baudrate !== 'undefined', true);
+    test.equal(typeof device.frequency !== 'undefined', true);
+    test.equal(typeof device._port !== 'undefined', true);
+
+    test.done();
+  },
+
+  missingAddressArg: function(test) {
+    test.expect(1);
+
+    test.throws(() => {
+      new Tessel.I2C({
+        port: this.port
+      });
+    });
+
+    test.done();
+  },
+
   enableOnceOnly: function(test) {
     test.expect(4);
 
@@ -1587,13 +1679,13 @@ exports['Tessel.I2C'] = {
     test.expect(5);
 
     var device1 = new Tessel.I2C({
-      addr: 0x04,
-      freq: 1e5,
+      address: 0x04,
+      frequency: 1e5,
       port: this.port,
     });
     var device2 = new Tessel.I2C({
-      addr: 0x04,
-      freq: 1e5,
+      address: 0x04,
+      frequency: 1e5,
       port: this.port,
     });
 
@@ -1611,13 +1703,13 @@ exports['Tessel.I2C'] = {
     test.expect(5);
 
     var device1 = new Tessel.I2C({
-      addr: 0x04,
-      freq: 4e5,
+      address: 0x04,
+      frequency: 4e5,
       port: this.port,
     });
     var device2 = new Tessel.I2C({
-      addr: 0x04,
-      freq: 4e5,
+      address: 0x04,
+      frequency: 4e5,
       port: this.port,
     });
 
@@ -1636,15 +1728,15 @@ exports['Tessel.I2C'] = {
 
     test.throws(() => {
       new Tessel.I2C({
-        addr: 0x04,
-        freq: 4e5 + 1,
+        address: 0x04,
+        frequency: 4e5 + 1,
         port: this.port,
       });
     }, RangeError);
     test.throws(() => {
       new Tessel.I2C({
-        addr: 0x04,
-        freq: 1e5 - 1,
+        address: 0x04,
+        frequency: 1e5 - 1,
         port: this.port,
       });
     }, RangeError);
@@ -1660,7 +1752,7 @@ exports['Tessel.I2C'] = {
 
     new Tessel.I2C({
       address: 0x01,
-      freq: 400000, // 400khz
+      frequency: 400000, // 400khz
       mode: undefined,
       port: this.port
     });
@@ -1671,7 +1763,7 @@ exports['Tessel.I2C'] = {
   },
 
   read: function(test) {
-    test.expect(8);
+    test.expect(9);
 
     var device = new Tessel.I2C({
       address: 0x01,
@@ -1699,13 +1791,14 @@ exports['Tessel.I2C'] = {
     // this._port._simple_cmd([CMD.START, this.addr << 1 | 1]);
     //
     test.deepEqual(device._port._simple_cmd.firstCall.args[0], [CMD.START, device.addr << 1 | 1]);
+    test.deepEqual(device._port._simple_cmd.firstCall.args[0], [CMD.START, device.address << 1 | 1]);
     test.deepEqual(device._port._simple_cmd.lastCall.args[0], [CMD.STOP]);
 
     test.done();
   },
 
   send: function(test) {
-    test.expect(7);
+    test.expect(8);
 
     var device = new Tessel.I2C({
       address: 0x01,
@@ -1730,6 +1823,7 @@ exports['Tessel.I2C'] = {
     // this._port._simple_cmd([CMD.START, this.addr << 1]);
     //
     test.deepEqual(device._port._simple_cmd.firstCall.args[0], [CMD.START, device.addr << 1]);
+    test.deepEqual(device._port._simple_cmd.firstCall.args[0], [CMD.START, device.address << 1]);
     test.deepEqual(device._port._simple_cmd.lastCall.args[0], [CMD.STOP]);
 
     test.done();
