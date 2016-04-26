@@ -1698,7 +1698,7 @@ exports['Tessel.I2C'] = {
     // Tessel.I2C.prototype.read
     // this._port._simple_cmd([CMD.START, this.addr << 1 | 1]);
     //
-    test.deepEqual(device._port._simple_cmd.firstCall.args[0], [CMD.START, 0x01 << 1 | 1]);
+    test.deepEqual(device._port._simple_cmd.firstCall.args[0], [CMD.START, device.addr << 1 | 1]);
     test.deepEqual(device._port._simple_cmd.lastCall.args[0], [CMD.STOP]);
 
     test.done();
@@ -1729,7 +1729,7 @@ exports['Tessel.I2C'] = {
     // Tessel.I2C.prototype.send
     // this._port._simple_cmd([CMD.START, this.addr << 1]);
     //
-    test.deepEqual(device._port._simple_cmd.firstCall.args[0], [CMD.START, 0x01 << 1]);
+    test.deepEqual(device._port._simple_cmd.firstCall.args[0], [CMD.START, device.addr << 1]);
     test.deepEqual(device._port._simple_cmd.lastCall.args[0], [CMD.STOP]);
 
     test.done();
@@ -1765,8 +1765,8 @@ exports['Tessel.I2C'] = {
     // Tessel.I2C.prototype.transfer
     // this._port._simple_cmd([CMD.START, this.addr << 1]);
     // this._port._simple_cmd([CMD.START, this.addr << 1 | 1]);
-    test.deepEqual(device._port._simple_cmd.firstCall.args[0], [CMD.START, 0x01 << 1]);
-    test.deepEqual(device._port._simple_cmd.secondCall.args[0], [CMD.START, 0x01 << 1 | 1]);
+    test.deepEqual(device._port._simple_cmd.firstCall.args[0], [CMD.START, device.addr << 1]);
+    test.deepEqual(device._port._simple_cmd.secondCall.args[0], [CMD.START, device.addr << 1 | 1]);
     test.deepEqual(device._port._simple_cmd.lastCall.args[0], [CMD.STOP]);
 
     test.done();
