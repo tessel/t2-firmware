@@ -566,7 +566,7 @@ Tessel.Pin.prototype.addListener = function(mode, callback) {
     if (this.interruptMode) {
       var singleEventModes = ['low', 'high'];
       if (singleEventModes.some(value => mode === value || this.interruptMode === value)) {
-        throw new Error(`Cannot set pin interrupt mode to ${mode}; already listening for ${this.interruptMode}. Can only set multiple listeners with change, rise & fall`);
+        throw new Error(`Cannot set pin interrupt mode to "${mode}"; already listening for "${this.interruptMode}". Can only set multiple listeners with "change", "rise" & "fall".`);
       }
     }
 
@@ -577,7 +577,7 @@ Tessel.Pin.prototype.addListener = function(mode, callback) {
     // Add the event listener
     Tessel.Pin.super_.prototype.on.call(this, mode, callback);
   } else {
-    throw new Error(`Invalid pin event mode '${mode}'. Valid modes are 'change', 'rise', 'fall', 'high' and 'low'.`);
+    throw new Error(`Invalid pin event mode "${mode}". Valid modes are "change", "rise", "fall", "high" and "low".`);
   }
 };
 Tessel.Pin.prototype.on = Tessel.Pin.prototype.addListener;
