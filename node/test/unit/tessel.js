@@ -1305,10 +1305,10 @@ exports['Tessel.Pin'] = {
       test.equal(this.b.pin[pinIndex].interruptMode, 'change');
 
       // Simulate receipt of pin state changes
-      this.a.sock.read.returns(new Buffer([(REPLY.ASYNC_PIN_CHANGE_N + pinIndex) | (0 << 3)]));
+      this.a.sock.read.returns(new Buffer([REPLY.ASYNC_PIN_CHANGE_N + pinIndex]));
       this.a.sock.emit('readable');
 
-      this.b.sock.read.returns(new Buffer([(REPLY.ASYNC_PIN_CHANGE_N + pinIndex) | (0 << 3)]));
+      this.b.sock.read.returns(new Buffer([REPLY.ASYNC_PIN_CHANGE_N + pinIndex]));
       this.b.sock.emit('readable');
     }, this);
 
@@ -1353,10 +1353,10 @@ exports['Tessel.Pin'] = {
       test.equal(this.b.pin[pinIndex].interruptMode, 'change');
 
       // Simulate receipt of pin state changes
-      this.a.sock.read.returns(new Buffer([(REPLY.ASYNC_PIN_CHANGE_N + pinIndex) | (0 << 3)]));
+      this.a.sock.read.returns(new Buffer([REPLY.ASYNC_PIN_CHANGE_N + pinIndex]));
       this.a.sock.emit('readable');
 
-      this.b.sock.read.returns(new Buffer([(REPLY.ASYNC_PIN_CHANGE_N + pinIndex) | (0 << 3)]));
+      this.b.sock.read.returns(new Buffer([REPLY.ASYNC_PIN_CHANGE_N + pinIndex]));
       this.b.sock.emit('readable');
     }, this);
 
