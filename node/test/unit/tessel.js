@@ -1204,10 +1204,16 @@ exports['Tessel.Pin'] = {
     test.done();
   },
 
-  interruptErroMessages: function(test) {
-    test.expect(2);
+  interruptErrorMessages: function(test) {
+    test.expect(4);
 
     var spy = sandbox.spy();
+
+    try {
+      this.a.pin[0].once('test', spy);
+    } catch (error) {
+      test.equal(error.message, 'Invalid pin event mode "test". Valid modes are "change", "rise", "fall", "high" and "low".');
+    }
 
     try {
       this.a.pin[0].once('low', spy);
@@ -1216,10 +1222,20 @@ exports['Tessel.Pin'] = {
     }
 
     try {
-      this.a.pin[2].once('rise', spy);
-      this.a.pin[2].once('fall', spy);
+      this.a.pin[2].on('low', spy);
     } catch (error) {
-      test.equal(error.message, 'Cannot set pin interrupt mode to fall; already listening for rise');
+      test.equal(error.message, 'Cannot use "on" with level interrupts. You can only use "once".');
+    }
+
+    // Set 'change', 'fall' and 'rise' before setting 'low' to verify that it allows these to be set simultaneously.
+    // It will fail the test on the error message match if it doesn't allow them to be set simultaneously the way it should
+    try {
+      this.a.pin[2].on('change', spy);
+      this.a.pin[2].on('fall', spy);
+      this.a.pin[2].on('rise', spy);
+      this.a.pin[2].once('low', spy);
+    } catch (error) {
+      test.equal(error.message, 'Cannot set pin interrupt mode to "low"; already listening for "change". Can only set multiple listeners with "change", "rise" & "fall".');
     }
 
     test.done();
@@ -1323,14 +1339,14 @@ exports['Tessel.Pin'] = {
       this.a.pin[pinIndex].on('rise', spy);
       this.b.pin[pinIndex].on('rise', spy);
 
-      test.equal(this.a.pin[pinIndex].interruptMode, 'rise');
-      test.equal(this.b.pin[pinIndex].interruptMode, 'rise');
+      test.equal(this.a.pin[pinIndex].interruptMode, 'change');
+      test.equal(this.b.pin[pinIndex].interruptMode, 'change');
 
       // Simulate receipt of pin state changes
-      this.a.sock.read.returns(new Buffer([REPLY.ASYNC_PIN_CHANGE_N + pinIndex]));
+      this.a.sock.read.returns(new Buffer([(REPLY.ASYNC_PIN_CHANGE_N + pinIndex) | (1 << 3)]));
       this.a.sock.emit('readable');
 
-      this.b.sock.read.returns(new Buffer([REPLY.ASYNC_PIN_CHANGE_N + pinIndex]));
+      this.b.sock.read.returns(new Buffer([(REPLY.ASYNC_PIN_CHANGE_N + pinIndex) | (1 << 3)]));
       this.b.sock.emit('readable');
     }, this);
 
@@ -1347,8 +1363,8 @@ exports['Tessel.Pin'] = {
       this.a.pin[pinIndex].on('fall', spy);
       this.b.pin[pinIndex].on('fall', spy);
 
-      test.equal(this.a.pin[pinIndex].interruptMode, 'fall');
-      test.equal(this.b.pin[pinIndex].interruptMode, 'fall');
+      test.equal(this.a.pin[pinIndex].interruptMode, 'change');
+      test.equal(this.b.pin[pinIndex].interruptMode, 'change');
 
       // Simulate receipt of pin state changes
       this.a.sock.read.returns(new Buffer([REPLY.ASYNC_PIN_CHANGE_N + pinIndex]));
