@@ -2045,7 +2045,7 @@ exports['Tessel.UART'] = {
     var u1 = new this.port.UART();
 
     // Buffers which we'll emit as mocked incoming UART data
-    var payload = new Buffer([3, 4]);
+    var payload = new Buffer([0x00, 0x0F, 0xF0, 0xFF]);
     var header = new Buffer([Tessel.REPLY.ASYNC_UART_RX, payload.length]);
 
     // Only return our test buffer on the first call, otherwise empty buff
