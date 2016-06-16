@@ -1912,7 +1912,8 @@ exports['Tessel.UART'] = {
       return this.socket;
     }.bind(this));
 
-    this.tessel = new Tessel();
+    // Block creation of automatically generated ports
+    this.tessel = new Tessel({ ports: {'A' : false, 'B' : false} });
 
     this.cork = sandbox.stub(Tessel.Port.prototype, 'cork');
     this.uncork = sandbox.stub(Tessel.Port.prototype, 'uncork');
@@ -1920,6 +1921,7 @@ exports['Tessel.UART'] = {
     this._rx = sandbox.stub(Tessel.Port.prototype, '_rx');
     this._simple_cmd = sandbox.stub(Tessel.Port.prototype, '_simple_cmd');
 
+    // Explicitly generate our own port
     this.port = new Tessel.Port('foo', '/foo/bar/baz', this.tessel);
 
     this.uartDisable = sandbox.spy(Tessel.UART.prototype, 'disable');
@@ -2033,6 +2035,41 @@ exports['Tessel.UART'] = {
     test.ok(this.uartDisable.calledOnce, true);
 
     test.done();
+  },
+
+  bufferOutput: function(test) {
+
+    test.expect(2);
+
+    // Create our Tessel port
+    var u1 = new this.port.UART();
+
+    // Buffers which we'll emit as mocked incoming UART data
+    var payload = new Buffer([0x00, 0x0F, 0xF0, 0xFF]);
+    var header = new Buffer([Tessel.REPLY.ASYNC_UART_RX, payload.length]);
+
+    // Only return our test buffer on the first call, otherwise empty buff
+    var called = false;
+    this.socket.read = () => {
+      if (called) {
+        return new Buffer([]);
+      }
+      called = true;
+
+      return Buffer.concat([header, payload]);
+    };
+
+    // When data is emitted on the uart peripheral
+    u1.once('data', (shouldBeBuf) => {
+      // Ensure it is a buffer (not a string)
+      test.ok(Buffer.isBuffer(shouldBeBuf));
+      // Ensure the payload is what is emitted
+      test.deepEqual(shouldBeBuf, payload);
+      test.done();
+    });
+
+    // Prod the socket to read our buffer
+    u1._port.sock.emit('readable');
   }
 };
 

@@ -226,7 +226,7 @@ Tessel.Port = function(name, socketPath, board) {
           // If a uart port was instantiated
           if (this._uart) {
             // Push this data into the buffer
-            this._uart.push(rxData.toString());
+            this._uart.push(rxData);
           }
           // Something went wrong and the packet is malformed
         } else {
