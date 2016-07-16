@@ -730,7 +730,7 @@ Tessel.Pin.prototype.resolution = ANALOG_RESOLUTION;
 
 Tessel.Pin.prototype.analogRead = function(cb) {
   if (!this.analogSupported) {
-    console.warn('pin.analogRead is not supoprted on this pin. Analog read is supported on port A pins 4 and 7 and on all pins on port B');
+    console.warn('pin.analogRead is not supported on this pin. Analog read is supported on port A pins 4 and 7 and on all pins on port B');
     return this;
   }
 
