@@ -50,7 +50,7 @@ typedef enum {
     REPLY_DATA = 0x84,
 
     REPLY_ASYNC_PIN_CHANGE_N = 0xC0, // 0xC0 + n
-    REPLY_ASYNC_UART_RX = 0xD0
+    REPLY_ASYNC_UART_RX = 0xD0,
 } PortReply;
 
 typedef enum PortMode {
@@ -61,9 +61,9 @@ typedef enum PortMode {
 } PortMode;
 
 typedef enum PullMode {
-  PULL_DOWN = 0,
-  PULL_UP = 1,
-  PULL_NONE = 2
+    PULL_DOWN = 0,
+    PULL_UP = 1,
+    PULL_NONE = 2,
 } PullMode;
 
 typedef enum ExecStatus {
@@ -193,9 +193,9 @@ int port_cmd_args(PortCmd cmd) {
         case CMD_START:
             return 1; // 1 byte for addr
         case CMD_PWM_DUTY_CYCLE:
-          return 3; // 1 byte for pin, 2 bytes for duty cycle
+            return 3; // 1 byte for pin, 2 bytes for duty cycle
         case CMD_PWM_PERIOD:
-          return 3; // 1 byte for tcc id & prescalar, 2 bytes for period
+            return 3; // 1 byte for tcc id & prescalar, 2 bytes for period
     }
     invalid();
     return 0;
@@ -318,32 +318,31 @@ ExecStatus port_begin_cmd(PortData *p) {
             return EXEC_DONE;
 
         case CMD_GPIO_PULL: {
-          // Extract the pin number
-          u8 pin = p->arg[0] & 0x7;
-          // Extract the type of pull
-          u8 mode = (p->arg[0] >> 4);
+            // Extract the pin number
+            u8 pin = p->arg[0] & 0x7;
+            // Extract the type of pull
+            u8 mode = (p->arg[0] >> 4);
 
-          // Based on the type of pull
-          switch(mode) {
-            // If it is a pull down
-            case PULL_DOWN:
-              // Explicitly pull down that pin
-              pin_pull_down(p->port->gpio[pin]);
-              return EXEC_DONE;
-            // If it is a pull up
-            case PULL_UP:
-              // Explicitly pull up that pin
-              pin_pull_up(p->port->gpio[pin]);
-              return EXEC_DONE;
-            // If it is a float
-            case PULL_NONE:
-              // Just let that pin float
-              pin_float(p->port->gpio[pin]);
-              return EXEC_DONE;
-            // Otherwise just skip this command, it's invalid...
-            default:
-              return EXEC_DONE;
-          }
+            // Based on the type of pull
+            switch(mode) {
+                case PULL_DOWN:
+                    // Explicitly pull down that pin
+                    pin_pull_down(p->port->gpio[pin]);
+                    return EXEC_DONE;
+
+                case PULL_UP:
+                    // Explicitly pull up that pin
+                    pin_pull_up(p->port->gpio[pin]);
+                    return EXEC_DONE;
+
+                case PULL_NONE:
+                    // Just let that pin float
+                    pin_float(p->port->gpio[pin]);
+                    return EXEC_DONE;
+
+                default:
+                    return EXEC_DONE;
+            }
         }
 
         case CMD_GPIO_INT: {
@@ -460,24 +459,24 @@ ExecStatus port_begin_cmd(PortData *p) {
             return EXEC_DONE;
 
         case CMD_PWM_DUTY_CYCLE: {
-          // The pin number is the first argument
-          u8 pin = p->arg[0];
-          // Duty cycle is next two bytes
-          u16 duty_cycle = (p->arg[1] << 8) + p->arg[2];
-          // Set the duty cycle on the pin
-          pwm_set_pin_duty(p->port->gpio[pin], duty_cycle);
-          return EXEC_DONE;
+            // The pin number is the first argument
+            u8 pin = p->arg[0];
+            // Duty cycle is next two bytes
+            u16 duty_cycle = (p->arg[1] << 8) + p->arg[2];
+            // Set the duty cycle on the pin
+            pwm_set_pin_duty(p->port->gpio[pin], duty_cycle);
+            return EXEC_DONE;
         }
         case CMD_PWM_PERIOD: {
-          // The TCC to use is first 4 bits
-          u8 tcc_id = (p->arg[0] & 0x7);
-          // The TCC prescalar is next 4 bits
-          u8 prescalar = (p->arg[0] >> 4);
-          // The TCC period is next 2 bytes
-          u16 period = (p->arg[1] << 8) + p->arg[2];
-          // Set the period on the bank
-          pwm_bank_set_period(tcc_id, prescalar, period);
-          return EXEC_DONE;
+            // The TCC to use is first 4 bits
+            u8 tcc_id = (p->arg[0] & 0x7);
+            // The TCC prescalar is next 4 bits
+            u8 prescalar = (p->arg[0] >> 4);
+            // The TCC period is next 2 bytes
+            u16 period = (p->arg[1] << 8) + p->arg[2];
+            // Set the period on the bank
+            pwm_bank_set_period(tcc_id, prescalar, period);
+            return EXEC_DONE;
         }
     }
     bridge_disable_chan(p->chan);
