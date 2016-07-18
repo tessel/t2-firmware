@@ -1619,6 +1619,52 @@ exports['Tessel.Pin'] = {
     test.done();
   },
 
+  analogReadPortAndPinRangeWarning: function(test) {
+    test.expect(16);
+
+    var cb = function() {};
+
+    this.a.pin.forEach(pin => {
+      if (pin.pin === 4 || pin.pin === 7) {
+        test.doesNotThrow(() => {
+          pin.analogRead(cb);
+        }, RangeError);
+      } else {
+        test.throws(() => {
+          pin.analogRead(cb);
+        }, RangeError);
+      }
+    });
+
+    this.b.pin.forEach(pin => {
+      test.doesNotThrow(() => {
+        pin.analogRead(cb);
+      }, RangeError);
+    });
+
+    test.done();
+  },
+
+  analogReadAsyncWarning: function(test) {
+    test.expect(10);
+
+    test.throws(() => {
+      this.a.pin[4].analogRead();
+    });
+
+    test.throws(() => {
+      this.a.pin[7].analogRead();
+    });
+
+    this.b.pin.forEach(pin => {
+      test.throws(() => {
+        pin.analogRead();
+      });
+    });
+
+    test.done();
+  },
+
 };
 
 exports['Tessel.I2C'] = {

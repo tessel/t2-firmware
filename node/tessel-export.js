@@ -730,12 +730,11 @@ Tessel.Pin.prototype.resolution = ANALOG_RESOLUTION;
 
 Tessel.Pin.prototype.analogRead = function(cb) {
   if (!this.analogSupported) {
-    console.warn('pin.analogRead is not supported on this pin. Analog read is supported on port A pins 4 and 7 and on all pins on port B');
-    return this;
+    throw new RangeError('pin.analogRead is not supported on this pin. Analog read is supported on port A pins 4 and 7 and on all pins on port B');
   }
 
   if (typeof cb !== 'function') {
-    console.warn('analogPin.read is async, pass in a callback to get the value');
+    throw new Error('analogPin.read is async, pass in a callback to get the value');
   }
 
   this._port.sock.write(new Buffer([CMD.ANALOG_READ, this.pin]));
