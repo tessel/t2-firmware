@@ -730,19 +730,18 @@ Tessel.Pin.prototype.resolution = ANALOG_RESOLUTION;
 
 Tessel.Pin.prototype.analogRead = function(cb) {
   if (!this.analogSupported) {
-    console.warn('pin.analogRead is not supoprted on this pin. Analog read is supported on port A pins 4 and 7 and on all pins on port B');
-    return this;
+    throw new RangeError('pin.analogRead is not supported on this pin. Analog read is supported on port A pins 4 and 7 and on all pins on port B');
   }
 
   if (typeof cb !== 'function') {
-    console.warn('analogPin.read is async, pass in a callback to get the value');
+    throw new Error('analogPin.read is async, pass in a callback to get the value');
   }
 
   this._port.sock.write(new Buffer([CMD.ANALOG_READ, this.pin]));
   this._port.enqueue({
     size: 2,
     callback: function(err, data) {
-      cb(err, (data[0] + (data[1] << 8)) / ANALOG_RESOLUTION * 3.3);
+      cb(err, (data[0] + (data[1] << 8)) / ANALOG_RESOLUTION);
     },
   });
 
@@ -755,10 +754,9 @@ Tessel.Pin.prototype.analogWrite = function(val) {
     throw new RangeError('Analog write can only be used on Pin 7 (G3) of Port B.');
   }
 
-  // v_dac = data/(0x3ff)*reference voltage
-  var data = val / 3.3 * 0x3ff;
-  if (data > 1023 || data < 0) {
-    throw new RangeError('Analog write must be between 0 and 3.3');
+  var data = val * 0x3ff;
+  if (data > 0x3ff || data < 0) {
+    throw new RangeError('Analog write must be between 0 and 1');
   }
 
   this._port.sock.write(new Buffer([CMD.ANALOG_WRITE, data >> 8, data & 0xff]));

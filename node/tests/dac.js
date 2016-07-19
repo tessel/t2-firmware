@@ -6,9 +6,9 @@ var val = 0;
 setInterval(function(){
 	console.log("dac =", val);
 	portB.pin[7].analogWrite(val);
-	
-	if (val < 3.2) {
-		val += 0.1;
+
+	if (val < 0.95) {
+		val += 0.05;
 	} else {
 		val = 0;
 	}

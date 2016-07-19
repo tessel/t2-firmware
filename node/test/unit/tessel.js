@@ -1590,7 +1590,15 @@ exports['Tessel.Pin'] = {
   },
 
   analogWriteValueRangeError: function(test) {
-    test.expect(3);
+    test.expect(6);
+
+    test.doesNotThrow(() => {
+      this.b.pin[7].analogWrite(0);
+    }, RangeError);
+
+    test.doesNotThrow(() => {
+      this.b.pin[7].analogWrite(1.0);
+    }, RangeError);
 
     test.throws(() => {
       this.b.pin[7].analogWrite(-1);
@@ -1603,6 +1611,56 @@ exports['Tessel.Pin'] = {
     test.throws(() => {
       this.b.pin[7].analogWrite(3.4);
     }, RangeError);
+
+    test.throws(() => {
+      this.b.pin[7].analogWrite(1.1);
+    }, RangeError);
+
+    test.done();
+  },
+
+  analogReadPortAndPinRangeWarning: function(test) {
+    test.expect(16);
+
+    var cb = function() {};
+
+    this.a.pin.forEach(pin => {
+      if (pin.pin === 4 || pin.pin === 7) {
+        test.doesNotThrow(() => {
+          pin.analogRead(cb);
+        }, RangeError);
+      } else {
+        test.throws(() => {
+          pin.analogRead(cb);
+        }, RangeError);
+      }
+    });
+
+    this.b.pin.forEach(pin => {
+      test.doesNotThrow(() => {
+        pin.analogRead(cb);
+      }, RangeError);
+    });
+
+    test.done();
+  },
+
+  analogReadAsyncWarning: function(test) {
+    test.expect(10);
+
+    test.throws(() => {
+      this.a.pin[4].analogRead();
+    });
+
+    test.throws(() => {
+      this.a.pin[7].analogRead();
+    });
+
+    this.b.pin.forEach(pin => {
+      test.throws(() => {
+        pin.analogRead();
+      });
+    });
 
     test.done();
   },
@@ -1913,7 +1971,12 @@ exports['Tessel.UART'] = {
     }.bind(this));
 
     // Block creation of automatically generated ports
-    this.tessel = new Tessel({ ports: {'A' : false, 'B' : false} });
+    this.tessel = new Tessel({
+      ports: {
+        'A': false,
+        'B': false
+      }
+    });
 
     this.cork = sandbox.stub(Tessel.Port.prototype, 'cork');
     this.uncork = sandbox.stub(Tessel.Port.prototype, 'uncork');
