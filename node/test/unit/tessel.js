@@ -1665,6 +1665,28 @@ exports['Tessel.Pin'] = {
     test.done();
   },
 
+  analogReadReceivesCorrectValuesLower: function(test) {
+    test.expect(1);
+    // @carlbaron take a look at the following test and write this one!
+    test.ok(true);
+    test.done();
+  },
+
+  analogReadReceivesCorrectValuesUpper: function(test) {
+    test.expect(1);
+
+    var value = 4096;
+
+    this.a.pin[4].analogRead((error, value) => {
+
+      test.equal(value, 1);
+      test.done();
+    });
+
+    this.a.sock.read.returns(new Buffer([0x84, value & 0xFF, value >> 8]));
+    this.a.sock.emit('readable');
+  },
+
 };
 
 exports['Tessel.I2C'] = {
