@@ -1147,9 +1147,6 @@ Tessel.Wifi = function() {
   };
 
   Object.defineProperties(this, {
-    isConnected: {
-      get: () => state.connected
-    },
     connected: {
       set: (value) => {
         state.connected = value;
@@ -1224,12 +1221,34 @@ Tessel.Wifi.prototype.reset = function(callback) {
     });
 };
 
-Tessel.Wifi.prototype.connection = function() {
-  if (this.isConnected) {
-    return this.settings;
-  } else {
-    return null;
+Tessel.Wifi.prototype.connection = function(callback) {
+  if (typeof callback !== 'function') {
+    callback = function() {};
   }
+
+  isEnabled()
+    .then((enabled) => {
+      if (enabled) {
+        getWifiInfo()
+          .then((network) => {
+            delete network.password;
+
+            this.settings = network;
+
+            callback(null, network);
+          })
+          .catch((error) => {
+            this.emit('error', error);
+            callback(error);
+          });
+      } else {
+        return callback(null, null);
+      }
+    })
+    .catch((error) => {
+      this.emit('error', error);
+      callback(error);
+    });
 };
 
 Tessel.Wifi.prototype.connect = function(settings, callback) {
@@ -1415,6 +1434,40 @@ function getWifiInfo() {
     recursiveWifi();
   });
 }
+
+/*
+// Example network info to normalize security/encryption and ips
+Settings:  { phy: 'phy0',
+  ssid: 'Speak Friend',
+  bssid: '54:E4:3A:E8:A0:1C',
+  country: '00',
+  mode: 'Client',
+  channel: 1,
+  frequency: 2412,
+  txpower: 20,
+  quality: 59,
+  quality_max: 70,
+  signal: -51,
+  bitrate: 43300,
+  encryption:
+  { enabled: true,
+  wpa: [ 2 ],
+  authentication: [ 'psk' ],
+  ciphers: [ 'ccmp' ] },
+  hwmodes: [ 'b', 'g', 'n' ],
+  hardware: { name: 'Generic MAC80211' },
+  ips:
+  [ 'wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02  ',
+  '          inet addr:10.0.1.11  Bcast:10.0.1.255  Mask:255.255.255.0',
+  '          inet6 addr: fe80::a3:aaff:fea9:fb02/64 Scope:Link',
+  '          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1',
+  '          RX packets:144 errors:0 dropped:0 overruns:0 frame:0',
+  '          TX packets:100 errors:0 dropped:0 overruns:0 carrier:0',
+  '          collisions:0 txqueuelen:1000 ',
+  '          RX bytes:68390 (66.7 KiB)  TX bytes:19566 (19.1 KiB)',
+  '',
+  '' ] }
+*/
 
 function scanWifi() {
   return new Promise((resolve) => {
