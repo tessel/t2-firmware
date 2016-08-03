@@ -2040,6 +2040,14 @@ exports['Tessel.Wifi'] = {
       password: 'TestPassword',
       security: 'wep'
     };
+    var ipResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
+        inet addr:10.0.1.11  Bcast:192.168.1.101  Mask:255.255.255.0
+        inet6 addr: fe80::a3:aaff:fea9:fb02/64 Scope:Link
+        UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+        RX packets:2786 errors:0 dropped:0 overruns:0 frame:0
+        TX packets:493 errors:0 dropped:0 overruns:0 carrier:0
+        collisions:0 txqueuelen:1000
+        RX bytes:833626 (814.0 KiB)  TX bytes:97959 (95.6 KiB)`;
     var ip = '192.168.1.101';
     var network = {
       ssid: 'TestNetwork',
@@ -2053,7 +2061,7 @@ exports['Tessel.Wifi'] = {
     this.exec.restore();
     this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
       if (cmd === 'ifconfig wlan0') {
-        callback(null, ip);
+        callback(null, ipResult);
       } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
         callback(null, JSON.stringify(network));
       } else {
@@ -2062,7 +2070,7 @@ exports['Tessel.Wifi'] = {
     });
 
     var results = Object.assign({
-      ips: [ip]
+      ip: ip
     }, settings, network);
     delete results.password;
 
@@ -2106,6 +2114,14 @@ exports['Tessel.Wifi'] = {
       password: 'TestPassword',
       security: 'psk'
     };
+    var ipResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
+        inet addr:10.0.1.11  Bcast:192.168.1.101  Mask:255.255.255.0
+        inet6 addr: fe80::a3:aaff:fea9:fb02/64 Scope:Link
+        UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+        RX packets:2786 errors:0 dropped:0 overruns:0 frame:0
+        TX packets:493 errors:0 dropped:0 overruns:0 carrier:0
+        collisions:0 txqueuelen:1000
+        RX bytes:833626 (814.0 KiB)  TX bytes:97959 (95.6 KiB)`;
     var ip = '192.168.1.101';
     var network = {
       ssid: 'TestNetwork',
@@ -2120,7 +2136,7 @@ exports['Tessel.Wifi'] = {
     this.exec.restore();
     this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
       if (cmd === 'ifconfig wlan0') {
-        callback(null, ip);
+        callback(null, ipResult);
       } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
         callback(null, JSON.stringify(network));
       } else {
@@ -2129,7 +2145,7 @@ exports['Tessel.Wifi'] = {
     });
 
     var results = Object.assign({
-      ips: [ip]
+      ip: ip
     }, settings, network);
     delete results.password;
 
@@ -2155,6 +2171,14 @@ exports['Tessel.Wifi'] = {
       ssid: 'TestNetwork',
       password: 'TestPassword'
     };
+    var ipResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
+        inet addr:10.0.1.11  Bcast:192.168.1.101  Mask:255.255.255.0
+        inet6 addr: fe80::a3:aaff:fea9:fb02/64 Scope:Link
+        UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+        RX packets:2786 errors:0 dropped:0 overruns:0 frame:0
+        TX packets:493 errors:0 dropped:0 overruns:0 carrier:0
+        collisions:0 txqueuelen:1000
+        RX bytes:833626 (814.0 KiB)  TX bytes:97959 (95.6 KiB)`;
     var ip = '192.168.1.101';
     var network = {
       ssid: 'TestNetwork',
@@ -2169,7 +2193,7 @@ exports['Tessel.Wifi'] = {
     this.exec.restore();
     this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
       if (cmd === 'ifconfig wlan0') {
-        callback(null, ip);
+        callback(null, ipResult);
       } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
         callback(null, JSON.stringify(network));
       } else {
@@ -2178,7 +2202,7 @@ exports['Tessel.Wifi'] = {
     });
 
     var results = Object.assign({
-      ips: [ip],
+      ip: ip,
       security: 'psk2'
     }, settings, network);
     delete results.password;
@@ -2207,6 +2231,14 @@ exports['Tessel.Wifi'] = {
     var settings = {
       ssid: 'TestNetwork'
     };
+    var ipResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
+        inet addr:10.0.1.11  Bcast:192.168.1.101  Mask:255.255.255.0
+        inet6 addr: fe80::a3:aaff:fea9:fb02/64 Scope:Link
+        UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+        RX packets:2786 errors:0 dropped:0 overruns:0 frame:0
+        TX packets:493 errors:0 dropped:0 overruns:0 carrier:0
+        collisions:0 txqueuelen:1000
+        RX bytes:833626 (814.0 KiB)  TX bytes:97959 (95.6 KiB)`;
     var ip = '192.168.1.101';
     var network = {
       ssid: 'TestNetwork',
@@ -2219,7 +2251,7 @@ exports['Tessel.Wifi'] = {
     this.exec.restore();
     this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
       if (cmd === 'ifconfig wlan0') {
-        callback(null, ip);
+        callback(null, ipResult);
       } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
         callback(null, JSON.stringify(network));
       } else {
@@ -2228,7 +2260,7 @@ exports['Tessel.Wifi'] = {
     });
 
     var results = Object.assign({
-      ips: [ip],
+      ip: ip,
       security: 'none'
     }, settings, network);
 
@@ -2289,6 +2321,14 @@ exports['Tessel.Wifi'] = {
     var settings = {
       ssid: 'TestNetwork'
     };
+    var ipResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
+        inet addr:10.0.1.11  Bcast:192.168.1.101  Mask:255.255.255.0
+        inet6 addr: fe80::a3:aaff:fea9:fb02/64 Scope:Link
+        UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+        RX packets:2786 errors:0 dropped:0 overruns:0 frame:0
+        TX packets:493 errors:0 dropped:0 overruns:0 carrier:0
+        collisions:0 txqueuelen:1000
+        RX bytes:833626 (814.0 KiB)  TX bytes:97959 (95.6 KiB)`;
     var ip = '192.168.1.101';
     var network = {
       ssid: 'TestNetwork',
@@ -2302,7 +2342,7 @@ exports['Tessel.Wifi'] = {
     this.exec.restore();
     this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
       if (cmd === 'ifconfig wlan0') {
-        callback(null, ip);
+        callback(null, ipResult);
       } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
         callback(null, JSON.stringify(network));
       } else if (cmd === `uci get wireless.@wifi-iface[0].disabled`) {
@@ -2318,7 +2358,7 @@ exports['Tessel.Wifi'] = {
     });
 
     var results = Object.assign({
-      ips: [ip],
+      ip: ip,
       security: 'none'
     }, settings, network);
 
