@@ -1147,9 +1147,6 @@ Tessel.Wifi = function() {
   };
 
   Object.defineProperties(this, {
-    isConnected: {
-      get: () => state.connected
-    },
     connected: {
       set: (value) => {
         state.connected = value;
@@ -1224,12 +1221,34 @@ Tessel.Wifi.prototype.reset = function(callback) {
     });
 };
 
-Tessel.Wifi.prototype.connection = function() {
-  if (this.isConnected) {
-    return this.settings;
-  } else {
-    return null;
+Tessel.Wifi.prototype.connection = function(callback) {
+  if (typeof callback !== 'function') {
+    callback = function() {};
   }
+
+  isEnabled()
+    .then((enabled) => {
+      if (enabled) {
+        getWifiInfo()
+          .then((network) => {
+            delete network.password;
+
+            this.settings = network;
+
+            callback(null, network);
+          })
+          .catch((error) => {
+            this.emit('error', error);
+            callback(error);
+          });
+      } else {
+        return callback(null, null);
+      }
+    })
+    .catch((error) => {
+      this.emit('error', error);
+      callback(error);
+    });
 };
 
 Tessel.Wifi.prototype.connect = function(settings, callback) {
@@ -1400,6 +1419,18 @@ function getWifiInfo() {
                     reject(error);
                   } else {
                     network.ips = ipResults.split('\n');
+
+                    // attempt to parse out the security configuration from the returned network object
+                    if (network.encryption.enabled) {
+                      if (network.encryption.wep) {
+                        network.security = 'wep';
+                      } else if (network.encryption.authentication && network.encryption.wpa) {
+                        // sets "security" to either psk or psk2
+                        network.security = `${network.encryption.authentication[0]}${network.encryption.wpa[0] === 2 ? 2 : null}`;
+                      }
+                    } else {
+                      network.security = 'none';
+                    }
                     resolve(network);
                   }
                 });
@@ -1441,6 +1472,16 @@ function scanWifi() {
                 // Parse the security type - unused at the moment
                 security: encryptionRegex.exec(entry)[1],
               };
+
+              // normalize security info to match configuration settings, i.e. none, wep, psk, psk2. "none" is already set correctly
+              if (networkInfo.security.includes('WEP')) {
+                networkInfo.security = 'wep';
+              } else if (networkInfo.security.includes('WPA2')) {
+                networkInfo.security = 'psk2';
+              } else if (networkInfo.security.includes('WPA')) {
+                networkInfo.security = 'psk';
+              }
+
               // Add this parsed network to our array
               networks.push(networkInfo);
             } catch (error) {
