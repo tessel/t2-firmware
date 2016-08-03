@@ -1418,7 +1418,13 @@ function getWifiInfo() {
                   if (error) {
                     reject(error);
                   } else {
-                    network.ips = ipResults.split('\n');
+                    network.ip = ipResults
+                      .split('\n') // split multiple line string into array of strings
+                      .filter((string) => string.includes('Bcast'))[0] // find the string containing a reference to "Bcast" (Broadcast IP)
+                      .trim() // remove extra whitespace from either side of the string
+                      .split(' ') // split the string by whitespace between words
+                      .filter((string) => string.includes('Bcast'))[0] // find the string containing a reference to "Bcast"
+                      .split(':')[1]; // split the string by the ":", i.e. "Bcast:10.0.0.11" and grab the number as the 2nd item in that array
 
                     // attempt to parse out the security configuration from the returned network object
                     if (network.encryption.enabled) {
