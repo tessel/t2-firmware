@@ -1142,16 +1142,10 @@ Tessel.LED.prototype.read = function(callback) {
 
 Tessel.Wifi = function() {
   var state = {
-    settings: {},
-    connected: false
+    settings: {}
   };
 
   Object.defineProperties(this, {
-    connected: {
-      set: (value) => {
-        state.connected = value;
-      }
-    },
     settings: {
       get: () => state.settings,
       set: (settings) => {
@@ -1171,9 +1165,10 @@ Tessel.Wifi.prototype.enable = function(callback) {
   turnOnWifi()
     .then(commitWireless)
     .then(restartWifi)
-    .then(() => {
+    .then(getWifiInfo)
+    .then((network) => {
+      Object.assign(this.settings, network);
       this.emit('connect', this.settings);
-      this.connected = true;
       callback();
     })
     .catch((error) => {
@@ -1192,7 +1187,6 @@ Tessel.Wifi.prototype.disable = function(callback) {
     .then(commitWireless)
     .then(restartWifi)
     .then(() => {
-      this.connected = false;
       this.emit('disconnect');
       callback();
     })
@@ -1207,11 +1201,11 @@ Tessel.Wifi.prototype.reset = function(callback) {
     callback = function() {};
   }
 
-  this.connected = false;
   this.emit('disconnect', 'Resetting connection');
   restartWifi()
-    .then(() => {
-      this.connected = true;
+    .then(getWifiInfo)
+    .then((network) => {
+      Object.assign(this.settings, network);
       this.emit('connect', this.settings);
       callback();
     })
@@ -1242,7 +1236,7 @@ Tessel.Wifi.prototype.connection = function(callback) {
             callback(error);
           });
       } else {
-        return callback(null, null);
+        callback(null, null);
       }
     })
     .catch((error) => {
@@ -1278,7 +1272,6 @@ Tessel.Wifi.prototype.connect = function(settings, callback) {
       delete settings.password;
 
       this.settings = Object.assign(network, settings);
-      this.connected = true;
       this.emit('connect', this.settings);
 
       callback(null, this.settings);
