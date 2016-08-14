@@ -1407,36 +1407,46 @@ function getWifiInfo() {
                   throw msg;
                 }
               } else {
-                childProcess.exec('ifconfig wlan0', (error, ipResults) => {
-                  if (error) {
-                    reject(error);
-                  } else {
-                    network.ip = ipResults
-                      .split('\n') // split multiple line string into array of strings
-                      .filter((string) => string.includes('Bcast'))[0] // find the string containing a reference to "Bcast" (Broadcast IP)
-                      .trim() // remove extra whitespace from either side of the string
-                      .split(' ') // split the string by whitespace between words
-                      .filter((string) => string.includes('Bcast'))[0] // find the string containing a reference to "Bcast"
-                      .split(':')[1]; // split the string by the ":", i.e. "Bcast:10.0.0.11" and grab the number as the 2nd item in that array
-
-                    // attempt to parse out the security configuration from the returned network object
-                    if (network.encryption.enabled) {
-                      if (network.encryption.wep) {
-                        network.security = 'wep';
-                      } else if (network.encryption.authentication && network.encryption.wpa) {
-                        // sets "security" to either psk or psk2
-                        network.security = `${network.encryption.authentication[0]}${network.encryption.wpa[0] === 2 ? 2 : null}`;
-                      }
-                    } else {
-                      network.security = 'none';
-                    }
-                    resolve(network);
-                  }
-                });
+                recursiveIP(network);
               }
             } catch (error) {
               reject(error);
             }
+          }
+        });
+      });
+    }
+
+    // when immediately connecting and restarting the wifi chip, it takes a few moments before an IP address is broadcast to Tessel.
+    // This function keeps checking for that IP until it's available.
+    function recursiveIP(network) {
+      setImmediate(() => {
+        childProcess.exec('ifconfig wlan0', (error, ipResults) => {
+          if (error) {
+            reject(error);
+          } else if (ipResults.includes('Bcast') === false) {
+            recursiveWifi(network);
+          } else {
+            network.ip = ipResults
+              .split('\n') // split multiple line string into array of strings
+              .filter((string) => string.includes('Bcast'))[0] // find the string containing a reference to "Bcast" (Broadcast IP)
+              .trim() // remove extra whitespace from either side of the string
+              .split(' ') // split the string by whitespace between words
+              .filter((string) => string.includes('Bcast'))[0] // find the string containing a reference to "Bcast"
+              .split(':')[1]; // split the string by the ":", i.e. "Bcast:10.0.0.11" and grab the number as the 2nd item in that array
+
+            // attempt to parse out the security configuration from the returned network object
+            if (network.encryption.enabled) {
+              if (network.encryption.wep) {
+                network.security = 'wep';
+              } else if (network.encryption.authentication && network.encryption.wpa) {
+                // sets "security" to either psk or psk2
+                network.security = `${network.encryption.authentication[0]}${network.encryption.wpa[0] === 2 ? 2 : null}`;
+              }
+            } else {
+              network.security = 'none';
+            }
+            resolve(network);
           }
         });
       });
