@@ -59,6 +59,20 @@ exports['Tessel'] = {
     test.done();
   },
 
+  close: function(test) {
+    test.expect(1);
+
+    var destroy = sandbox.spy();
+
+    this.tessel.port.A = { sock: { destroy }};
+    this.tessel.port.B = { sock: { destroy }};
+
+    this.tessel.close();
+
+    test.equal(destroy.callCount, 2);
+    test.done();
+  },
+
   portsAliasToPort: function(test) {
     test.expect(1);
     test.equal(this.tessel.port, this.tessel.ports);
