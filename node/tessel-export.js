@@ -94,12 +94,33 @@ var pwmBankSettings = {
   prescalarIndex: 0,
 };
 
-Tessel.prototype.close = function() {
-  ['A', 'B'].forEach(function(name) {
-    if (this.port[name]) {
-      this.port[name].sock.destroy();
+Tessel.prototype.close = function(portName) {
+  if (portName !== undefined) {
+    // This _could_ be combined with the above condition,
+    // but is separate since the open() method has a
+    // necessarily nested condition and this _may_ require
+    // further conditional restrictions in the future.
+    if (this.port[portName]) {
+      this.port[portName].close();
     }
-  }, this);
+  } else {
+    ['A', 'B'].forEach(name => this.close(name));
+  }
+  return this;
+};
+
+Tessel.prototype.open = function(portName) {
+  if (portName !== undefined) {
+    // If there _is not_ a port created with this port name;
+    // Or there _is_, but the socket was previously destroyed...
+    if (!this.port[portName] ||
+      (this.port[portName] && this.port[portName].sock.destroyed)) {
+      this.port[portName] = new Tessel.Port(portName, Tessel.Port.PATH[portName], this);
+    }
+  } else {
+    ['A', 'B'].forEach(name => this.open(name));
+  }
+  return this;
 };
 
 Tessel.prototype.pwmFrequency = function(frequency, cb) {
@@ -184,17 +205,25 @@ Tessel.Port = function(name, socketPath, board) {
   // if nothing else is waiting in the event queue.
   this.unref();
 
-  this.sock.on('error', function(e) {
-    console.log('we had a socket err', e);
+  this.sock.on('error', error => {
+    console.log('Socket: Error occurred, ', error);
   });
 
-  this.sock.on('end', function() {
-    console.log('the other socket end closed!');
+  this.sock.on('end', () => {
+    console.log('Socket: The other end sent FIN packet.');
   });
 
-  this.sock.on('close', function() {
-    throw new Error('Port socket closed');
+  this.sock.on('close', () => {
+    if (!this.sock.isAllowedToClose) {
+      throw new Error('Socket: The Port socket has closed.');
+    }
   });
+
+  // Track whether the port should treat closing
+  // as an error. This will be set to true when `tessel.close()`
+  // is called, to indicate that the closing is intentional and
+  // therefore should be allow to proceed.
+  this.sock.isAllowedToClose = false;
 
   var replyBuf = new Buffer(0);
 
@@ -408,6 +437,13 @@ Tessel.Port = function(name, socketPath, board) {
 };
 
 util.inherits(Tessel.Port, EventEmitter);
+
+Tessel.Port.prototype.close = function() {
+  if (!this.sock.destroyed) {
+    this.sock.isAllowedToClose = true;
+    this.sock.destroy();
+  }
+};
 
 Tessel.Port.prototype.ref = function() {
   // Increase the number of pending tasks
