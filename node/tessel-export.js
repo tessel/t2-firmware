@@ -123,6 +123,28 @@ Tessel.prototype.open = function(portName) {
   return this;
 };
 
+Tessel.prototype.reboot = function() {
+  this.close();
+
+  // When attempting to reboot, if the sockets
+  // are left open at the moment that `reboot`
+  // is executed, there will be a substantial
+  // delay before the actual reboot occurs.
+  // Polling for `destroyed` signals ensures
+  // that the sockets are closed before
+  // `reboot` is executed.
+  var pollUntilSocketsDestroyed = () => {
+    if (this.port.A.sock.destroyed &&
+      this.port.B.sock.destroyed) {
+      childProcess.execSync('reboot');
+    } else {
+      setImmediate(pollUntilSocketsDestroyed);
+    }
+  };
+
+  pollUntilSocketsDestroyed();
+};
+
 Tessel.prototype.pwmFrequency = function(frequency, cb) {
   if (frequency < PWM_MIN_FREQUENCY || frequency > PWM_MAX_FREQUENCY) {
     throw new RangeError(`pwmFrequency value must be between ${PWM_MIN_FREQUENCY} and ${PWM_MAX_FREQUENCY}`);
