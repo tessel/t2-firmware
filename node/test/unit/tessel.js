@@ -59,17 +59,127 @@ exports['Tessel'] = {
     test.done();
   },
 
-  close: function(test) {
+  closeBoth: function(test) {
     test.expect(1);
 
-    var destroy = sandbox.spy();
+    var spy = sandbox.spy();
 
-    this.tessel.port.A = { sock: { destroy }};
-    this.tessel.port.B = { sock: { destroy }};
+    this.tessel.port.A.close = spy;
+    this.tessel.port.B.close = spy;
 
     this.tessel.close();
 
-    test.equal(destroy.callCount, 2);
+    test.equal(spy.callCount, 2);
+    test.done();
+  },
+
+  closeSpecificA: function(test) {
+    test.expect(2);
+
+    this.tessel.port.A.close = sandbox.spy();
+    this.tessel.port.B.close = sandbox.spy();
+
+    this.tessel.close('A');
+
+    test.equal(this.tessel.port.A.close.callCount, 1);
+    test.equal(this.tessel.port.B.close.callCount, 0);
+    test.done();
+  },
+
+  closeSpecificB: function(test) {
+    test.expect(2);
+
+    this.tessel.port.A.close = sandbox.spy();
+    this.tessel.port.B.close = sandbox.spy();
+
+    this.tessel.close('B');
+
+    test.equal(this.tessel.port.A.close.callCount, 0);
+    test.equal(this.tessel.port.B.close.callCount, 1);
+    test.done();
+  },
+
+  openOnlyIfNotAlreadyOpen: function(test) {
+    test.expect(1);
+
+    Tessel.Port.reset();
+
+    var destroyed = false;
+    var sock = {
+      destroyed
+    };
+
+    this.tessel.port.A = {
+      sock
+    };
+    this.tessel.port.B = {
+      sock
+    };
+
+    this.tessel.open('A');
+    this.tessel.open('B');
+
+    test.equal(Tessel.Port.callCount, 0);
+    test.done();
+  },
+
+  openInstantiatesTesselPortWithTheseArgs: function(test) {
+    test.expect(7);
+
+    test.equal(Tessel.Port.firstCall.args[0], 'A');
+    test.equal(Tessel.Port.lastCall.args[0], 'B');
+
+    Tessel.Port.reset();
+
+    this.tessel.port.A = null;
+
+    this.tessel.open('A');
+
+    test.equal(this.tessel.port.A instanceof Tessel.Port, true);
+    test.equal(Tessel.Port.callCount, 1);
+    test.equal(Tessel.Port.lastCall.args[0], 'A');
+    test.equal(Tessel.Port.lastCall.args[1], Tessel.Port.PATH.A);
+    test.equal(Tessel.Port.lastCall.args[2], this.tessel);
+    test.done();
+  },
+
+  openBothFromNothing: function(test) {
+    test.expect(3);
+
+    Tessel.Port.reset();
+
+    this.tessel.port.A = null;
+    this.tessel.port.B = null;
+
+    this.tessel.open();
+
+    test.equal(Tessel.Port.callCount, 2);
+    test.equal(this.tessel.port.A instanceof Tessel.Port, true);
+    test.equal(this.tessel.port.B instanceof Tessel.Port, true);
+
+    test.done();
+  },
+
+  openBothFromPreviouslyDestroyedPort: function(test) {
+    test.expect(3);
+
+    Tessel.Port.reset();
+
+    var destroyed = true;
+
+    this.tessel.port.A.sock = {
+      destroyed
+    };
+    this.tessel.port.B.sock = {
+      destroyed
+    };
+
+    this.tessel.open();
+
+    test.equal(Tessel.Port.callCount, 2);
+    test.equal(this.tessel.port.A instanceof Tessel.Port, true);
+    test.equal(this.tessel.port.B instanceof Tessel.Port, true);
+
     test.done();
   },
 
@@ -329,6 +439,44 @@ exports['Tessel.Port'] = {
     test.done();
   },
 
+  isAllowedToCloseFalse: function(test) {
+    test.expect(1);
+
+    var port = new Tessel.Port('foo', '/foo/bar/baz', this.tessel);
+
+    test.equal(port.sock.isAllowedToClose, false);
+    test.done();
+  },
+
+  isAllowedToCloseTrue: function(test) {
+    test.expect(5);
+
+    var spy = sandbox.spy();
+    var A = this.tessel.port.A;
+    var B = this.tessel.port.B;
+
+    test.equal(A.sock.isAllowedToClose, false);
+    test.equal(B.sock.isAllowedToClose, false);
+
+    // If any error is emitted, the test will fail.
+    A.sock.destroy = () => {
+      A.sock.emit('close');
+    };
+    B.sock.destroy = () => {
+      B.sock.emit('close');
+    };
+
+    A.sock.on('close', spy);
+    B.sock.on('close', spy);
+
+    this.tessel.close();
+
+    test.equal(A.sock.isAllowedToClose, true);
+    test.equal(B.sock.isAllowedToClose, true);
+    test.equal(spy.callCount, 2);
+    test.done();
+  },
+
   instancePropertiesDeprecated: function(test) {
     test.expect(7);
 
@@ -474,6 +622,22 @@ exports['Tessel.Port.prototype'] = {
     Tessel.instance = null;
     sandbox.restore();
     done();
+  },
+
+  close: function(test) {
+    test.expect(3);
+
+    var spy = sandbox.spy();
+    this.tessel.port.A.sock.destroy = spy;
+
+    test.equal(this.tessel.port.A.sock.isAllowedToClose, false);
+
+    this.tessel.port.A.close();
+
+    test.equal(this.tessel.port.A.sock.isAllowedToClose, true);
+    test.equal(spy.callCount, 1);
+
+    test.done();
   },
 
   cork: function(test) {
