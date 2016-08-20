@@ -274,11 +274,11 @@ Tessel.Port = function(name, socketPath, board) {
 
           // For one-time 'low' or 'high' event
           if (mode === 'low' || mode === 'high') {
-            pin.emit(mode);
             // Reset the pin interrupt state (prevent constant interrupts)
             pin.interruptMode = null;
             // Decrement the number of tasks waiting on the socket
             this.unref();
+            pin.emit(mode);
           } else {
             // Emit the change and rise or fall
             pin.emit('change', pinValue);
