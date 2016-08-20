@@ -285,11 +285,11 @@ void EVSYS_Handler() {
 }
 
 void SERCOM_HANDLER(SERCOM_PORT_A_UART_I2C) {
-    bridge_handle_sercom_uart_i2c(&port_a);
+    port_handle_sercom_uart_i2c(&port_a);
 }
 
 void SERCOM_HANDLER(SERCOM_PORT_B_UART_I2C) {
-    bridge_handle_sercom_uart_i2c(&port_b);
+    port_handle_sercom_uart_i2c(&port_b);
 }
 
 void bridge_open_0() {}

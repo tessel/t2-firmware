@@ -698,7 +698,7 @@ void port_dma_tx_completion(PortData* p) {
     }
 }
 
-void bridge_handle_sercom_uart_i2c(PortData* p) {
+void port_handle_sercom_uart_i2c(PortData* p) {
     if (p->mode == MODE_UART) {
         if (sercom(p->port->uart_i2c)->USART.INTFLAG.reg & SERCOM_USART_INTFLAG_RXC) {
             sercom(p->port->uart_i2c)->USART.INTFLAG.reg = SERCOM_USART_INTFLAG_RXC;
