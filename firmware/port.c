@@ -1,5 +1,17 @@
 #include "firmware.h"
 
+void port_error(PortData* p) {
+    bridge_disable_chan(p->chan);
+}
+
+void port_bridge_start_out(PortData* p, u8* buf) {
+    bridge_start_out(p->chan, buf);
+}
+
+void port_bridge_start_in(PortData* p, u8* buf, size_t len) {
+    bridge_start_in(p->chan, buf, len);
+}
+
 typedef enum PortState {
     PORT_DISABLE,
     PORT_READ_CMD,
@@ -140,7 +152,7 @@ void port_disable(PortData* p) {
 
 void port_send_status(PortData* p, u8 d) {
     if (p->reply_len >= BRIDGE_BUF_SIZE) {
-        bridge_disable_chan(p->chan);
+        port_error(p);
         return;
     }
     p->reply_buf[p->reply_len++] = d;
@@ -238,7 +250,7 @@ Pin port_selected_pin(PortData* p) {
 
 void port_exec_async_complete(PortData* p, ExecStatus s) {
     if (p->state != PORT_EXEC_ASYNC) {
-        bridge_disable_chan(p->chan);
+        port_error(p);
         return;
     }
     p->state = s;
@@ -256,7 +268,7 @@ void uart_send_data(PortData *p){
         if (count + 2 > BRIDGE_BUF_SIZE - p->reply_len) {
             // Shouldn't have to worry about insufficient buffer space because the buffer is
             // always flushed before enabling async events, but assert to be sure.
-            bridge_disable_chan(p->chan);
+            port_error(p);
             return;
         }
 
@@ -479,7 +491,7 @@ ExecStatus port_begin_cmd(PortData *p) {
             return EXEC_DONE;
         }
     }
-    bridge_disable_chan(p->chan);
+    port_error(p);
     return EXEC_DONE;
 }
 
@@ -593,7 +605,7 @@ inline bool port_async_events_allowed(PortData* p) {
 
 void port_step(PortData* p) {
     if (p->state == PORT_DISABLE) {
-        bridge_disable_chan(p->chan);
+        port_error(p);
         return;
     }
 
@@ -603,14 +615,14 @@ void port_step(PortData* p) {
         // If the command buffer has been processed, request a new one
         if (p->cmd_pos >= p->cmd_len && !p->pending_out && !(p->state == PORT_EXEC_ASYNC && port_tx_locked(p))) {
             p->pending_out = true;
-            bridge_start_out(p->chan, p->cmd_buf);
+            port_bridge_start_out(p, p->cmd_buf);
         }
         // If the reply buffer is full, flush it.
         // Or, if there is any data and no commands, might as well flush.
         if ((p->reply_len >= BRIDGE_BUF_SIZE || (p->pending_out && p->reply_len > 0))
            && !p->pending_in && !(p->state == PORT_EXEC_ASYNC && port_rx_locked(p))) {
             p->pending_in = true;
-            bridge_start_in(p->chan, p->reply_buf, p->reply_len);
+            port_bridge_start_in(p, p->reply_buf, p->reply_len);
         }
 
         // Wait for bridge transfers to complete;
@@ -636,7 +648,7 @@ void port_step(PortData* p) {
             }
         } else if (p->state == PORT_READ_ARG) {
             if (p->arg_len == 0) {
-                bridge_disable_chan(p->chan);
+                port_error(p);
                 return;
             }
             p->arg[p->arg_pos++] = p->cmd_buf[p->cmd_pos++];
@@ -671,7 +683,7 @@ void port_dma_rx_completion(PortData* p) {
         p->state = (p->arg[0] == 0 ? EXEC_DONE : EXEC_CONTINUE);
         port_step(p);
     } else {
-        bridge_disable_chan(p->chan);
+        port_error(p);
         return;
     }
 }
@@ -681,7 +693,7 @@ void port_dma_tx_completion(PortData* p) {
         p->state = (p->arg[0] == 0 ? EXEC_DONE : EXEC_CONTINUE);
         port_step(p);
     } else {
-        bridge_disable_chan(p->chan);
+        port_error(p);
         return;
     }
 }
@@ -717,11 +729,11 @@ void bridge_handle_sercom_uart_i2c(PortData* p) {
             p->state = (p->arg[0] == 0 ? EXEC_DONE : EXEC_CONTINUE);
             port_step(p);
         } else {
-            bridge_disable_chan(p->chan);
+            port_error(p);
             return;
         }
     } else {
-        bridge_disable_chan(p->chan);
+        port_error(p);
         return;
     }
 }
@@ -752,7 +764,7 @@ void port_handle_extint(PortData *p, u32 flags) {
         }
         EIC->INTFLAG.reg = p->port->pin_interrupts & flags;
     } else {
-        bridge_disable_chan(p->chan);
+        port_error(p);
         return;
     }
 
