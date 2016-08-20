@@ -114,25 +114,61 @@ typedef struct UartBuf {
 } UartBuf;
 
 typedef struct PortData {
+    /// Pin mappings
     const TesselPort* port;
+
+    /// Buffers for data from the host
     USB_ALIGN u8 cmd_buf[BRIDGE_BUF_SIZE];
+
+    /// Buffers for data to the host
     USB_ALIGN u8 reply_buf[BRIDGE_BUF_SIZE];
+
+    /// Bridge channel
     u8 chan;
+
+    /// DMA channel for TX
     DmaChan dma_tx;
+
+    /// DMA channel for RX
     DmaChan dma_rx;
+
+    /// Parser state (PortState in port.c)
     u8 state;
+
+    /// Port mode (SPI/UART/etc, PortMode in port.c)
     u8 mode;
+
+    /// Length of valid data in cmd_buf
     u8 cmd_len;
+
+    /// Current position in cmd_buf
     u8 cmd_pos;
+
+    /// Current write position in reply_buf (length of valid data written)
     u8 reply_len;
+
+    /// Currently executing command (PortCmd in port.c)
     u8 cmd;
+
+    /// Parsed arguments
     u8 arg[BRIDGE_ARG_SIZE];
+
+    /// Length of arguments
     u8 arg_len;
+
+    /// Position into arguments
     u8 arg_pos;
-    u8 len;
+
+    /// GCLK channel for this port
     u8 clock_channel;
+
+    /// TCC channel for this port
     u8 tcc_channel;
+
+    /// True if the port is waiting for a packet from the host
     bool pending_out;
+
+    /// True if the port is sending a packet to the host
     bool pending_in;
     UartBuf uart_buf;
 } PortData;
