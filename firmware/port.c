@@ -128,7 +128,9 @@ void port_enable(PortData* p) {
     p->state = PORT_READ_CMD;
     p->mode = MODE_NONE;
     NVIC_EnableIRQ(SERCOM0_IRQn + p->port->uart_i2c);
+    NVIC_SetPriority(SERCOM0_IRQn + p->port->uart_i2c, 0xff);
     NVIC_EnableIRQ(TCC0_IRQn + p->tcc_channel);
+    NVIC_SetPriority(TCC0_IRQn + p->tcc_channel, 0xff);
 
     pin_high(p->port->power);
     for (int i = 0; i<8; i++) {
