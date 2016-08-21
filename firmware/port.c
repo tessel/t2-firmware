@@ -442,7 +442,7 @@ ExecStatus port_begin_cmd(PortData *p) {
             sercom_i2c_master_init(p->port->uart_i2c, p->arg[0]);
             pin_mux(p->port->sda);
             pin_mux(p->port->scl);
-            sercom(p->port->uart_i2c)->I2CM.INTENSET.reg = SERCOM_I2CM_INTENSET_SB | SERCOM_I2CM_INTENSET_MB;
+            sercom(p->port->uart_i2c)->I2CM.INTENSET.reg = SERCOM_I2CM_INTENSET_ERROR;
             p->mode = MODE_I2C;
             return EXEC_DONE;
 
@@ -453,7 +453,13 @@ ExecStatus port_begin_cmd(PortData *p) {
             return EXEC_DONE;
 
         case CMD_START:
+            while(sercom(p->port->uart_i2c)->I2CM.SYNCBUSY.bit.SYSOP) {}
             sercom(p->port->uart_i2c)->I2CM.ADDR.reg = p->arg[0];
+            if (p->arg[0] & 1)  {
+                sercom(p->port->uart_i2c)->I2CM.INTENSET.reg = SERCOM_I2CM_INTENSET_SB; // Read
+            } else {
+                sercom(p->port->uart_i2c)->I2CM.INTENSET.reg = SERCOM_I2CM_INTENSET_MB; // Write
+            }
             p->arg[0] = 0;
             return EXEC_ASYNC;
 
@@ -537,9 +543,11 @@ ExecStatus port_continue_cmd(PortData *p) {
                 p->cmd_pos += size;
                 p->arg[0] -= size;
             } else if (p->mode == MODE_I2C) {
+                while(sercom(p->port->uart_i2c)->I2CM.SYNCBUSY.bit.SYSOP) {}
                 sercom(p->port->uart_i2c)->I2CM.DATA.reg = p->cmd_buf[p->cmd_pos];
                 p->cmd_pos += 1;
                 p->arg[0] -= 1;
+                sercom(p->port->uart_i2c)->I2CM.INTENSET.reg = SERCOM_I2CM_INTENSET_MB;
             } else if (p->mode == MODE_UART) {
                 u32 size = port_tx_len(p);
                 // start dma transfer
@@ -559,9 +567,11 @@ ExecStatus port_continue_cmd(PortData *p) {
             } else if (p->mode == MODE_I2C) {
                 p->reply_buf[p->reply_len] = sercom(p->port->uart_i2c)->I2CM.DATA.reg;
                 sercom(p->port->uart_i2c)->I2CM.CTRLB.bit.ACKACT = 0;
+                while(sercom(p->port->uart_i2c)->I2CM.SYNCBUSY.bit.SYSOP) {}
                 sercom(p->port->uart_i2c)->I2CM.CTRLB.bit.CMD = 2;
                 p->reply_len += 1;
                 p->arg[0] -= 1;
+                sercom(p->port->uart_i2c)->I2CM.INTENSET.reg = SERCOM_I2CM_INTENSET_SB;
             }
             return EXEC_ASYNC;
         case CMD_TXRX:
@@ -755,7 +765,13 @@ void port_handle_sercom_uart_i2c(PortData* p) {
         }
     } else if (p->mode == MODE_I2C) {
         // interrupt on i2c flag
+        if (sercom(p->port->uart_i2c)->I2CM.INTFLAG.bit.ERROR) {
+            // TODO: signal errors in a less-destructive way e.g. for bus scanning
+            port_error(p);
+        }
+
         sercom(p->port->uart_i2c)->I2CM.INTFLAG.reg = SERCOM_I2CM_INTFLAG_SB | SERCOM_I2CM_INTFLAG_MB;
+        sercom(p->port->uart_i2c)->I2CM.INTENCLR.reg = SERCOM_I2CM_INTFLAG_SB | SERCOM_I2CM_INTFLAG_MB;
         if (p->state == PORT_EXEC_ASYNC) {
             p->state = (p->arg[0] == 0 ? EXEC_DONE : EXEC_CONTINUE);
             port_step(p);
