@@ -65,7 +65,7 @@ void flash_disable();
 #define BRIDGE_USB 0
 #define BRIDGE_PORT_A 1
 #define BRIDGE_PORT_B 2
-#define BRIDGE_BUF_SIZE 256
+#define BRIDGE_BUF_SIZE 255
 #define BRIDGE_ARG_SIZE 5
 
 void bridge_init();
