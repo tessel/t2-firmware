@@ -425,7 +425,7 @@ ExecStatus port_begin_cmd(PortData *p) {
                 !!(p->arg[0] & FLAG_SPI_CPOL), !!(p->arg[0] & FLAG_SPI_CPHA), p->arg[1]);
             dma_sercom_configure_tx(p->dma_tx, p->port->spi);
             dma_sercom_configure_rx(p->dma_rx, p->port->spi);
-            DMAC->CHINTENSET.reg = DMAC_CHINTENSET_TCMPL | DMAC_CHINTENSET_TERR; // ID depends on prev call
+            dma_enable_interrupt(p->dma_rx);
             pin_mux(p->port->mosi);
             pin_mux(p->port->miso);
             pin_mux(p->port->sck);
@@ -477,7 +477,7 @@ ExecStatus port_begin_cmd(PortData *p) {
             sercom_uart_init(p->port->uart_i2c, p->port->uart_dipo,
                 p->port->uart_dopo, (p->arg[0] << 8) + p->arg[1]); // 63019
             dma_sercom_configure_tx(p->dma_tx, p->port->uart_i2c);
-            DMAC->CHINTENSET.reg = DMAC_CHINTENSET_TCMPL | DMAC_CHINTENSET_TERR;
+            dma_enable_interrupt(p->dma_tx);
 
             p->mode = MODE_UART;
 
