@@ -459,34 +459,34 @@ void usb_cb_control_out_completion(void) {
 void usb_cb_completion(void) {
 	if (altsetting == ALTSETTING_FLASH) {
 		if (usb_ep_pending(USB_EP_FLASH_OUT)) {
-			flash_usb_out_completion();
 			usb_ep_handled(USB_EP_FLASH_OUT);
+			flash_usb_out_completion();
 		}
 
 		if (usb_ep_pending(USB_EP_FLASH_IN)) {
-			flash_usb_in_completion();
 			usb_ep_handled(USB_EP_FLASH_IN);
+			flash_usb_in_completion();
 		}
 	} else if (altsetting == ALTSETTING_PIPE) {
 		if (usb_ep_pending(USB_EP_PIPE_OUT)) {
-			pipe_usb_out_completion();
 			usb_ep_handled(USB_EP_PIPE_OUT);
+			pipe_usb_out_completion();
 		}
 
 		if (usb_ep_pending(USB_EP_PIPE_IN)) {
-			pipe_usb_in_completion();
 			usb_ep_handled(USB_EP_PIPE_IN);
+			pipe_usb_in_completion();
 		}
 	}
 
 	if (usb_ep_pending(USB_EP_CDC_OUT)) {
-		usbserial_out_completion();
 		usb_ep_handled(USB_EP_CDC_OUT);
+		usbserial_out_completion();
 	}
 
 	if (usb_ep_pending(USB_EP_CDC_IN)) {
-		usbserial_in_completion();
 		usb_ep_handled(USB_EP_CDC_IN);
+		usbserial_in_completion();
 	}
 }
 
