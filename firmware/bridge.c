@@ -120,6 +120,7 @@ void bridge_handle_sync() {
         for (u8 chan=0; chan<BRIDGE_NUM_CHAN; chan++) {
             u8 size = ctrl_rx.size[chan];
             if (ctrl_tx.status & (1<<chan) && size > 0) {
+                out_chan_ready &= ~ (1<<chan);
                 dma_fill_sercom_tx(&dma_chain_data_tx[desc], SERCOM_BRIDGE, NULL, size);
                 dma_fill_sercom_rx(&dma_chain_data_rx[desc], SERCOM_BRIDGE, out_chan_ptr[chan], size);
                 desc++;
@@ -127,6 +128,7 @@ void bridge_handle_sync() {
 
             size = ctrl_tx.size[chan];
             if (ctrl_rx.status & (1<<chan) && size > 0) {
+                in_chan_size[chan] = 0;
                 dma_fill_sercom_tx(&dma_chain_data_tx[desc], SERCOM_BRIDGE, in_chan_ptr[chan], size);
                 dma_fill_sercom_rx(&dma_chain_data_rx[desc], SERCOM_BRIDGE, NULL, size);
                 desc++;
@@ -161,26 +163,33 @@ void bridge_handle_sync() {
 void bridge_dma_rx_completion() {
     if (bridge_state == BRIDGE_STATE_DATA) {
 
+        // Copy the global state to this stack frame in case SYNC changes and the ISR overwrites these
+        uint8_t rx_status = ctrl_rx.status;
+        uint8_t tx_status = ctrl_tx.status;
+        uint8_t rx_size[BRIDGE_NUM_CHAN];
+        memcpy(rx_size, ctrl_rx.size, sizeof(rx_size));
+        uint8_t tx_size[BRIDGE_NUM_CHAN];
+        memcpy(tx_size, ctrl_tx.size, sizeof(tx_size));
+        __asm__ __volatile__ ("" : : : "memory");
+
         #define CHECK_OPEN(x) \
-            if ((ctrl_rx.status & (0x10<<x)) && !(was_open & (0x10<<x))) { \
-                bridge_open_##x(ctrl_rx.size[x]); \
+            if ((rx_status & (0x10<<x)) && !(was_open & (0x10<<x))) { \
+                bridge_open_##x(rx_size[x]); \
             }
 
         #define CHECK_COMPLETION_OUT(x) \
-            if (ctrl_tx.status & (1<<x) && ctrl_rx.size[x] > 0) { \
-                out_chan_ready &= ~ (1<<x); \
-                bridge_completion_out_##x(ctrl_rx.size[x]); \
+            if (tx_status & (1<<x) && rx_size[x] > 0) { \
+                bridge_completion_out_##x(rx_size[x]); \
             }
 
         #define CHECK_COMPLETION_IN(x) \
-            if (ctrl_rx.status & (1<<x) && ctrl_tx.size[x] > 0) { \
-                in_chan_size[x] = 0; \
+            if (rx_status & (1<<x) && tx_size[x] > 0) { \
                 bridge_completion_in_##x(); \
             }
 
         #define CHECK_CLOSE(x) \
-            if (!(ctrl_rx.status & (0x10<<x)) && (was_open & (0x10<<x))) { \
-                bridge_close_##x(ctrl_rx.size[x]); \
+            if (!(rx_status & (0x10<<x)) && (was_open & (0x10<<x))) { \
+                bridge_close_##x(rx_size[x]); \
             }
 
         CHECK_OPEN(0)
@@ -211,24 +220,32 @@ void bridge_dma_rx_completion() {
 }
 
 void bridge_start_in(u8 channel, u8* data, u8 length) {
+    __disable_irq();
     in_chan_ptr[channel] = data;
     in_chan_size[channel] = length;
+    __enable_irq();
     pin_high(PIN_BRIDGE_IRQ);
 }
 
 void bridge_start_out(u8 channel, u8* data) {
+    __disable_irq();
     out_chan_ptr[channel] = data;
     out_chan_ready |= (1<<channel);
+    __enable_irq();
     pin_high(PIN_BRIDGE_IRQ);
 }
 
 void bridge_enable_chan(u8 channel) {
+    __disable_irq();
     out_chan_ready |= (0x10<<channel);
+    __enable_irq();
     pin_high(PIN_BRIDGE_IRQ);
 }
 
 void bridge_disable_chan(u8 channel) {
+    __disable_irq();
     out_chan_ready &= ~(0x11<<channel); // Also clears the "ready to accept data" bit
     in_chan_size[channel] = 0; // Clears any data that was waiting to be sent
+    __enable_irq();
     pin_high(PIN_BRIDGE_IRQ);
 }
