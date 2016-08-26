@@ -59,6 +59,9 @@ void flash_usb_in_completion();
 void flash_usb_out_completion();
 void flash_disable();
 
+#define FLASH_BUFFER_SIZE 512
+extern u8 flash_buffer[FLASH_BUFFER_SIZE];
+
 // bridge.c
 
 #define BRIDGE_NUM_CHAN 3

@@ -21,9 +21,6 @@
 //    the SPI bus.
 // 4. `in_count` bytes are read from SPI and sent to the IN endpoint
 
-// Buffers are shared with the port, because they are not used simultaneously
-#define FLASH_BUFFER_SIZE BRIDGE_BUF_SIZE*2
-u8* const flash_buffer = port_a.cmd_buf;
 u32 flash_in_count;
 u32 flash_out_count;
 bool flash_flag_sr_poll;

@@ -3,6 +3,9 @@
 PortData port_a;
 PortData port_b;
 
+// TODO: flash buffer could be shared with the port, because they are not used simultaneously
+USB_ALIGN u8 flash_buffer[FLASH_BUFFER_SIZE];
+
 // Indicates whether the SPI Daemon is listening for USB traffic
 volatile bool booted = false;
 // LED Chan: TCC1/WO[0]
