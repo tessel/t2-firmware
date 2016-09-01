@@ -224,6 +224,9 @@ int main(void) {
 
     adc_init(GCLK_SYSTEM, ADC_REFCTRL_REFSEL_INTVCC1);
     dac_init(GCLK_32K);
+    // Enable interrupts for the ADC
+    NVIC_EnableIRQ(ADC_IRQn);
+    NVIC_SetPriority(ADC_IRQn, 0xff);
 
     bridge_init();
 
@@ -285,6 +288,20 @@ void EVSYS_Handler() {
         bridge_handle_sync();
     } else {
         invalid();
+    }
+}
+
+void ADC_Handler() {
+    // Grab the channel registered with the ADC input
+    u8 chan = ADC->INPUTCTRL.bit.MUXPOS;
+
+    // Port A only has two available ADC Channels
+    if (chan == PORT_A.mosi.chan || chan == PORT_A.g3.chan) {
+        port_handle_adcint(&port_a, chan);
+    }
+    // All other channels are from Port B
+    else {
+        port_handle_adcint(&port_b, chan);
     }
 }
 

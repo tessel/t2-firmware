@@ -188,6 +188,7 @@ void port_dma_rx_completion(PortData* p);
 void port_dma_tx_completion(PortData* p);
 void port_handle_sercom_uart_i2c(PortData* p);
 void port_handle_extint(PortData *p, u32 flags);
+void port_handle_adcint(PortData *p, u8 chan);
 void port_disable(PortData *p);
 void uart_send_data(PortData *p);
 

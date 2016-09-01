@@ -26,21 +26,49 @@ void adc_init(u8 channel, u8 refctrl) {
     while(ADC->STATUS.reg & ADC_STATUS_SYNCBUSY);
 }
 
-u16 adc_sample() {
+void adc_config(Pin p, u32 gain) {
+  // switch pin mux to analog in
+  pin_analog(p);
+
+  ADC->INPUTCTRL.reg = (ADC_INPUTCTRL_MUXPOS(p.chan) // select from proper pin
+      | ADC_INPUTCTRL_MUXNEG_GND // 0 = gnd
+      | gain);
+}
+
+u16 adc_sample_sync() {
+    // Start the conversion
     ADC->SWTRIG.reg = ADC_SWTRIG_START;
+    // Wait for the conversion to complete
     while(!(ADC->INTFLAG.reg & ADC_INTFLAG_RESRDY)); // wait until result is ready
+    // return the result
     return ADC->RESULT.reg;
 }
 
-u16 adc_read(Pin p, u32 gain) {
-    // switch pin mux to analog in
-    pin_analog(p);
+void adc_sample_async() {
+    // Enable the result ready interrupt
+    ADC->INTENSET.bit.RESRDY = 1;
 
-    ADC->INPUTCTRL.reg = (ADC_INPUTCTRL_MUXPOS(p.chan) // select from proper pin
-        | ADC_INPUTCTRL_MUXNEG_GND // 0 = gnd
-        | gain);
+    // Start the conversion
+    ADC->SWTRIG.reg = ADC_SWTRIG_START;
+}
 
-    return adc_sample();
+// Block and read the ADC
+u16 adc_read_sync(Pin p, u32 gain) {
+
+    // Set up the pin for interrupts and set the gain
+    adc_config(p, gain);
+
+    return adc_sample_sync();
+}
+
+// Gather an ADC conversion and trigger interrupt
+void adc_read_async(Pin p, u32 gain) {
+
+    // Set up the pin for interrupts and set the gain
+    adc_config(p, gain);
+
+    // Begin a conversion (to be handled by int handler)
+    adc_sample_async();
 }
 
 void dac_init(u8 channel) {

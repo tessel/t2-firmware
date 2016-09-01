@@ -402,14 +402,10 @@ ExecStatus port_begin_cmd(PortData *p) {
             return EXEC_DONE;
 
         case CMD_ANALOG_READ: {
-            // copy analog data into reply buffer
-            u16 val = adc_read(port_selected_pin(p), ADC_INPUTCTRL_GAIN_DIV2);
+            // Tell the ADC to start making a read
+            adc_read_async(port_selected_pin(p), ADC_INPUTCTRL_GAIN_DIV2);
 
-            p->reply_buf[p->reply_len++] = REPLY_DATA;
-            p->reply_buf[p->reply_len++] = val & 0xFF; // lower 8 bits
-            p->reply_buf[p->reply_len++] = val >> 8;// higher 8 bits
-
-            return EXEC_DONE;
+            return EXEC_ASYNC;
         }
 
         case CMD_ANALOG_WRITE:
@@ -817,5 +813,44 @@ void port_handle_extint(PortData *p, u32 flags) {
         return;
     }
 
+    port_step(p);
+}
+
+void port_handle_adcint(PortData *p, u8 chan) {
+    // Ensure we are in the correct state
+    if (p->state == PORT_EXEC_ASYNC) {
+
+        // Clear the interrupt flag
+        ADC->INTENCLR.bit.RESRDY = 1;
+
+        // Iterate through each pin in the port
+        for (int pin = 0; pin<8; pin++) {
+            // Get a reference to the pin
+            Pin sys_pin = p->port->gpio[pin];
+
+            // Check if the ADC channel matches
+            if (chan == sys_pin.chan) {
+                // Write the adc read command and pin number to the response
+                port_send_status(p, REPLY_DATA);
+
+                // Send the result (lower bits, then higher)
+                port_send_status(p, ADC->RESULT.reg & 0xFF);
+                port_send_status(p, ADC->RESULT.reg >> 8);
+
+                // Indicate we are done with the port state
+                p->state = EXEC_DONE;
+
+                // Break out of the foor loop
+                break;
+            }
+        }
+    }
+    else {
+        // Invalid state
+        port_error(p);
+        return;
+    }
+
+    // Keep the state machine moving
     port_step(p);
 }

@@ -169,8 +169,8 @@ inline static void evsys_config(u8 channel, u8 source, u8 user) {
 
 // analog.c
 void adc_init(u8 channel, u8 refctrl);
-u16 adc_sample();
-u16 adc_read(Pin p, u32 gain);
+u16 adc_read_sync(Pin p, u32 gain);
+void adc_read_async(Pin p, u32 gain);
 void dac_init(u8 channel);
 void dac_write(Pin p, u16 val);
 
