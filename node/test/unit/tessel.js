@@ -2453,32 +2453,43 @@ exports['Tessel.Wifi'] = {
   },
 
   initialized: function(test) {
-    test.expect(2);
+    test.expect(1);
 
-    test.equal(this.tessel.network.wifi.isConnected, false, 'not connected by default');
     test.deepEqual(this.tessel.network.wifi.settings, {}, 'no setings by default');
 
     test.done();
   },
 
   connect: function(test) {
-    test.expect(5);
+    test.expect(4);
 
     var settings = {
       ssid: 'TestNetwork',
       password: 'TestPassword',
-      security: 'psk2'
+      security: 'wep'
     };
+    var ipResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
+        inet addr:10.0.1.11  Bcast:192.168.1.101  Mask:255.255.255.0
+        inet6 addr: fe80::a3:aaff:fea9:fb02/64 Scope:Link
+        UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+        RX packets:2786 errors:0 dropped:0 overruns:0 frame:0
+        TX packets:493 errors:0 dropped:0 overruns:0 carrier:0
+        collisions:0 txqueuelen:1000
+        RX bytes:833626 (814.0 KiB)  TX bytes:97959 (95.6 KiB)`;
     var ip = '192.168.1.101';
     var network = {
       ssid: 'TestNetwork',
-      strength: '30/80'
+      strength: '30/80',
+      encryption: {
+        enabled: true,
+        wep: ['open']
+      }
     };
 
     this.exec.restore();
     this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
       if (cmd === 'ifconfig wlan0') {
-        callback(null, ip);
+        callback(null, ipResult);
       } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
         callback(null, JSON.stringify(network));
       } else {
@@ -2487,7 +2498,7 @@ exports['Tessel.Wifi'] = {
     });
 
     var results = Object.assign({
-      ips: [ip]
+      ip: ip
     }, settings, network);
     delete results.password;
 
@@ -2503,7 +2514,6 @@ exports['Tessel.Wifi'] = {
 
       test.deepEqual(networkSettings, results, 'correct settings');
       test.deepEqual(this.tessel.network.wifi.settings, results, 'correct settings property');
-      test.equal(this.tessel.network.wifi.isConnected, true, 'wifi is now connected');
       test.equal(this.exec.callCount, 6, 'exec called correctly');
 
       test.done();
@@ -2525,23 +2535,36 @@ exports['Tessel.Wifi'] = {
   },
 
   connectWithoutCallback: function(test) {
-    test.expect(4);
+    test.expect(3);
 
     var settings = {
       ssid: 'TestNetwork',
       password: 'TestPassword',
-      security: 'psk2'
+      security: 'psk'
     };
+    var ipResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
+        inet addr:10.0.1.11  Bcast:192.168.1.101  Mask:255.255.255.0
+        inet6 addr: fe80::a3:aaff:fea9:fb02/64 Scope:Link
+        UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+        RX packets:2786 errors:0 dropped:0 overruns:0 frame:0
+        TX packets:493 errors:0 dropped:0 overruns:0 carrier:0
+        collisions:0 txqueuelen:1000
+        RX bytes:833626 (814.0 KiB)  TX bytes:97959 (95.6 KiB)`;
     var ip = '192.168.1.101';
     var network = {
       ssid: 'TestNetwork',
-      strength: '30/80'
+      strength: '30/80',
+      encryption: {
+        enabled: true,
+        wpa: [1],
+        authentication: ['psk']
+      }
     };
 
     this.exec.restore();
     this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
       if (cmd === 'ifconfig wlan0') {
-        callback(null, ip);
+        callback(null, ipResult);
       } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
         callback(null, JSON.stringify(network));
       } else {
@@ -2550,14 +2573,13 @@ exports['Tessel.Wifi'] = {
     });
 
     var results = Object.assign({
-      ips: [ip]
+      ip: ip
     }, settings, network);
     delete results.password;
 
     this.tessel.network.wifi.on('connect', (networkSettings) => {
       test.deepEqual(networkSettings, results, 'correct settings');
       test.deepEqual(this.tessel.network.wifi.settings, results, 'correct settings property');
-      test.equal(this.tessel.network.wifi.isConnected, true, 'wifi is now connected');
       test.equal(this.exec.callCount, 6, 'exec called correctly');
       test.done();
     });
@@ -2571,22 +2593,35 @@ exports['Tessel.Wifi'] = {
   },
 
   connectWithoutSecurity: function(test) {
-    test.expect(5);
+    test.expect(4);
 
     var settings = {
       ssid: 'TestNetwork',
       password: 'TestPassword'
     };
+    var ipResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
+        inet addr:10.0.1.11  Bcast:192.168.1.101  Mask:255.255.255.0
+        inet6 addr: fe80::a3:aaff:fea9:fb02/64 Scope:Link
+        UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+        RX packets:2786 errors:0 dropped:0 overruns:0 frame:0
+        TX packets:493 errors:0 dropped:0 overruns:0 carrier:0
+        collisions:0 txqueuelen:1000
+        RX bytes:833626 (814.0 KiB)  TX bytes:97959 (95.6 KiB)`;
     var ip = '192.168.1.101';
     var network = {
       ssid: 'TestNetwork',
-      strength: '30/80'
+      strength: '30/80',
+      encryption: {
+        enabled: true,
+        wpa: [2],
+        authentication: ['psk']
+      }
     };
 
     this.exec.restore();
     this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
       if (cmd === 'ifconfig wlan0') {
-        callback(null, ip);
+        callback(null, ipResult);
       } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
         callback(null, JSON.stringify(network));
       } else {
@@ -2595,7 +2630,7 @@ exports['Tessel.Wifi'] = {
     });
 
     var results = Object.assign({
-      ips: [ip],
+      ip: ip,
       security: 'psk2'
     }, settings, network);
     delete results.password;
@@ -2612,7 +2647,6 @@ exports['Tessel.Wifi'] = {
 
       test.deepEqual(networkSettings, results, 'correct settings');
       test.deepEqual(this.tessel.network.wifi.settings, results, 'correct settings property');
-      test.equal(this.tessel.network.wifi.isConnected, true, 'wifi is now connected');
       test.equal(this.exec.callCount, 6, 'exec called correctly');
 
       test.done();
@@ -2620,21 +2654,32 @@ exports['Tessel.Wifi'] = {
   },
 
   connectWithoutPassword: function(test) {
-    test.expect(5);
+    test.expect(4);
 
     var settings = {
       ssid: 'TestNetwork'
     };
+    var ipResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
+        inet addr:10.0.1.11  Bcast:192.168.1.101  Mask:255.255.255.0
+        inet6 addr: fe80::a3:aaff:fea9:fb02/64 Scope:Link
+        UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+        RX packets:2786 errors:0 dropped:0 overruns:0 frame:0
+        TX packets:493 errors:0 dropped:0 overruns:0 carrier:0
+        collisions:0 txqueuelen:1000
+        RX bytes:833626 (814.0 KiB)  TX bytes:97959 (95.6 KiB)`;
     var ip = '192.168.1.101';
     var network = {
       ssid: 'TestNetwork',
-      strength: '30/80'
+      strength: '30/80',
+      encryption: {
+        enabled: false
+      }
     };
 
     this.exec.restore();
     this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
       if (cmd === 'ifconfig wlan0') {
-        callback(null, ip);
+        callback(null, ipResult);
       } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
         callback(null, JSON.stringify(network));
       } else {
@@ -2643,7 +2688,7 @@ exports['Tessel.Wifi'] = {
     });
 
     var results = Object.assign({
-      ips: [ip],
+      ip: ip,
       security: 'none'
     }, settings, network);
 
@@ -2659,7 +2704,6 @@ exports['Tessel.Wifi'] = {
 
       test.deepEqual(networkSettings, results, 'correct settings');
       test.deepEqual(this.tessel.network.wifi.settings, results, 'correct settings property');
-      test.equal(this.tessel.network.wifi.isConnected, true, 'wifi is now connected');
       test.equal(this.exec.callCount, 6, 'exec called correctly');
 
       test.done();
@@ -2667,7 +2711,7 @@ exports['Tessel.Wifi'] = {
   },
 
   connectThrowsError: function(test) {
-    test.expect(3);
+    test.expect(2);
 
     var settings = {
       ssid: 'TestNetwork'
@@ -2691,7 +2735,6 @@ exports['Tessel.Wifi'] = {
     this.tessel.network.wifi.connect(settings, (error) => {
       if (error) {
         test.equal(error, testError, 'error should be passed into callback');
-        test.equal(this.tessel.network.wifi.isConnected, false, 'wifi is not connected');
         test.done();
       } else {
         test.fail('should not connect');
@@ -2706,43 +2749,98 @@ exports['Tessel.Wifi'] = {
     var settings = {
       ssid: 'TestNetwork'
     };
+    var ipResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
+        inet addr:10.0.1.11  Bcast:192.168.1.101  Mask:255.255.255.0
+        inet6 addr: fe80::a3:aaff:fea9:fb02/64 Scope:Link
+        UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+        RX packets:2786 errors:0 dropped:0 overruns:0 frame:0
+        TX packets:493 errors:0 dropped:0 overruns:0 carrier:0
+        collisions:0 txqueuelen:1000
+        RX bytes:833626 (814.0 KiB)  TX bytes:97959 (95.6 KiB)`;
     var ip = '192.168.1.101';
     var network = {
       ssid: 'TestNetwork',
-      strength: '30/80'
+      strength: '30/80',
+      encryption: {
+        enabled: false
+      }
     };
+    var isFirstCheck = true;
 
     this.exec.restore();
     this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
       if (cmd === 'ifconfig wlan0') {
-        callback(null, ip);
+        callback(null, ipResult);
       } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
         callback(null, JSON.stringify(network));
+      } else if (cmd === `uci get wireless.@wifi-iface[0].disabled`) {
+        if (isFirstCheck) {
+          isFirstCheck = false;
+          callback(null, 1);
+        } else {
+          callback(null, 0);
+        }
       } else {
         callback();
       }
     });
 
     var results = Object.assign({
-      ips: [ip],
+      ip: ip,
       security: 'none'
     }, settings, network);
 
-    test.equal(this.tessel.network.wifi.connection(), null, 'no settings yet');
-
-    this.tessel.network.wifi.connect(settings, (error) => {
+    this.tessel.network.wifi.connection((error, network) => {
       if (error) {
         test.fail(error);
         test.done();
       }
 
-      test.deepEqual(this.tessel.network.wifi.connection(), results, 'correct settings');
-      test.done();
+      test.equal(network, null, 'no settings yet');
+
+      this.tessel.network.wifi.connect(settings, (error) => {
+        if (error) {
+          test.fail(error);
+          test.done();
+        }
+
+        this.tessel.network.wifi.connection((error, network) => {
+          test.deepEqual(network, results, 'correct settings');
+          test.done();
+        });
+      });
     });
   },
 
   reset: function(test) {
-    test.expect(3);
+    test.expect(2);
+
+    var ipResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
+        inet addr:10.0.1.11  Bcast:192.168.1.101  Mask:255.255.255.0
+        inet6 addr: fe80::a3:aaff:fea9:fb02/64 Scope:Link
+        UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+        RX packets:2786 errors:0 dropped:0 overruns:0 frame:0
+        TX packets:493 errors:0 dropped:0 overruns:0 carrier:0
+        collisions:0 txqueuelen:1000
+        RX bytes:833626 (814.0 KiB)  TX bytes:97959 (95.6 KiB)`;
+    var network = {
+      ssid: 'TestNetwork',
+      strength: '30/80',
+      encryption: {
+        enabled: false
+      }
+    };
+
+    this.exec.restore();
+    this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
+      if (cmd === 'ifconfig wlan0') {
+        callback(null, ipResult);
+      } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
+        callback(null, JSON.stringify(network));
+      } else {
+        callback();
+      }
+    });
 
     this.tessel.network.wifi.on('disconnect', () => {
       test.ok(true, 'disconnect event is fired');
@@ -2756,14 +2854,13 @@ exports['Tessel.Wifi'] = {
         test.fail(error);
         test.done();
       } else {
-        test.equal(this.tessel.network.wifi.isConnected, true, 'wifi is not connected');
         test.done();
       }
     });
   },
 
   disable: function(test) {
-    test.expect(2);
+    test.expect(1);
 
     this.tessel.network.wifi.on('disconnect', () => {
       test.ok(true, 'disconnect event is fired');
@@ -2774,14 +2871,40 @@ exports['Tessel.Wifi'] = {
         test.fail(error);
         test.done();
       } else {
-        test.equal(this.tessel.network.wifi.isConnected, false, 'wifi is not connected');
         test.done();
       }
     });
   },
 
   enable: function(test) {
-    test.expect(2);
+    test.expect(1);
+
+    var ipResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
+        inet addr:10.0.1.11  Bcast:192.168.1.101  Mask:255.255.255.0
+        inet6 addr: fe80::a3:aaff:fea9:fb02/64 Scope:Link
+        UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+        RX packets:2786 errors:0 dropped:0 overruns:0 frame:0
+        TX packets:493 errors:0 dropped:0 overruns:0 carrier:0
+        collisions:0 txqueuelen:1000
+        RX bytes:833626 (814.0 KiB)  TX bytes:97959 (95.6 KiB)`;
+    var network = {
+      ssid: 'TestNetwork',
+      strength: '30/80',
+      encryption: {
+        enabled: false
+      }
+    };
+
+    this.exec.restore();
+    this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
+      if (cmd === 'ifconfig wlan0') {
+        callback(null, ipResult);
+      } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
+        callback(null, JSON.stringify(network));
+      } else {
+        callback();
+      }
+    });
 
     this.tessel.network.wifi.on('connect', () => {
       test.ok(true, 'connect event is fired');
@@ -2792,21 +2915,20 @@ exports['Tessel.Wifi'] = {
         test.fail(error);
         test.done();
       } else {
-        test.equal(this.tessel.network.wifi.isConnected, true, 'wifi is not connected');
         test.done();
       }
     });
   },
 
   findAvailableNetworks: function(test) {
-    test.expect(2);
+    test.expect(3);
 
     var networks =
       `Cell 01 - Address: 14:35:8B:11:30:F0
               ESSID: "technicallyHome"
               Mode: Master  Channel: 11
               Signal: -55 dBm  Quality: 55/70
-              Encryption: mixed WPA/WPA2 PSK (TKIP, CCMP)
+              Encryption: WPA PSK (TKIP, CCMP)
 
     Cell 02 - Address: 6C:70:9F:D9:7A:5C
               ESSID: "Fried Chicken Sandwich"
@@ -2828,6 +2950,7 @@ exports['Tessel.Wifi'] = {
     this.tessel.network.wifi.findAvailableNetworks((error, found) => {
       test.equal(found.length, 2);
       test.equal(found[0].ssid, 'Fried Chicken Sandwich');
+      test.equal(found[0].security, 'psk2');
       test.done();
     });
   },
@@ -2859,7 +2982,7 @@ exports['Tessel.Wifi'] = {
               ESSID: "worst"
               Mode: Master  Channel: 11
               Signal: -55 dBm  Quality: 30/
-              Encryption: mixed WPA/WPA2 PSK (TKIP, CCMP)
+              Encryption: WPA PSK (TKIP, CCMP)
 
     Cell 02 - Address: 6C:70:9F:D9:7A:5C
               ESSID: "middle"

@@ -1223,19 +1223,10 @@ Tessel.LED.prototype.read = function(callback) {
 
 Tessel.Wifi = function() {
   var state = {
-    settings: {},
-    connected: false
+    settings: {}
   };
 
   Object.defineProperties(this, {
-    isConnected: {
-      get: () => state.connected
-    },
-    connected: {
-      set: (value) => {
-        state.connected = value;
-      }
-    },
     settings: {
       get: () => state.settings,
       set: (settings) => {
@@ -1255,9 +1246,10 @@ Tessel.Wifi.prototype.enable = function(callback) {
   turnOnWifi()
     .then(commitWireless)
     .then(restartWifi)
-    .then(() => {
+    .then(getWifiInfo)
+    .then((network) => {
+      Object.assign(this.settings, network);
       this.emit('connect', this.settings);
-      this.connected = true;
       callback();
     })
     .catch((error) => {
@@ -1276,7 +1268,6 @@ Tessel.Wifi.prototype.disable = function(callback) {
     .then(commitWireless)
     .then(restartWifi)
     .then(() => {
-      this.connected = false;
       this.emit('disconnect');
       callback();
     })
@@ -1291,11 +1282,11 @@ Tessel.Wifi.prototype.reset = function(callback) {
     callback = function() {};
   }
 
-  this.connected = false;
   this.emit('disconnect', 'Resetting connection');
   restartWifi()
-    .then(() => {
-      this.connected = true;
+    .then(getWifiInfo)
+    .then((network) => {
+      Object.assign(this.settings, network);
       this.emit('connect', this.settings);
       callback();
     })
@@ -1305,12 +1296,34 @@ Tessel.Wifi.prototype.reset = function(callback) {
     });
 };
 
-Tessel.Wifi.prototype.connection = function() {
-  if (this.isConnected) {
-    return this.settings;
-  } else {
-    return null;
+Tessel.Wifi.prototype.connection = function(callback) {
+  if (typeof callback !== 'function') {
+    callback = function() {};
   }
+
+  isEnabled()
+    .then((enabled) => {
+      if (enabled) {
+        getWifiInfo()
+          .then((network) => {
+            delete network.password;
+
+            this.settings = network;
+
+            callback(null, network);
+          })
+          .catch((error) => {
+            this.emit('error', error);
+            callback(error);
+          });
+      } else {
+        callback(null, null);
+      }
+    })
+    .catch((error) => {
+      this.emit('error', error);
+      callback(error);
+    });
 };
 
 Tessel.Wifi.prototype.connect = function(settings, callback) {
@@ -1340,7 +1353,6 @@ Tessel.Wifi.prototype.connect = function(settings, callback) {
       delete settings.password;
 
       this.settings = Object.assign(network, settings);
-      this.connected = true;
       this.emit('connect', this.settings);
 
       callback(null, this.settings);
@@ -1456,40 +1468,69 @@ function isEnabled() {
 function getWifiInfo() {
   return new Promise((resolve, reject) => {
     var checkCount = 0;
+    var rbcast = /(Bcast):([\w\.]+)/;
 
     function recursiveWifi() {
-      setImmediate(() => {
-        childProcess.exec(`ubus call iwinfo info '{"device":"wlan0"}'`, (error, results) => {
-          if (error) {
-            recursiveWifi();
-          } else {
-            try {
-              var network = JSON.parse(results);
+      childProcess.exec(`ubus call iwinfo info '{"device":"wlan0"}'`, (error, results) => {
+        if (error) {
+          recursiveWifi();
+        } else {
+          try {
+            var network = JSON.parse(results);
 
-              if (network.ssid === undefined) {
-                // using 6 because it's the lowest count with accurate results after testing
-                if (checkCount < 6) {
-                  checkCount++;
-                  recursiveWifi();
-                } else {
-                  var msg = 'Tessel is unable to connect, please check your credentials or list of available networks (using tessel.network.wifi.findAvailableNetworks()) and try again.';
-                  throw msg;
-                }
+            if (network.ssid === undefined) {
+              // using 6 because it's the lowest count with accurate results after testing
+              if (checkCount < 6) {
+                checkCount++;
+                recursiveWifi();
               } else {
-                childProcess.exec('ifconfig wlan0', (error, ipResults) => {
-                  if (error) {
-                    reject(error);
-                  } else {
-                    network.ips = ipResults.split('\n');
-                    resolve(network);
-                  }
-                });
+                var msg = 'Tessel is unable to connect, please check your credentials or list of available networks (using tessel.network.wifi.findAvailableNetworks()) and try again.';
+                throw msg;
               }
-            } catch (error) {
-              reject(error);
+            } else {
+              recursiveIP(network);
+            }
+          } catch (error) {
+            reject(error);
+          }
+        }
+      });
+    }
+
+    // when immediately connecting and restarting the wifi chip, it takes a few moments before an IP address is broadcast to Tessel.
+    // This function keeps checking for that IP until it's available.
+    function recursiveIP(network) {
+      childProcess.exec('ifconfig wlan0', (error, ipResults) => {
+        if (error) {
+          reject(error);
+        } else {
+          var bcastMatches = ipResults.match(rbcast);
+
+          if (bcastMatches === null) {
+            recursiveWifi(network);
+          } else {
+            // Successful matches will have a result that looks like: 
+            // ["Bcast:0.0.0.0", "Bcast", "0.0.0.0"]
+            if (bcastMatches.length === 3) {
+              network.ip = bcastMatches[2];
+            } else {
+              recursiveWifi(network);
             }
           }
-        });
+
+          // attempt to parse out the security configuration from the returned network object
+          if (network.encryption.enabled) {
+            if (network.encryption.wep) {
+              network.security = 'wep';
+            } else if (network.encryption.authentication && network.encryption.wpa) {
+              // sets "security" to either psk or psk2
+              network.security = `${network.encryption.authentication[0]}${network.encryption.wpa[0] === 2 ? 2 : null}`;
+            }
+          } else {
+            network.security = 'none';
+          }
+          resolve(network);
+        }
       });
     }
 
@@ -1522,6 +1563,16 @@ function scanWifi() {
                 // Parse the security type - unused at the moment
                 security: encryptionRegex.exec(entry)[1],
               };
+
+              // normalize security info to match configuration settings, i.e. none, wep, psk, psk2. "none" is already set correctly
+              if (networkInfo.security.includes('WEP')) {
+                networkInfo.security = 'wep';
+              } else if (networkInfo.security.includes('WPA2')) {
+                networkInfo.security = 'psk2';
+              } else if (networkInfo.security.includes('WPA')) {
+                networkInfo.security = 'psk';
+              }
+
               // Add this parsed network to our array
               networks.push(networkInfo);
             } catch (error) {
