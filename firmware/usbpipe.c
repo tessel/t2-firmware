@@ -1,7 +1,7 @@
 #include "firmware.h"
 #define OUT_RING_SIZE 10
 #define PACKET_SIZE 64
-u8 out_ring_buf[OUT_RING_SIZE][PACKET_SIZE];
+USB_ALIGN u8 out_ring_buf[OUT_RING_SIZE][PACKET_SIZE];
 volatile u8 out_ring_count = 0; // Number of packets in the ring buffer
 volatile u8 out_ring_write_pos = 0; // Packet index in which we're currently receiving a packet, or will once it's free
 volatile u8 out_ring_read_pos = 0; // Packet index from which we're currently sending a packet, or will once it's filled.

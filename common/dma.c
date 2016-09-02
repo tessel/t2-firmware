@@ -21,8 +21,24 @@ void dma_init() {
 }
 
 void dma_abort(DmaChan chan) {
+    __disable_irq();
     DMAC->CHID.reg = chan;
     DMAC->CHCTRLA.reg = 0;
+    __enable_irq();
+}
+
+void dma_start(DmaChan chan) {
+    __disable_irq();
+    DMAC->CHID.reg = chan;
+    DMAC->CHCTRLA.reg = DMAC_CHCTRLA_ENABLE;
+    __enable_irq();
+}
+
+void dma_enable_interrupt(DmaChan chan) {
+    __disable_irq();
+    DMAC->CHID.reg = chan;
+    DMAC->CHINTENSET.reg = DMAC_CHINTENSET_TCMPL | DMAC_CHINTENSET_TERR;
+    __enable_irq();
 }
 
 u32 dma_remaining(DmaChan chan) {
@@ -78,24 +94,21 @@ void dma_link_chain(DmacDescriptor* chain, u32 count) {
 }
 
 void dma_start_descriptor(DmaChan chan, DmacDescriptor* chain) {
-    DMAC->CHID.reg = chan;
-    DMAC->CHCTRLA.reg = 0;
+    dma_abort(chan);
     memcpy(&dma_descriptors[chan], &chain[0], sizeof(DmacDescriptor));
-    DMAC->CHCTRLA.reg = DMAC_CHCTRLA_ENABLE;
+    dma_start(chan);
 }
 
 void dma_sercom_start_tx(DmaChan chan, SercomId id, u8* src, unsigned size) {
-    DMAC->CHID.reg = chan;
-    DMAC->CHCTRLA.reg = 0;
+    dma_abort(chan);
     dma_fill_sercom_tx(&dma_descriptors[chan], id, src, size);
     dma_descriptors[chan].DESCADDR.reg = 0;
-    DMAC->CHCTRLA.reg = DMAC_CHCTRLA_ENABLE;
+    dma_start(chan);
 }
 
 void dma_sercom_start_rx(DmaChan chan, SercomId id, u8* dst, unsigned size) {
-    DMAC->CHID.reg = chan;
-    DMAC->CHCTRLA.reg = 0;
+    dma_abort(chan);
     dma_fill_sercom_rx(&dma_descriptors[chan], id, dst, size);
     dma_descriptors[chan].DESCADDR.reg = 0;
-    DMAC->CHCTRLA.reg = DMAC_CHCTRLA_ENABLE;
+    dma_start(chan);
 }

@@ -1,5 +1,22 @@
 #include "firmware.h"
 
+/// Signal an error on the port. The host must take action to reset the port to resume communication.
+void port_error(PortData* p) {
+    bridge_disable_chan(p->chan);
+}
+
+/// Start a transfer from the host of size BRIDGE_BUF_SIZE into the passed buffer.
+/// The buffer is owned by the bridge until it signals completion by calling port_bridge_out_completion.
+void port_bridge_start_out(PortData* p, u8* buf) {
+    bridge_start_out(p->chan, buf);
+}
+
+/// Start a transfer to the host, with the specified buffer and size. The buffer must remain valid
+/// until the bridge signals completion by calling port_bridge_in_completion.
+void port_bridge_start_in(PortData* p, u8* buf, size_t len) {
+    bridge_start_in(p->chan, buf, len);
+}
+
 typedef enum PortState {
     PORT_DISABLE,
     PORT_READ_CMD,
@@ -77,11 +94,13 @@ void port_enable_async_events(PortData *p);
 void port_disable_async_events(PortData *p);
 void uart_send_data(PortData *p);
 
+/// Returns true of the specified pin index has interrupt capability
 inline static bool port_pin_supports_interrupt(PortData* p, u8 i) {
     u8 extint = pin_extint(p->port->gpio[i]);
     return !!((1 << extint) & p->port->pin_interrupts);
 }
 
+/// Initialize the port. Call once on boot.
 void port_init(PortData* p, u8 chan, const TesselPort* port,
     u8 clock_channel, u8 tcc_channel, DmaChan dma_tx, DmaChan dma_rx) {
     p->tcc_channel = tcc_channel;
@@ -97,6 +116,8 @@ void port_init(PortData* p, u8 chan, const TesselPort* port,
     bridge_enable_chan(chan);
 }
 
+/// Enable the port. Call when switching into a mode where the port will be used.
+/// Resets all port state.
 void port_enable(PortData* p) {
     bridge_start_out(p->chan, p->cmd_buf);
     p->pending_in = false;
@@ -107,7 +128,9 @@ void port_enable(PortData* p) {
     p->state = PORT_READ_CMD;
     p->mode = MODE_NONE;
     NVIC_EnableIRQ(SERCOM0_IRQn + p->port->uart_i2c);
+    NVIC_SetPriority(SERCOM0_IRQn + p->port->uart_i2c, 0xff);
     NVIC_EnableIRQ(TCC0_IRQn + p->tcc_channel);
+    NVIC_SetPriority(TCC0_IRQn + p->tcc_channel, 0xff);
 
     pin_high(p->port->power);
     for (int i = 0; i<8; i++) {
@@ -115,6 +138,7 @@ void port_enable(PortData* p) {
     }
 }
 
+/// Disable the port.
 void port_disable(PortData* p) {
     p->state = PORT_DISABLE;
     sercom_reset(p->port->spi);
@@ -138,15 +162,16 @@ void port_disable(PortData* p) {
     bridge_enable_chan(p->chan);
 }
 
+/// Enqueue a byte on the reply buf. Requires that at least one byte of space is available.
 void port_send_status(PortData* p, u8 d) {
     if (p->reply_len >= BRIDGE_BUF_SIZE) {
-        bridge_disable_chan(p->chan);
+        port_error(p);
         return;
     }
     p->reply_buf[p->reply_len++] = d;
 }
 
-// returns number of arguments
+/// Returns the number of argument bytes for the specified command
 int port_cmd_args(PortCmd cmd) {
     switch (cmd) {
         case CMD_NOP:
@@ -201,6 +226,7 @@ int port_cmd_args(PortCmd cmd) {
     return 0;
 }
 
+/// Calculate the number of bytes that can immediately be processed for a TX command
 u32 port_tx_len(PortData* p) {
     u32 size = p->arg[0];
     u32 cmd_remaining = p->cmd_len - p->cmd_pos;
@@ -210,6 +236,7 @@ u32 port_tx_len(PortData* p) {
     return size;
 }
 
+/// Calculate the number of bytes that can immediately be processed for a RX command
 u32 port_rx_len(PortData* p) {
     u32 size = p->arg[0];
     u32 reply_remaining = BRIDGE_BUF_SIZE - p->reply_len;
@@ -219,6 +246,7 @@ u32 port_rx_len(PortData* p) {
     return size;
 }
 
+/// Calculate the number of bytes that can immediately be processed for a TXRX command
 u32 port_txrx_len(PortData *p) {
     u32 size = p->arg[0];
     u32 cmd_remaining = p->cmd_len - p->cmd_pos;
@@ -232,19 +260,22 @@ u32 port_txrx_len(PortData *p) {
     return size;
 }
 
+/// Get the GPIO pin for a port pin index
 Pin port_selected_pin(PortData* p) {
     return p->port->gpio[p->arg[0] % 8];
 }
 
+/// Complete an asynchronous command and begin the next command.
 void port_exec_async_complete(PortData* p, ExecStatus s) {
     if (p->state != PORT_EXEC_ASYNC) {
-        bridge_disable_chan(p->chan);
+        port_error(p);
         return;
     }
     p->state = s;
     port_step(p);
 }
 
+/// Flush pending received UART data to the reply buffer
 void uart_send_data(PortData *p){
     if (p->uart_buf.buf_len > 0) {
         // pad 2 bytes at the beginning
@@ -256,7 +287,7 @@ void uart_send_data(PortData *p){
         if (count + 2 > BRIDGE_BUF_SIZE - p->reply_len) {
             // Shouldn't have to worry about insufficient buffer space because the buffer is
             // always flushed before enabling async events, but assert to be sure.
-            bridge_disable_chan(p->chan);
+            port_error(p);
             return;
         }
 
@@ -274,6 +305,11 @@ void uart_send_data(PortData *p){
     }
 }
 
+/// Begin execution of a command. This function performs the setup for commands with payloads,
+/// or the entire execution for commands that do not have payloads.
+///   EXEC_DONE: move on to the next command
+///   EXEC_CONTINUE: schedule port_continue_command to be called with a part of the payload when
+///                  available
 ExecStatus port_begin_cmd(PortData *p) {
     switch (p->cmd) {
         case CMD_NOP:
@@ -389,7 +425,7 @@ ExecStatus port_begin_cmd(PortData *p) {
                 !!(p->arg[0] & FLAG_SPI_CPOL), !!(p->arg[0] & FLAG_SPI_CPHA), p->arg[1]);
             dma_sercom_configure_tx(p->dma_tx, p->port->spi);
             dma_sercom_configure_rx(p->dma_rx, p->port->spi);
-            DMAC->CHINTENSET.reg = DMAC_CHINTENSET_TCMPL | DMAC_CHINTENSET_TERR; // ID depends on prev call
+            dma_enable_interrupt(p->dma_rx);
             pin_mux(p->port->mosi);
             pin_mux(p->port->miso);
             pin_mux(p->port->sck);
@@ -408,7 +444,7 @@ ExecStatus port_begin_cmd(PortData *p) {
             sercom_i2c_master_init(p->port->uart_i2c, p->arg[0]);
             pin_mux(p->port->sda);
             pin_mux(p->port->scl);
-            sercom(p->port->uart_i2c)->I2CM.INTENSET.reg = SERCOM_I2CM_INTENSET_SB | SERCOM_I2CM_INTENSET_MB;
+            sercom(p->port->uart_i2c)->I2CM.INTENSET.reg = SERCOM_I2CM_INTENSET_ERROR;
             p->mode = MODE_I2C;
             return EXEC_DONE;
 
@@ -419,7 +455,13 @@ ExecStatus port_begin_cmd(PortData *p) {
             return EXEC_DONE;
 
         case CMD_START:
+            while(sercom(p->port->uart_i2c)->I2CM.SYNCBUSY.bit.SYSOP) {}
             sercom(p->port->uart_i2c)->I2CM.ADDR.reg = p->arg[0];
+            if (p->arg[0] & 1)  {
+                sercom(p->port->uart_i2c)->I2CM.INTENSET.reg = SERCOM_I2CM_INTENSET_SB; // Read
+            } else {
+                sercom(p->port->uart_i2c)->I2CM.INTENSET.reg = SERCOM_I2CM_INTENSET_MB; // Write
+            }
             p->arg[0] = 0;
             return EXEC_ASYNC;
 
@@ -435,7 +477,7 @@ ExecStatus port_begin_cmd(PortData *p) {
             sercom_uart_init(p->port->uart_i2c, p->port->uart_dipo,
                 p->port->uart_dopo, (p->arg[0] << 8) + p->arg[1]); // 63019
             dma_sercom_configure_tx(p->dma_tx, p->port->uart_i2c);
-            DMAC->CHINTENSET.reg = DMAC_CHINTENSET_TCMPL | DMAC_CHINTENSET_TERR;
+            dma_enable_interrupt(p->dma_tx);
 
             p->mode = MODE_UART;
 
@@ -479,10 +521,12 @@ ExecStatus port_begin_cmd(PortData *p) {
             return EXEC_DONE;
         }
     }
-    bridge_disable_chan(p->chan);
+    port_error(p);
     return EXEC_DONE;
 }
 
+/// Called to process the payload of a command. It is not guaranteed that the full payload will
+/// be available in one chunk, so this function is called on events until it returns EXEC_DONE.
 ExecStatus port_continue_cmd(PortData *p) {
     switch (p->cmd) {
         case CMD_ECHO: {
@@ -501,9 +545,11 @@ ExecStatus port_continue_cmd(PortData *p) {
                 p->cmd_pos += size;
                 p->arg[0] -= size;
             } else if (p->mode == MODE_I2C) {
+                while(sercom(p->port->uart_i2c)->I2CM.SYNCBUSY.bit.SYSOP) {}
                 sercom(p->port->uart_i2c)->I2CM.DATA.reg = p->cmd_buf[p->cmd_pos];
                 p->cmd_pos += 1;
                 p->arg[0] -= 1;
+                sercom(p->port->uart_i2c)->I2CM.INTENSET.reg = SERCOM_I2CM_INTENSET_MB;
             } else if (p->mode == MODE_UART) {
                 u32 size = port_tx_len(p);
                 // start dma transfer
@@ -523,9 +569,11 @@ ExecStatus port_continue_cmd(PortData *p) {
             } else if (p->mode == MODE_I2C) {
                 p->reply_buf[p->reply_len] = sercom(p->port->uart_i2c)->I2CM.DATA.reg;
                 sercom(p->port->uart_i2c)->I2CM.CTRLB.bit.ACKACT = 0;
+                while(sercom(p->port->uart_i2c)->I2CM.SYNCBUSY.bit.SYSOP) {}
                 sercom(p->port->uart_i2c)->I2CM.CTRLB.bit.CMD = 2;
                 p->reply_len += 1;
                 p->arg[0] -= 1;
+                sercom(p->port->uart_i2c)->I2CM.INTENSET.reg = SERCOM_I2CM_INTENSET_SB;
             }
             return EXEC_ASYNC;
         case CMD_TXRX:
@@ -562,6 +610,7 @@ bool port_rx_locked(PortData *p) {
     }
 }
 
+/// Enable interrupts for async events
 void port_enable_async_events(PortData *p) {
     EIC->INTENSET.reg = p->port->pin_interrupts;
 
@@ -571,6 +620,7 @@ void port_enable_async_events(PortData *p) {
     }
 }
 
+/// Disable interrupts for async events
 void port_disable_async_events(PortData *p) {
     EIC->INTENCLR.reg = p->port->pin_interrupts;
 
@@ -580,6 +630,7 @@ void port_disable_async_events(PortData *p) {
     }
 }
 
+/// Return true if the port is in a state where it can handle asyncronous events
 inline bool port_async_events_allowed(PortData* p) {
     if (!p->pending_in) {
         if (p->state == PORT_READ_CMD) return true;
@@ -591,9 +642,11 @@ inline bool port_async_events_allowed(PortData* p) {
     return false;
 }
 
+/// Step the state machine. This is the main dispatch function of the port control logic.
+/// This gets called after an event occurs to decide what happens next.
 void port_step(PortData* p) {
     if (p->state == PORT_DISABLE) {
-        bridge_disable_chan(p->chan);
+        port_error(p);
         return;
     }
 
@@ -603,14 +656,14 @@ void port_step(PortData* p) {
         // If the command buffer has been processed, request a new one
         if (p->cmd_pos >= p->cmd_len && !p->pending_out && !(p->state == PORT_EXEC_ASYNC && port_tx_locked(p))) {
             p->pending_out = true;
-            bridge_start_out(p->chan, p->cmd_buf);
+            port_bridge_start_out(p, p->cmd_buf);
         }
         // If the reply buffer is full, flush it.
         // Or, if there is any data and no commands, might as well flush.
         if ((p->reply_len >= BRIDGE_BUF_SIZE || (p->pending_out && p->reply_len > 0))
            && !p->pending_in && !(p->state == PORT_EXEC_ASYNC && port_rx_locked(p))) {
             p->pending_in = true;
-            bridge_start_in(p->chan, p->reply_buf, p->reply_len);
+            port_bridge_start_in(p, p->reply_buf, p->reply_len);
         }
 
         // Wait for bridge transfers to complete;
@@ -625,6 +678,7 @@ void port_step(PortData* p) {
         };
 
         if (p->state == PORT_READ_CMD) {
+            // Read a command byte and look up how many argument bytes it needs
             p->cmd = p->cmd_buf[p->cmd_pos++];
             p->arg_len = port_cmd_args(p->cmd);
 
@@ -635,8 +689,9 @@ void port_step(PortData* p) {
                 p->state = port_begin_cmd(p);
             }
         } else if (p->state == PORT_READ_ARG) {
+            // Read an argument byte
             if (p->arg_len == 0) {
-                bridge_disable_chan(p->chan);
+                port_error(p);
                 return;
             }
             p->arg[p->arg_pos++] = p->cmd_buf[p->cmd_pos++];
@@ -671,7 +726,7 @@ void port_dma_rx_completion(PortData* p) {
         p->state = (p->arg[0] == 0 ? EXEC_DONE : EXEC_CONTINUE);
         port_step(p);
     } else {
-        bridge_disable_chan(p->chan);
+        port_error(p);
         return;
     }
 }
@@ -681,12 +736,12 @@ void port_dma_tx_completion(PortData* p) {
         p->state = (p->arg[0] == 0 ? EXEC_DONE : EXEC_CONTINUE);
         port_step(p);
     } else {
-        bridge_disable_chan(p->chan);
+        port_error(p);
         return;
     }
 }
 
-void bridge_handle_sercom_uart_i2c(PortData* p) {
+void port_handle_sercom_uart_i2c(PortData* p) {
     if (p->mode == MODE_UART) {
         if (sercom(p->port->uart_i2c)->USART.INTFLAG.reg & SERCOM_USART_INTFLAG_RXC) {
             sercom(p->port->uart_i2c)->USART.INTFLAG.reg = SERCOM_USART_INTFLAG_RXC;
@@ -712,16 +767,22 @@ void bridge_handle_sercom_uart_i2c(PortData* p) {
         }
     } else if (p->mode == MODE_I2C) {
         // interrupt on i2c flag
+        if (sercom(p->port->uart_i2c)->I2CM.INTFLAG.bit.ERROR) {
+            // TODO: signal errors in a less-destructive way e.g. for bus scanning
+            port_error(p);
+        }
+
         sercom(p->port->uart_i2c)->I2CM.INTFLAG.reg = SERCOM_I2CM_INTFLAG_SB | SERCOM_I2CM_INTFLAG_MB;
+        sercom(p->port->uart_i2c)->I2CM.INTENCLR.reg = SERCOM_I2CM_INTFLAG_SB | SERCOM_I2CM_INTFLAG_MB;
         if (p->state == PORT_EXEC_ASYNC) {
             p->state = (p->arg[0] == 0 ? EXEC_DONE : EXEC_CONTINUE);
             port_step(p);
         } else {
-            bridge_disable_chan(p->chan);
+            port_error(p);
             return;
         }
     } else {
-        bridge_disable_chan(p->chan);
+        port_error(p);
         return;
     }
 }
@@ -752,7 +813,7 @@ void port_handle_extint(PortData *p, u32 flags) {
         }
         EIC->INTFLAG.reg = p->port->pin_interrupts & flags;
     } else {
-        bridge_disable_chan(p->chan);
+        port_error(p);
         return;
     }
 

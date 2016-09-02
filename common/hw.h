@@ -187,6 +187,7 @@ void dma_init();
 void dma_sercom_start_tx(DmaChan chan, SercomId id, u8* src, unsigned size);
 void dma_sercom_start_rx(DmaChan chan, SercomId id, u8* dst, unsigned size);
 void dma_abort(DmaChan chan);
+void dma_enable_interrupt(DmaChan chan);
 void dma_fill_sercom_tx(DmacDescriptor* desc, SercomId id, u8 *src, unsigned size);
 void dma_fill_sercom_rx(DmacDescriptor* desc, SercomId id, u8 *dst, unsigned size);
 void dma_sercom_configure_tx(DmaChan chan, SercomId id);

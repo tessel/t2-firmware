@@ -21,9 +21,6 @@
 //    the SPI bus.
 // 4. `in_count` bytes are read from SPI and sent to the IN endpoint
 
-// Buffers are shared with the port, because they are not used simultaneously
-#define FLASH_BUFFER_SIZE BRIDGE_BUF_SIZE*2
-u8* const flash_buffer = port_a.cmd_buf;
 u32 flash_in_count;
 u32 flash_out_count;
 bool flash_flag_sr_poll;
@@ -62,7 +59,7 @@ void flash_init() {
     sercom_spi_master_init(SERCOM_BRIDGE, FLASH_DIPO, FLASH_DOPO, 0, 0, SERCOM_SPI_BAUD_12MHZ);
     dma_sercom_configure_tx(DMA_FLASH_TX, SERCOM_BRIDGE);
     dma_sercom_configure_rx(DMA_FLASH_RX, SERCOM_BRIDGE);
-    DMAC->CHINTENSET.reg = DMAC_CHINTENSET_TCMPL | DMAC_CHINTENSET_TERR; // ID depends on prev call
+    dma_enable_interrupt(DMA_FLASH_RX);
 
     pin_low(PIN_SOC_RST);
     pin_out(PIN_SOC_RST);

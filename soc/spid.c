@@ -108,8 +108,7 @@ struct pollfd fds[N_POLLFDS];
 int usbd_sock_fd;
 struct sockaddr_un usbd_sock_addr;
 void delay() {
-    volatile int i = 1000;
-    while(i--);
+    usleep(10);
 }
 
 /*

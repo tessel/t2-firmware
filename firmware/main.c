@@ -3,16 +3,23 @@
 PortData port_a;
 PortData port_b;
 
+// TODO: flash buffer could be shared with the port, because they are not used simultaneously
+USB_ALIGN u8 flash_buffer[FLASH_BUFFER_SIZE];
+
 // Indicates whether the SPI Daemon is listening for USB traffic
 volatile bool booted = false;
 // LED Chan: TCC1/WO[0]
 #define PWR_LED_TCC_CHAN 1
 // CC channel 0 on TCC instance 1
 #define PWR_LED_CC_CHAN 0
-// The maximum counter value was chosen to get a 2s period heartbeat
-#define MAX_COUNTER 0xFFFF
+// The maximum counter value of both the TCC and the pattern counter
+#define MAX_COUNTER 0x10000
 // We have 16 slices of a sine wave
 #define NUM_POINT_SLICES 0x10
+// Pattern period in millisecond
+#define PATTERN_PERIOD_MS 1000
+#define TICKS_PER_MS 48000
+
 // Number of loop iterations in a single slice
 #define COUNTS_IN_SLICE MAX_COUNTER/NUM_POINT_SLICES
 // Evenly spaced points along a sine wave, shifted up by 1, scaled by 0.5
@@ -71,6 +78,8 @@ uint32_t interpolate(uint32_t position) {
     Handler for the POWER LED breathing animation
 */
 void TCC1_Handler() {
+    tcc(PWR_LED_TCC_CHAN)->INTFLAG.reg = TCC_INTFLAG_OVF;
+
     // booted is true when the coprocess first gets
     // a status packet from the spi daemon
     if (booted == true) {
@@ -78,8 +87,10 @@ void TCC1_Handler() {
         cancel_breathing_animation();
     }
 
+    counter += MAX_COUNTER / PATTERN_PERIOD_MS * MAX_COUNTER / TICKS_PER_MS;
+
     // Take that proportion and extract a point along the sudo sine wave
-    tcc(PWR_LED_TCC_CHAN)->CCB[PWR_LED_CC_CHAN].bit.CCB = interpolate(++counter);
+    tcc(PWR_LED_TCC_CHAN)->CCB[PWR_LED_CC_CHAN].bit.CCB = interpolate(counter);
 }
 
 /*
@@ -95,14 +106,10 @@ void init_breathing_animation() {
 
     // Reset the TCC
     tcc(PWR_LED_TCC_CHAN)->CTRLA.reg = TCC_CTRLA_SWRST;
+    while (tcc(PWR_LED_TCC_CHAN)->SYNCBUSY.reg != 0);
 
     // Enable the timer
     timer_clock_enable(PWR_LED_TCC_CHAN);
-
-    /* Set the prescalar setting to the highest division so we have more time
-        in between interrupts to complete the math
-    */
-    tcc(PWR_LED_TCC_CHAN)->CTRLA.bit.PRESCALER = TCC_CTRLA_PRESCALER_DIV1024_Val;
 
     // Set the waveform generator to generate a PWM signal
     // It uses polarity setting of 1 (switches from DIR to ~DIR)
@@ -112,10 +119,7 @@ void init_breathing_animation() {
     tcc(PWR_LED_TCC_CHAN)->PER.reg = MAX_COUNTER;
 
     // Set the counter number, starting at 0% duty cycle
-    tcc(PWR_LED_TCC_CHAN)->CC[PWR_LED_CC_CHAN].reg = counter;
-
-    // Set the second CCB value value be dark for simplicity
-    tcc(PWR_LED_TCC_CHAN)->CCB[PWR_LED_CC_CHAN].bit.CCB = counter;
+    tcc(PWR_LED_TCC_CHAN)->CC[PWR_LED_CC_CHAN].reg = 0;
 
     // Enable IRQ's in the NVIC
     NVIC_EnableIRQ(TCC1_IRQn);
@@ -128,7 +132,7 @@ void init_breathing_animation() {
     while (tcc(PWR_LED_TCC_CHAN)->SYNCBUSY.reg > 0);
 
     // Enable the TCC
-    tcc(PWR_LED_TCC_CHAN)->CTRLA.reg = TCC_CTRLA_ENABLE;
+    tcc(PWR_LED_TCC_CHAN)->CTRLA.bit.ENABLE = 1;
 }
 
 void boot_delay_ms(int delay){
@@ -285,11 +289,11 @@ void EVSYS_Handler() {
 }
 
 void SERCOM_HANDLER(SERCOM_PORT_A_UART_I2C) {
-    bridge_handle_sercom_uart_i2c(&port_a);
+    port_handle_sercom_uart_i2c(&port_a);
 }
 
 void SERCOM_HANDLER(SERCOM_PORT_B_UART_I2C) {
-    bridge_handle_sercom_uart_i2c(&port_b);
+    port_handle_sercom_uart_i2c(&port_b);
 }
 
 void bridge_open_0() {}
