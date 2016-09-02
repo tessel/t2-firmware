@@ -22,6 +22,8 @@ const PWM_MIN_FREQUENCY = 1;
 const PWM_PRESCALARS = [1, 2, 4, 8, 16, 64, 256, 1024];
 // Maximum number of unscaled ticks in a second (48 MHz)
 const SAMD21_TICKS_PER_SECOND = 48000000;
+// GPIO number of RESET pin
+const SAMD21_RESET_GPIO = 39;
 
 function Tessel(options) {
   if (Tessel.instance) {
@@ -124,6 +126,7 @@ Tessel.prototype.open = function(portName) {
 };
 
 Tessel.prototype.reboot = function() {
+
   this.close();
 
   // When attempting to reboot, if the sockets
@@ -136,6 +139,18 @@ Tessel.prototype.reboot = function() {
   var pollUntilSocketsDestroyed = () => {
     if (this.port.A.sock.destroyed &&
       this.port.B.sock.destroyed) {
+
+      // Stop SPI communication between SAMD21 and MediaTek
+      childProcess.execSync('/etc/init.d/spid stop');
+
+      // Create a GPIO entry for the SAMD21 RESET pin
+      childProcess.execSync(`echo "${SAMD21_RESET_GPIO}" > /sys/class/gpio/export`);
+      // Make that GPIO an output
+      childProcess.execSync(`echo "out" > /sys/class/gpio/gpio${SAMD21_RESET_GPIO}/direction`);
+      // Pull the output low to reset the SAMD21
+      childProcess.execSync(`echo "0" > /sys/class/gpio/gpio${SAMD21_RESET_GPIO}/value`);
+
+      // Reboot the MediaTek
       childProcess.execSync('reboot');
     } else {
       setImmediate(pollUntilSocketsDestroyed);

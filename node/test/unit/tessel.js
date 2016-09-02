@@ -272,7 +272,7 @@ exports['Tessel.prototype'] = {
   },
 
   reboot: function(test) {
-    test.expect(3);
+    test.expect(7);
 
     var close = sandbox.stub(this.tessel, 'close');
     var execSync = sandbox.stub(childProcess, 'execSync');
@@ -288,7 +288,11 @@ exports['Tessel.prototype'] = {
     this.tessel.reboot();
 
     test.equal(close.callCount, 1);
-    test.equal(execSync.callCount, 1);
+    test.equal(execSync.callCount, 5);
+    test.equal(execSync.getCall(0).args[0], '/etc/init.d/spid stop');
+    test.equal(execSync.getCall(1).args[0], 'echo "39" > /sys/class/gpio/export');
+    test.equal(execSync.getCall(2).args[0], 'echo "out" > /sys/class/gpio/gpio39/direction');
+    test.equal(execSync.getCall(3).args[0], 'echo "0" > /sys/class/gpio/gpio39/value');
     test.equal(execSync.lastCall.args[0], 'reboot');
     test.done();
   },
