@@ -85,6 +85,7 @@ typedef struct TesselPort {
     u32 spi_dipo;
     u32 uart_dopo;
     u32 uart_dipo;
+    TimerId delay_id;
 } TesselPort;
 
 #define SERCOM_PORT_A_SPI 5
@@ -113,6 +114,8 @@ const static TesselPort PORT_A = {
     .spi_dopo = 3,
     .uart_dipo = 3,
     .uart_dopo = 1,
+    // TODO: figure out how to link to #define in firmware.h
+    .delay_id = 5,
 };
 
 const static TesselPort PORT_B = {
@@ -136,4 +139,6 @@ const static TesselPort PORT_B = {
     .spi_dopo = 0,
     .uart_dipo = 3,
     .uart_dopo = 1,
+    // TODO: figure out how to link to #define in firmware.h
+    .delay_id = 1,
 };

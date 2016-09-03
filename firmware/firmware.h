@@ -38,10 +38,19 @@
 #define TC_TERMINAL_TIMEOUT 3
 #define TC_BOOT             4
 
+// Used for CMD_WAIT command on port A
+#define TC_DELAY_PORT_A     5
+
 // TCC allocation
 // muxed with i2c. also used for uart read timers
 #define TCC_PORT_A 2 // PA12, PA13
 #define TCC_PORT_B 0 // PA08, PA09
+
+// TCC 1 is first used for the boot led
+// but once the MediaTek is booted, we
+// use it as the delay TCC for port B
+#define PWR_LED_TCC_CHAN 1
+#define TCC_DELAY_PORT_B 1
 
 // GCLK channel allocation
 #define GCLK_SYSTEM 0
@@ -188,6 +197,7 @@ void port_dma_rx_completion(PortData* p);
 void port_dma_tx_completion(PortData* p);
 void port_handle_sercom_uart_i2c(PortData* p);
 void port_handle_extint(PortData *p, u32 flags);
+void port_handle_delay_complete(PortData *p);
 void port_disable(PortData *p);
 void uart_send_data(PortData *p);
 
