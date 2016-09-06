@@ -266,3 +266,7 @@ inline static void wdt_reset(u32 clock_channel) {
   WDT->CONFIG.reg = 0x7; // 31ms
   WDT->CTRL.reg = WDT_CTRL_ENABLE;
 }
+
+inline static void sys_reset() {
+  NVIC_SystemReset();
+}
