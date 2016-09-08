@@ -386,10 +386,21 @@ ExecStatus port_begin_cmd(PortData *p) {
             u8 mode = (p->arg[0] >> 4) & 0x07;
 
             if (port_pin_supports_interrupt(p, pin)) {
-                eic_config(p->port->gpio[pin], mode);
+                // If we are setting an interrupt
                 if (mode != 0) {
+                    // Ensure the pin is configured as an external interrupt
                     pin_mux_eic(p->port->gpio[pin]);
+                    // Set the type of interrupt we need (ie low, fall, etc.)
+                    eic_config(p->port->gpio[pin], mode);
+                // If we are removing interrupts
                 } else {
+                    // First disable the interrupts
+                    eic_config(p->port->gpio[pin], mode);
+                    // Then set the pin back as GPIO
+                    // It is important to do this in the above order to avoid
+                    // the case where the interrupt is disabled and pin set as
+                    // GPIO in one call, and the interrupt enabled in the next
+                    // (which could immediately fire depending on GPIO state)
                     pin_gpio(p->port->gpio[pin]);
                 }
             }
