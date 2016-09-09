@@ -338,6 +338,7 @@ bool usb_cb_set_configuration(uint8_t config) {
 #define REQ_INFO_GIT_HASH 0x0
 #define REQ_BOOT 0xBB
 #define REQ_OPENWRT_BOOT_STATUS 0xBC
+#define REQ_RESET 0xBD
 
 void req_gpio(uint16_t wIndex, uint16_t wValue) {
 	if ( (wIndex & 0xF0) == REQ_PWR_PORT_A_IO
@@ -406,6 +407,12 @@ void req_boot() {
     return usb_ep0_in(0);
 }
 
+void req_reset() {
+    usb_ep0_out();
+    usb_ep0_in(0);
+    sys_reset();
+}
+
 void req_boot_status() {
 	u8 len = 1;
 	ep0_buf_in[0] = booted;
@@ -440,6 +447,7 @@ void usb_cb_control_setup(void) {
 			case REQ_PWR: return req_gpio(usb_setup.wIndex, usb_setup.wValue);
 			case REQ_INFO: return req_info(usb_setup.wIndex);
 			case REQ_BOOT: return req_boot();
+			case REQ_RESET: return req_reset();
 			case REQ_OPENWRT_BOOT_STATUS: return req_boot_status();
 		}
 	} else if (recipient == USB_RECIPIENT_INTERFACE) {
