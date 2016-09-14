@@ -59,6 +59,94 @@ exports['Tessel'] = {
     test.done();
   },
 
+  portsAliasToPort: function(test) {
+    test.expect(1);
+    test.equal(this.tessel.port, this.tessel.ports);
+    test.done();
+  },
+
+  twoPortsInitialized: function(test) {
+    test.expect(5);
+    test.equal(this.tessel.ports.A instanceof Tessel.Port, true);
+    test.equal(this.tessel.ports.B instanceof Tessel.Port, true);
+    test.equal(this.Port.callCount, 2);
+    test.deepEqual(this.Port.firstCall.args, ['A', '/var/run/tessel/port_a', this.tessel]);
+    test.deepEqual(this.Port.lastCall.args, ['B', '/var/run/tessel/port_b', this.tessel]);
+    test.done();
+  },
+
+  ledsLazyInitialization: function(test) {
+    test.expect(3);
+    test.equal(this.LED.callCount, 0);
+    // Trigger a [[Get]]
+    test.equal(this.tessel.led[0] instanceof Tessel.LED, true);
+    test.equal(this.LED.callCount, 1);
+    test.done();
+  },
+
+  ledsLazyInitializedAndOff: function(test) {
+    test.expect(5);
+    test.equal(this.tessel.led[0].value, 0);
+    test.equal(this.fsWrite.callCount, 1);
+    test.equal(this.fsWrite.lastCall.args[0], '/sys/devices/leds/leds/tessel:red:error/brightness');
+    test.equal(this.fsWrite.lastCall.args[1], '0');
+    test.equal(this.LED.callCount, 1);
+    test.done();
+  },
+
+  fourLEDsInitialized: function(test) {
+    test.expect(9);
+    test.equal(this.tessel.led[0] instanceof Tessel.LED, true);
+    test.equal(this.tessel.led[1] instanceof Tessel.LED, true);
+    test.equal(this.tessel.led[2] instanceof Tessel.LED, true);
+    test.equal(this.tessel.led[3] instanceof Tessel.LED, true);
+    test.equal(this.LED.callCount, 4);
+    test.deepEqual(
+      this.LED.getCall(0).args, ['red', '/sys/devices/leds/leds/tessel:red:error/brightness']
+    );
+    test.deepEqual(
+      this.LED.getCall(1).args, ['amber', '/sys/devices/leds/leds/tessel:amber:wlan/brightness']
+    );
+    test.deepEqual(
+      this.LED.getCall(2).args, ['green', '/sys/devices/leds/leds/tessel:green:user1/brightness']
+    );
+    test.deepEqual(
+      this.LED.getCall(3).args, ['blue', '/sys/devices/leds/leds/tessel:blue:user2/brightness']
+    );
+
+    test.done();
+  },
+
+  networkWifiInitialized: function(test) {
+    test.expect(1);
+    test.equal(this.tessel.network.wifi instanceof Tessel.Wifi, true);
+
+    test.done();
+  },
+
+  tesselVersion: function(test) {
+    test.expect(1);
+    test.equal(this.tessel.version, version);
+    test.done();
+  },
+};
+
+exports['Tessel.prototype'] = {
+  setUp: function(done) {
+    this.LED = sandbox.spy(Tessel, 'LED');
+    this.Port = sandbox.stub(Tessel, 'Port');
+    this.fsWrite = sandbox.stub(fs, 'writeFile');
+
+    this.tessel = new Tessel();
+    done();
+  },
+
+  tearDown: function(done) {
+    Tessel.instance = null;
+    sandbox.restore();
+    done();
+  },
+
   closeBoth: function(test) {
     test.expect(1);
 
@@ -183,74 +271,29 @@ exports['Tessel'] = {
     test.done();
   },
 
-  portsAliasToPort: function(test) {
-    test.expect(1);
-    test.equal(this.tessel.port, this.tessel.ports);
-    test.done();
-  },
+  reboot: function(test) {
+    test.expect(7);
 
-  twoPortsInitialized: function(test) {
-    test.expect(5);
-    test.equal(this.tessel.ports.A instanceof Tessel.Port, true);
-    test.equal(this.tessel.ports.B instanceof Tessel.Port, true);
-    test.equal(this.Port.callCount, 2);
-    test.deepEqual(this.Port.firstCall.args, ['A', '/var/run/tessel/port_a', this.tessel]);
-    test.deepEqual(this.Port.lastCall.args, ['B', '/var/run/tessel/port_b', this.tessel]);
-    test.done();
-  },
+    var close = sandbox.stub(this.tessel, 'close');
+    var execSync = sandbox.stub(childProcess, 'execSync');
+    var destroyed = true;
 
-  ledsLazyInitialization: function(test) {
-    test.expect(3);
-    test.equal(this.LED.callCount, 0);
-    // Trigger a [[Get]]
-    test.equal(this.tessel.led[0] instanceof Tessel.LED, true);
-    test.equal(this.LED.callCount, 1);
-    test.done();
-  },
+    this.tessel.port.A.sock = {
+      destroyed
+    };
+    this.tessel.port.B.sock = {
+      destroyed
+    };
 
-  ledsLazyInitializedAndOff: function(test) {
-    test.expect(5);
-    test.equal(this.tessel.led[0].value, 0);
-    test.equal(this.fsWrite.callCount, 1);
-    test.equal(this.fsWrite.lastCall.args[0], '/sys/devices/leds/leds/tessel:red:error/brightness');
-    test.equal(this.fsWrite.lastCall.args[1], '0');
-    test.equal(this.LED.callCount, 1);
-    test.done();
-  },
+    this.tessel.reboot();
 
-  fourLEDsInitialized: function(test) {
-    test.expect(9);
-    test.equal(this.tessel.led[0] instanceof Tessel.LED, true);
-    test.equal(this.tessel.led[1] instanceof Tessel.LED, true);
-    test.equal(this.tessel.led[2] instanceof Tessel.LED, true);
-    test.equal(this.tessel.led[3] instanceof Tessel.LED, true);
-    test.equal(this.LED.callCount, 4);
-    test.deepEqual(
-      this.LED.getCall(0).args, ['red', '/sys/devices/leds/leds/tessel:red:error/brightness']
-    );
-    test.deepEqual(
-      this.LED.getCall(1).args, ['amber', '/sys/devices/leds/leds/tessel:amber:wlan/brightness']
-    );
-    test.deepEqual(
-      this.LED.getCall(2).args, ['green', '/sys/devices/leds/leds/tessel:green:user1/brightness']
-    );
-    test.deepEqual(
-      this.LED.getCall(3).args, ['blue', '/sys/devices/leds/leds/tessel:blue:user2/brightness']
-    );
-
-    test.done();
-  },
-
-  networkWifiInitialized: function(test) {
-    test.expect(1);
-    test.equal(this.tessel.network.wifi instanceof Tessel.Wifi, true);
-
-    test.done();
-  },
-
-  tesselVersion: function(test) {
-    test.expect(1);
-    test.equal(this.tessel.version, version);
+    test.equal(close.callCount, 1);
+    test.equal(execSync.callCount, 5);
+    test.equal(execSync.getCall(0).args[0], '/etc/init.d/spid stop');
+    test.equal(execSync.getCall(1).args[0], 'echo "39" > /sys/class/gpio/export');
+    test.equal(execSync.getCall(2).args[0], 'echo "out" > /sys/class/gpio/gpio39/direction');
+    test.equal(execSync.getCall(3).args[0], 'echo "0" > /sys/class/gpio/gpio39/value');
+    test.equal(execSync.lastCall.args[0], 'reboot');
     test.done();
   },
 };
