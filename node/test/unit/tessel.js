@@ -2753,6 +2753,60 @@ exports['Tessel.Wifi'] = {
     });
   },
 
+  connectWithoutPasswordNoEncryption: function(test) {
+    test.expect(4);
+
+    var settings = {
+      ssid: 'TestNetwork'
+    };
+    var ipResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
+        inet addr:10.0.1.11  Bcast:192.168.1.101  Mask:255.255.255.0
+        inet6 addr: fe80::a3:aaff:fea9:fb02/64 Scope:Link
+        UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+        RX packets:2786 errors:0 dropped:0 overruns:0 frame:0
+        TX packets:493 errors:0 dropped:0 overruns:0 carrier:0
+        collisions:0 txqueuelen:1000
+        RX bytes:833626 (814.0 KiB)  TX bytes:97959 (95.6 KiB)`;
+    var ip = '192.168.1.101';
+    var network = {
+      ssid: 'TestNetwork',
+      strength: '30/80'
+    };
+
+    this.exec.restore();
+    this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
+      if (cmd === 'ifconfig wlan0') {
+        callback(null, ipResult);
+      } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
+        callback(null, JSON.stringify(network));
+      } else {
+        callback();
+      }
+    });
+
+    var results = Object.assign({
+      ip: ip,
+      security: 'none'
+    }, settings, network);
+
+    this.tessel.network.wifi.on('connect', (networkSettings) => {
+      test.deepEqual(networkSettings, results, 'correct settings');
+    });
+
+    this.tessel.network.wifi.connect(settings, (error, networkSettings) => {
+      if (error) {
+        test.fail(error);
+        test.done();
+      }
+
+      test.deepEqual(networkSettings, results, 'correct settings');
+      test.deepEqual(this.tessel.network.wifi.settings, results, 'correct settings property');
+      test.equal(this.exec.callCount, 6, 'exec called correctly');
+
+      test.done();
+    });
+  },
+
   connectThrowsError: function(test) {
     test.expect(2);
 
