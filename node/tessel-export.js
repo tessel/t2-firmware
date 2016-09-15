@@ -954,6 +954,8 @@ Tessel.SPI = function(params, port) {
 
   this.chipSelectActive = params.chipSelectActive === 'high' || params.chipSelectActive === 1 ? 1 : 0;
 
+  this.chipSelectDelay = (params.chipSelectDelayUs/1e3) || 0;
+
   if (this.chipSelectActive) {
     // active high, pull low for now
     this.chipSelect.low();
@@ -1006,11 +1008,21 @@ Tessel.SPI = function(params, port) {
 };
 
 Tessel.SPI.prototype.send = function(data, callback) {
-  this._port.cork();
+
   this.chipSelect.low();
-  this._port._tx(data, callback);
-  this.chipSelect.high();
-  this._port.uncork();
+
+  setTimeout(() => {
+    // Only cork if we have specified a target delay, otherwise delay increases
+    if (this.chipSelectDelay > 0) {
+      this._port.cork();
+    }
+    this._port._tx(data, callback);
+    this.chipSelect.high();
+    if (this.chipSelectDelay > 0) {
+      this._port.uncork();
+    }
+  }, this.chipSelectDelay);
+
 };
 
 Tessel.SPI.prototype.disable = function() {
@@ -1021,19 +1033,36 @@ Tessel.SPI.prototype.disable = function() {
 };
 
 Tessel.SPI.prototype.receive = function(data_len, callback) {
-  this._port.cork();
+
   this.chipSelect.low();
-  this._port._rx(data_len, callback);
-  this.chipSelect.high();
-  this._port.uncork();
+
+  setTimeout(() => {
+    // Only cork if we have specified a target delay, otherwise delay increases
+    if (this.chipSelectDelay > 0) {
+      this._port.cork();
+    }
+    this._port._rx(data_len, callback);
+    if (this.chipSelectDelay > 0) {
+      this._port.uncork();
+    }
+  }, this.chipSelectDelay);
 };
 
 Tessel.SPI.prototype.transfer = function(data, callback) {
-  this._port.cork();
+
   this.chipSelect.low();
-  this._port._txrx(data, callback);
-  this.chipSelect.high();
-  this._port.uncork();
+
+  setTimeout(() => {
+    // Only cork if we have specified a target delay, otherwise delay increases
+    if (this.chipSelectDelay > 0) {
+      this._port.cork();
+    }
+    this._port._txrx(data, callback);
+    this.chipSelect.high();
+    if (this.chipSelectDelay > 0) {
+      this._port.uncork();
+    }
+  }, this.chipSelectDelay);
 };
 
 Tessel.UART = function(port, options) {
@@ -1546,7 +1575,7 @@ function getWifiInfo() {
           if (bcastMatches === null) {
             recursiveWifi(network);
           } else {
-            // Successful matches will have a result that looks like: 
+            // Successful matches will have a result that looks like:
             // ["Bcast:0.0.0.0", "Bcast", "0.0.0.0"]
             if (bcastMatches.length === 3) {
               network.ip = bcastMatches[2];
