@@ -8,8 +8,10 @@ USB_ALIGN u8 flash_buffer[FLASH_BUFFER_SIZE];
 
 // Indicates whether the SPI Daemon is listening for USB traffic
 volatile bool booted = false;
-// LED Chan: TCC1/WO[0]
-#define PWR_LED_TCC_CHAN 1
+// Indicates whether we are using TCC 1 for the boot led
+// Same value as `booted` except for timer interrupt when booting has just
+// completed
+volatile bool tcc_for_boot = true;
 // CC channel 0 on TCC instance 1
 #define PWR_LED_CC_CHAN 0
 // The maximum counter value of both the TCC and the pattern counter
@@ -74,24 +76,6 @@ uint32_t interpolate(uint32_t position) {
   return ((MAX_COUNTER - between) * sin_wave_points[index] + between * sin_wave_points[next_index]) / MAX_COUNTER;
 }
 
-/*
-    Handler for the POWER LED breathing animation
-*/
-void TCC1_Handler() {
-    tcc(PWR_LED_TCC_CHAN)->INTFLAG.reg = TCC_INTFLAG_OVF;
-
-    // booted is true when the coprocess first gets
-    // a status packet from the spi daemon
-    if (booted == true) {
-        // Stop this breathing animation and cancel interrupts
-        cancel_breathing_animation();
-    }
-
-    counter += MAX_COUNTER / PATTERN_PERIOD_MS * MAX_COUNTER / TICKS_PER_MS;
-
-    // Take that proportion and extract a point along the sudo sine wave
-    tcc(PWR_LED_TCC_CHAN)->CCB[PWR_LED_CC_CHAN].bit.CCB = interpolate(counter);
-}
 
 /*
     Sets up the TCC module to send PWM output to the PWR LED
@@ -364,4 +348,49 @@ void TCC_HANDLER(TCC_PORT_B) {
 
     // clear irq
     tcc(TCC_PORT_B)->INTFLAG.reg = TCC_INTENSET_OVF;
+}
+
+void TCC_HANDLER(TC_DELAY_PORT_A) {
+
+    // clear irq
+    tcc(TC_DELAY_PORT_A)->INTFLAG.reg = TCC_INTENSET_OVF;
+
+    // Have the state machine continue
+    port_handle_delay_complete(&port_a);
+}
+
+/*
+    Handler for the POWER LED breathing animation
+*/
+void TCC1_Handler() {
+
+    // If the TCC is being used for the boot led sequence
+    if (tcc_for_boot) {
+
+      tcc(PWR_LED_TCC_CHAN)->INTFLAG.reg = TCC_INTFLAG_OVF;
+
+      // booted is true when the coprocess first gets
+      // a status packet from the spi daemon
+      if (booted == true) {
+        // Stop using this TCC channel for the boot led
+        tcc_for_boot = false;
+        // Stop this breathing animation and cancel interrupts
+        cancel_breathing_animation();
+        // Do not update the counter
+        return;
+      }
+
+      counter += MAX_COUNTER / PATTERN_PERIOD_MS * MAX_COUNTER / TICKS_PER_MS;
+
+      // Take that proportion and extract a point along the sudo sine wave
+      tcc(PWR_LED_TCC_CHAN)->CCB[PWR_LED_CC_CHAN].bit.CCB = interpolate(counter);
+    }
+    // If the TCC is being used for Port B delays
+    else {
+      // clear irq
+      tcc(TCC_DELAY_PORT_B)->INTFLAG.reg = TCC_INTENSET_OVF;
+
+      // Have the state machine continue
+      port_handle_delay_complete(&port_b);
+    }
 }

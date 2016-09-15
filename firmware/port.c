@@ -29,13 +29,13 @@ typedef enum PortCmd {
     CMD_NOP = 0,
     CMD_FLUSH = 1,
     CMD_ECHO = 2,
+    CMD_WAIT = 7,
     CMD_GPIO_IN = 3, // switches pin to input mode AND reads value
     CMD_GPIO_HIGH = 4, // switch to output and write high
     CMD_GPIO_LOW = 5, // switch to output and write low
     CMD_GPIO_TOGGLE = 21, // switch to output and toggle low/high
     CMD_GPIO_PULL = 26, // Set the pin state to a specific pull value
     CMD_GPIO_CFG = 6,
-    CMD_GPIO_WAIT = 7,
     CMD_GPIO_INT = 8, // set interrupt on pin
     CMD_GPIO_INPUT = 22, // switches pin to input, does not read value
     CMD_GPIO_RAW_READ = 23, // reads pin state, does not switch between input/output
@@ -194,7 +194,6 @@ int port_cmd_args(PortCmd cmd) {
         case CMD_GPIO_HIGH:
         case CMD_GPIO_LOW:
         case CMD_GPIO_TOGGLE:
-        case CMD_GPIO_WAIT:
         case CMD_GPIO_INT:
         case CMD_GPIO_CFG:
         case CMD_GPIO_INPUT:
@@ -221,6 +220,10 @@ int port_cmd_args(PortCmd cmd) {
             return 3; // 1 byte for pin, 2 bytes for duty cycle
         case CMD_PWM_PERIOD:
             return 3; // 1 byte for tcc id & prescalar, 2 bytes for period
+
+        case CMD_WAIT:
+            // 32-bit microseconds arg
+            return 4;
     }
     invalid();
     return 0;
@@ -321,6 +324,30 @@ ExecStatus port_begin_cmd(PortData *p) {
             port_send_status(p, REPLY_DATA);
             return EXEC_CONTINUE;
 
+        case CMD_WAIT: {
+            // Parse the microsecond delay arguments
+            u32 us_delay = (p->arg[3]) |
+                           (p->arg[2] << 8) |
+                           (p->arg[1] << 16) |
+                           (p->arg[0] << 24);
+
+            // 1s/ 48e6 ticks * 1e6 us / s = 48 ticks/us
+            // TODO: I think we also have to incorporate the 256 div prescalar
+            u32 ticks = 48 * us_delay;
+
+            // If the delay is 0, just return now
+            if (ticks == 0) {
+              return EXEC_DONE;
+            }
+
+            // Enable delays on this TCC channel
+            tcc_delay_enable(p->port->delay_id);
+            // Start the delay
+            tcc_delay_start(p->port->delay_id, ticks);
+
+            return EXEC_ASYNC;
+          }
+
         case CMD_TX:
             return EXEC_CONTINUE;
 
@@ -408,7 +435,6 @@ ExecStatus port_begin_cmd(PortData *p) {
             return EXEC_DONE;
         }
 
-        case CMD_GPIO_WAIT:
         case CMD_GPIO_CFG:
             return EXEC_DONE;
 
@@ -829,4 +855,14 @@ void port_handle_extint(PortData *p, u32 flags) {
     }
 
     port_step(p);
+}
+
+void port_handle_delay_complete(PortData *p) {
+    if (p->state == PORT_EXEC_ASYNC) {
+        p->state = EXEC_DONE;
+        port_step(p);
+    }
+    else {
+        port_error(p);
+    }
 }

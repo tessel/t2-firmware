@@ -2397,7 +2397,10 @@ exports['Tessel.SPI'] = {
       return this.socket;
     }.bind(this));
 
-    this.tessel = new Tessel();
+    // We want to disable other ports so that we can pass around mock data.
+    // Otherwise, port A and B get 'readable' events without having any
+    // queued callbacks (because they are queued on the port we create below).
+    this.tessel = new Tessel({ ports: {A: false, B: false} });
 
     this.cork = sandbox.stub(Tessel.Port.prototype, 'cork');
     this.uncork = sandbox.stub(Tessel.Port.prototype, 'uncork');
@@ -2475,6 +2478,59 @@ exports['Tessel.SPI'] = {
     test.ok(this.spiDisable.calledOnce, true);
 
     test.done();
+  },
+  chipSelectDelayOptions: function(test) {
+    test.expect(2);
+
+    var delayUs = 10000;
+    var usToMs = 1000;
+
+    var s1 = new this.port.SPI();
+
+    var s2 = new this.port.SPI({chipSelectDelayUs: delayUs});
+
+    test.equal(s1.chipSelectDelay, 0);
+
+    test.equal(s2.chipSelectDelay, delayUs/usToMs);
+
+    test.done();
+  },
+  chipSelectDelayFunctionality: function(test) {
+    test.expect(2);
+
+    var delayUs = 10000;
+    var usToMs = 1000;
+
+    var s1 = new this.port.SPI({chipSelectDelayUs: delayUs});
+
+    var timeoutSpy = sandbox.spy(global, 'setTimeout');
+
+    s1.transfer(new Buffer(1), () => {
+      // One timeout called within transfer and one in the test below
+      test.equal(timeoutSpy.callCount, 2);
+      // The first call (chip select delay) waited an appropriate amount of time)
+      test.equal(timeoutSpy.getCall(0).args[1], delayUs/usToMs);
+      // Restore setTimeout
+      timeoutSpy.restore();
+      test.done();
+    });
+
+    // Wait until after the chip select delay has passed
+    // and the callback was enqueued. Only return data on the first request
+    setTimeout(() => {
+      var called = false;
+      this.socket.read = () => {
+        if (called) {
+          return new Buffer([]);
+        }
+        called = true;
+
+        return new Buffer([0x84, 0x1]);
+      };
+
+      // Prod the socket to read our buffer
+      s1._port.sock.emit('readable');
+    }, (delayUs / 10) * 2 );
   }
 };
 
