@@ -1505,7 +1505,7 @@ function isEnabled() {
 function getWifiInfo() {
   return new Promise((resolve, reject) => {
     var checkCount = 0;
-    var rbcast = /(Bcast):([\w\.]+)/;
+    var rbcast = /(inet addr):([\w\.]+)/;
 
     function recursiveWifi() {
       childProcess.exec(`ubus call iwinfo info '{"device":"wlan0"}'`, (error, results) => {
@@ -1541,15 +1541,15 @@ function getWifiInfo() {
         if (error) {
           reject(error);
         } else {
-          var bcastMatches = ipResults.match(rbcast);
+          var inetMatches = ipResults.match(rbcast);
 
-          if (bcastMatches === null) {
+          if (inetMatches === null) {
             recursiveWifi(network);
           } else {
             // Successful matches will have a result that looks like: 
-            // ["Bcast:0.0.0.0", "Bcast", "0.0.0.0"]
-            if (bcastMatches.length === 3) {
-              network.ip = bcastMatches[2];
+            // ["inet addr:0.0.0.0", "inet addr", "0.0.0.0"]
+            if (inetMatches.length === 3) {
+              network.ip = inetMatches[2];
             } else {
               recursiveWifi(network);
             }
