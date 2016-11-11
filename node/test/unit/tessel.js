@@ -2519,7 +2519,7 @@ exports['Tessel.Wifi'] = {
         TX packets:493 errors:0 dropped:0 overruns:0 carrier:0
         collisions:0 txqueuelen:1000
         RX bytes:833626 (814.0 KiB)  TX bytes:97959 (95.6 KiB)`;
-    var ip = '192.168.1.101';
+    var ip = '10.0.1.11';
     var network = {
       ssid: 'TestNetwork',
       strength: '30/80',
@@ -2593,7 +2593,7 @@ exports['Tessel.Wifi'] = {
         TX packets:493 errors:0 dropped:0 overruns:0 carrier:0
         collisions:0 txqueuelen:1000
         RX bytes:833626 (814.0 KiB)  TX bytes:97959 (95.6 KiB)`;
-    var ip = '192.168.1.101';
+    var ip = '10.0.1.11';
     var network = {
       ssid: 'TestNetwork',
       strength: '30/80',
@@ -2650,7 +2650,7 @@ exports['Tessel.Wifi'] = {
         TX packets:493 errors:0 dropped:0 overruns:0 carrier:0
         collisions:0 txqueuelen:1000
         RX bytes:833626 (814.0 KiB)  TX bytes:97959 (95.6 KiB)`;
-    var ip = '192.168.1.101';
+    var ip = '10.0.1.11';
     var network = {
       ssid: 'TestNetwork',
       strength: '30/80',
@@ -2710,7 +2710,7 @@ exports['Tessel.Wifi'] = {
         TX packets:493 errors:0 dropped:0 overruns:0 carrier:0
         collisions:0 txqueuelen:1000
         RX bytes:833626 (814.0 KiB)  TX bytes:97959 (95.6 KiB)`;
-    var ip = '192.168.1.101';
+    var ip = '10.0.1.11';
     var network = {
       ssid: 'TestNetwork',
       strength: '30/80',
@@ -2767,7 +2767,7 @@ exports['Tessel.Wifi'] = {
         TX packets:493 errors:0 dropped:0 overruns:0 carrier:0
         collisions:0 txqueuelen:1000
         RX bytes:833626 (814.0 KiB)  TX bytes:97959 (95.6 KiB)`;
-    var ip = '192.168.1.101';
+    var ip = '10.0.1.11';
     var network = {
       ssid: 'TestNetwork',
       strength: '30/80'
@@ -2854,7 +2854,7 @@ exports['Tessel.Wifi'] = {
         TX packets:493 errors:0 dropped:0 overruns:0 carrier:0
         collisions:0 txqueuelen:1000
         RX bytes:833626 (814.0 KiB)  TX bytes:97959 (95.6 KiB)`;
-    var ip = '192.168.1.101';
+    var ip = '10.0.1.11';
     var network = {
       ssid: 'TestNetwork',
       strength: '30/80',
