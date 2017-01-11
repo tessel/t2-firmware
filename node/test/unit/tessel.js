@@ -86,7 +86,7 @@ exports['Tessel'] = {
 
   ledsLazyInitializedAndOff: function(test) {
     test.expect(5);
-    test.equal(this.tessel.led[0].value, 0);
+    test.strictEqual(this.tessel.led[0].value, 0);
     test.equal(this.fsWrite.callCount, 1);
     test.equal(this.fsWrite.lastCall.args[0], '/sys/devices/leds/leds/tessel:red:error/brightness');
     test.equal(this.fsWrite.lastCall.args[1], '0');
@@ -304,6 +304,7 @@ exports['Tessel.LED'] = {
     this.LED = sandbox.spy(Tessel, 'LED');
     this.Port = sandbox.stub(Tessel, 'Port');
     this.fsWrite = sandbox.stub(fs, 'writeFile');
+    this.ledWrite = sandbox.spy(Tessel.LED.prototype, 'write');
     this.tessel = new Tessel();
     done();
   },
@@ -315,37 +316,41 @@ exports['Tessel.LED'] = {
   },
 
   high: function(test) {
-    test.expect(2);
+    test.expect(3);
 
     this.tessel.led[0].high();
 
-    test.equal(this.tessel.led[0].value, '1');
+    test.strictEqual(this.tessel.led[0].value, 1);
+    test.strictEqual(this.ledWrite.lastCall.args[0], 1);
     test.equal(this.fsWrite.lastCall.args[1], '1');
     test.done();
   },
 
   on: function(test) {
-    test.expect(3);
+    test.expect(4);
     test.equal(this.tessel.led[0].on(), this.tessel.led[0]);
-    test.equal(this.tessel.led[0].value, '1');
+    test.strictEqual(this.tessel.led[0].value, 1);
+    test.strictEqual(this.ledWrite.lastCall.args[0], 1);
     test.equal(this.fsWrite.lastCall.args[1], '1');
     test.done();
   },
 
   low: function(test) {
-    test.expect(2);
+    test.expect(3);
 
     this.tessel.led[0].low();
 
-    test.equal(this.tessel.led[0].value, '0');
+    test.strictEqual(this.tessel.led[0].value, 0);
+    test.strictEqual(this.ledWrite.lastCall.args[0], 0);
     test.equal(this.fsWrite.lastCall.args[1], '0');
     test.done();
   },
 
   off: function(test) {
-    test.expect(3);
+    test.expect(4);
     test.equal(this.tessel.led[0].off(), this.tessel.led[0]);
-    test.equal(this.tessel.led[0].value, '0');
+    test.strictEqual(this.tessel.led[0].value, 0);
+    test.strictEqual(this.ledWrite.lastCall.args[0], 0);
     test.equal(this.fsWrite.lastCall.args[1], '0');
     test.done();
   },
@@ -367,6 +372,7 @@ exports['Tessel.LED'] = {
 
   outputIsTheSameAsWrite: function(test) {
     test.expect(1);
+    this.ledWrite.restore();
     test.equal(Tessel.LED.prototype.output, Tessel.LED.prototype.write);
     test.done();
   },
@@ -374,9 +380,33 @@ exports['Tessel.LED'] = {
   writeUpdatesTheValue: function(test) {
     test.expect(2);
 
-    test.equal(this.tessel.led[0].value, '0');
+    test.strictEqual(this.tessel.led[0].value, 0);
     this.tessel.led[0].write(1);
-    test.equal(this.tessel.led[0].value, '1');
+    test.strictEqual(this.tessel.led[0].value, 1);
+
+    test.done();
+  },
+
+  writeAcceptsBooleanOrNumberForBackCompat: function(test) {
+    test.expect(9);
+
+    test.strictEqual(this.tessel.led[0].value, 0);
+
+    this.tessel.led[0].write(true);
+    test.strictEqual(this.tessel.led[0].value, 1);
+    test.equal(this.fsWrite.lastCall.args[1], '1');
+
+    this.tessel.led[0].write(false);
+    test.strictEqual(this.tessel.led[0].value, 0);
+    test.equal(this.fsWrite.lastCall.args[1], '0');
+
+    this.tessel.led[0].write(1);
+    test.strictEqual(this.tessel.led[0].value, 1);
+    test.equal(this.fsWrite.lastCall.args[1], '1');
+
+    this.tessel.led[0].write(0);
+    test.strictEqual(this.tessel.led[0].value, 0);
+    test.equal(this.fsWrite.lastCall.args[1], '0');
 
     test.done();
   },

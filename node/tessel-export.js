@@ -1217,11 +1217,11 @@ Tessel.LED = function(color, path) {
 };
 
 Tessel.LED.prototype.high = function(callback) {
-  this.write(true, callback);
+  this.write(1, callback);
 };
 
 Tessel.LED.prototype.low = function(callback) {
-  this.write(false, callback);
+  this.write(0, callback);
 };
 
 Tessel.LED.prototype.on = function() {
@@ -1243,6 +1243,10 @@ Tessel.LED.prototype.write = function(value, callback) {
     callback = function() {};
   }
 
+  // Setting this.value will invoke the setter
+  // defined inside the constructor body. That
+  // ensure that any truthy value will result
+  // in a value of 1 and falsy results in 0.
   this.value = value;
 
   fs.writeFile(this.path, String(this.value), callback);
