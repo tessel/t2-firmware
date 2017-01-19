@@ -1250,6 +1250,7 @@ Tessel.LED.prototype.write = function(value, callback) {
   this.value = value;
 
   fs.writeFile(this.path, String(this.value), callback);
+  return this;
 };
 
 // Define backward compatibility alias
