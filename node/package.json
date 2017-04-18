@@ -6,16 +6,15 @@
   "dependencies": {},
   "devDependencies": {
     "coveralls": "^2.13.0",
-    "grunt": "^0.4.5",
-    "grunt-cli": "^0.1.13",
-    "grunt-contrib-jshint": "^0.11.2",
-    "grunt-contrib-nodeunit": "^0.4.1",
-    "grunt-contrib-watch": "^0.6.1",
-    "grunt-jsbeautifier": "^0.2.10",
-    "grunt-jscs": "^2.6.0",
+    "grunt": "^1.0.1",
+    "grunt-cli": "^1.2.0",
+    "grunt-contrib-jshint": "^1.1.0",
+    "grunt-contrib-nodeunit": "^1.0.0",
+    "grunt-jsbeautifier": "^0.2.13",
+    "grunt-jscs": "^3.0.1",
     "npm": "^3.10.5",
     "nyc": "^10.2.0",
-    "sinon": "^1.14.1"
+    "sinon": "^2.1.0"
   },
   "scripts": {
     "test": "grunt",
