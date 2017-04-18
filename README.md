@@ -1,6 +1,7 @@
 # Tessel 2 Firmware
 
 [![Code of Conduct](https://img.shields.io/badge/%E2%9D%A4-code%20of%20conduct-blue.svg?style=flat)](https://github.com/tessel/project/blob/master/CONDUCT.md) [![Build Status](https://travis-ci.org/tessel/t2-firmware.svg?branch=master)](https://travis-ci.org/tessel/t2-firmware)
+[![Coverage Status](https://coveralls.io/repos/github/tessel/t2-firmware/badge.svg?branch=master)](https://coveralls.io/github/tessel/t2-firmware?branch=master)
 
 * [About the T2 Firmware](#about-the-t2-firmware)
   * [SAM D21 Overview](#sam-d21-overview)

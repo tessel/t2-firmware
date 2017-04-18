@@ -5,6 +5,7 @@
   "main": "tessel.js",
   "dependencies": {},
   "devDependencies": {
+    "coveralls": "^2.13.0",
     "grunt": "^0.4.5",
     "grunt-cli": "^0.1.13",
     "grunt-contrib-jshint": "^0.11.2",
@@ -13,10 +14,13 @@
     "grunt-jsbeautifier": "^0.2.10",
     "grunt-jscs": "^2.6.0",
     "npm": "^3.10.5",
+    "nyc": "^10.2.0",
     "sinon": "^1.14.1"
   },
   "scripts": {
-    "test": "grunt"
+    "test": "grunt",
+    "test-cover": "nyc grunt nodeunit",
+    "coveralls": "nyc --reporter=lcov grunt nodeunit && cat ./coverage/lcov.info | coveralls"
   },
   "author": "Technical Machine <team@technical.io>",
   "license": "MIT"
