@@ -11,7 +11,7 @@ var EventEmitter = require('events').EventEmitter;
 
 exports['Disabled Port Initialization: new Tessel(options)'] = {
   setUp: function(done) {
-    this.createConnection = sandbox.stub(net, 'createConnection', function() {
+    this.createConnection = sandbox.stub(net, 'createConnection').callsFake(function() {
       return new EventEmitter();
     });
 

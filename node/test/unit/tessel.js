@@ -465,7 +465,7 @@ exports['Tessel.LEDs (collection operations)'] = {
 
 exports['Tessel.Port'] = {
   setUp: function(done) {
-    this.createConnection = sandbox.stub(net, 'createConnection', function() {
+    this.createConnection = sandbox.stub(net, 'createConnection').callsFake(function() {
       return new FakeSocket();
     });
 
@@ -671,7 +671,7 @@ exports['Tessel.Port.prototype'] = {
   setUp: function(done) {
     this.socket = new FakeSocket();
 
-    this.createConnection = sandbox.stub(net, 'createConnection', function() {
+    this.createConnection = sandbox.stub(net, 'createConnection').callsFake(function() {
       this.socket.cork = sandbox.spy();
       this.socket.uncork = sandbox.spy();
       this.socket.write = sandbox.spy();
@@ -1090,7 +1090,7 @@ exports['Tessel.Port Commands (handling incoming socket stream)'] = {
   setUp: function(done) {
     this.socket = new FakeSocket();
 
-    this.createConnection = sandbox.stub(net, 'createConnection', function() {
+    this.createConnection = sandbox.stub(net, 'createConnection').callsFake(function() {
       this.socket.cork = sandbox.spy();
       this.socket.uncork = sandbox.spy();
       this.socket.write = sandbox.spy();
@@ -1264,7 +1264,7 @@ exports['Tessel.Port Commands (handling incoming socket stream)'] = {
 exports['Tessel.Pin'] = {
   setUp: function(done) {
 
-    this.createConnection = sandbox.stub(net, 'createConnection', function() {
+    this.createConnection = sandbox.stub(net, 'createConnection').callsFake(function() {
       var socket = new FakeSocket();
       socket.cork = sandbox.spy();
       socket.uncork = sandbox.spy();
@@ -1951,7 +1951,7 @@ exports['Tessel.I2C'] = {
   setUp: function(done) {
     this.socket = new FakeSocket();
 
-    this.createConnection = sandbox.stub(net, 'createConnection', function() {
+    this.createConnection = sandbox.stub(net, 'createConnection').callsFake(function() {
       this.socket.cork = sandbox.spy();
       this.socket.uncork = sandbox.spy();
       this.socket.write = sandbox.spy();
@@ -2100,7 +2100,7 @@ exports['Tessel.I2C'] = {
   explicitFreqChangesBaud: function(test) {
     test.expect(1);
 
-    this.computeBaud = sandbox.stub(Tessel.I2C, 'computeBaud', function() {
+    this.computeBaud = sandbox.stub(Tessel.I2C, 'computeBaud').callsFake(function() {
       return 255;
     });
 
@@ -2243,7 +2243,7 @@ exports['Tessel.UART'] = {
   setUp: function(done) {
     this.socket = new FakeSocket();
 
-    this.createConnection = sandbox.stub(net, 'createConnection', function() {
+    this.createConnection = sandbox.stub(net, 'createConnection').callsFake(function() {
       this.socket.cork = sandbox.spy();
       this.socket.uncork = sandbox.spy();
       this.socket.write = sandbox.spy();
@@ -2420,7 +2420,7 @@ exports['Tessel.SPI'] = {
   setUp: function(done) {
     this.socket = new FakeSocket();
 
-    this.createConnection = sandbox.stub(net, 'createConnection', function() {
+    this.createConnection = sandbox.stub(net, 'createConnection').callsFake(function() {
       this.socket.cork = sandbox.spy();
       this.socket.uncork = sandbox.spy();
       this.socket.write = sandbox.spy();
@@ -2512,7 +2512,7 @@ exports['Tessel.Wifi'] = {
   setUp: function(done) {
     this.Port = sandbox.stub(Tessel, 'Port');
     this.fsWrite = sandbox.stub(fs, 'writeFile');
-    this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
+    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
       callback();
     });
     this.tessel = new Tessel();
@@ -2560,7 +2560,7 @@ exports['Tessel.Wifi'] = {
     };
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
+    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
       if (cmd === 'ifconfig wlan0') {
         callback(null, ipResult);
       } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
@@ -2635,7 +2635,7 @@ exports['Tessel.Wifi'] = {
     };
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
+    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
       if (cmd === 'ifconfig wlan0') {
         callback(null, ipResult);
       } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
@@ -2692,7 +2692,7 @@ exports['Tessel.Wifi'] = {
     };
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
+    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
       if (cmd === 'ifconfig wlan0') {
         callback(null, ipResult);
       } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
@@ -2750,7 +2750,7 @@ exports['Tessel.Wifi'] = {
     };
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
+    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
       if (cmd === 'ifconfig wlan0') {
         callback(null, ipResult);
       } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
@@ -2804,7 +2804,7 @@ exports['Tessel.Wifi'] = {
     };
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
+    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
       if (cmd === 'ifconfig wlan0') {
         callback(null, ipResult);
       } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
@@ -2846,7 +2846,7 @@ exports['Tessel.Wifi'] = {
     var testError = 'This is a test';
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
+    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
       callback(testError);
     });
 
@@ -2895,7 +2895,7 @@ exports['Tessel.Wifi'] = {
     var isFirstCheck = true;
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
+    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
       if (cmd === 'ifconfig wlan0') {
         callback(null, ipResult);
       } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
@@ -2959,7 +2959,7 @@ exports['Tessel.Wifi'] = {
     };
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
+    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
       if (cmd === 'ifconfig wlan0') {
         callback(null, ipResult);
       } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
@@ -3023,7 +3023,7 @@ exports['Tessel.Wifi'] = {
     };
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
+    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
       if (cmd === 'ifconfig wlan0') {
         callback(null, ipResult);
       } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
@@ -3066,7 +3066,7 @@ exports['Tessel.Wifi'] = {
 `;
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
+    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
       if (cmd === 'iwinfo wlan0 scan') {
         callback(null, networks);
       } else {
@@ -3088,7 +3088,7 @@ exports['Tessel.Wifi'] = {
     var networks = '';
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
+    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
       if (cmd === 'iwinfo wlan0 scan') {
         callback(null, networks);
       } else {
@@ -3127,7 +3127,7 @@ exports['Tessel.Wifi'] = {
     // Do not remove the blank line at the end of preceding string!!
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
+    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
       if (cmd === 'iwinfo wlan0 scan') {
         callback(null, networks);
       } else {
@@ -3153,7 +3153,7 @@ exports['Tessel.port.pwm'] = {
   setUp: function(done) {
     this.socket = new FakeSocket();
 
-    this.createConnection = sandbox.stub(net, 'createConnection', function() {
+    this.createConnection = sandbox.stub(net, 'createConnection').callsFake(function() {
       this.socket.cork = sandbox.spy();
       this.socket.uncork = sandbox.spy();
       this.socket.write = sandbox.spy();
@@ -3259,7 +3259,7 @@ exports['tessel.pwmFrequency'] = {
   setUp: function(done) {
     this.socket = new FakeSocket();
 
-    this.createConnection = sandbox.stub(net, 'createConnection', function() {
+    this.createConnection = sandbox.stub(net, 'createConnection').callsFake(function() {
       this.socket.cork = sandbox.spy();
       this.socket.uncork = sandbox.spy();
       this.socket.write = sandbox.spy();
@@ -3354,7 +3354,7 @@ exports['pin.pwmDutyCycle'] = {
   setUp: function(done) {
     this.socket = new FakeSocket();
 
-    this.createConnection = sandbox.stub(net, 'createConnection', function() {
+    this.createConnection = sandbox.stub(net, 'createConnection').callsFake(function() {
       this.socket.cork = sandbox.spy();
       this.socket.uncork = sandbox.spy();
       this.socket.write = sandbox.spy();
@@ -3489,7 +3489,7 @@ exports['Tessel.AP'] = {
   setUp: function(done) {
     this.Port = sandbox.stub(Tessel, 'Port');
     this.fsWrite = sandbox.stub(fs, 'writeFile');
-    this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
+    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
       callback();
     });
     this.tessel = new Tessel();
@@ -3521,7 +3521,7 @@ exports['Tessel.AP'] = {
     var ip = '192.168.1.101';
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
+    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
       if (cmd === 'uci get network.lan.ipaddr') {
         callback(null, ip);
       } else {
@@ -3576,7 +3576,7 @@ exports['Tessel.AP'] = {
     var ip = '192.168.1.101';
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
+    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
       if (cmd === 'uci get network.lan.ipaddr') {
         callback(null, ip);
       } else {
@@ -3613,7 +3613,7 @@ exports['Tessel.AP'] = {
     var ip = '192.168.1.101';
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
+    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
       if (cmd === 'uci get network.lan.ipaddr') {
         callback(null, ip);
       } else {
@@ -3653,7 +3653,7 @@ exports['Tessel.AP'] = {
     var ip = '192.168.1.101';
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
+    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
       if (cmd === 'uci get network.lan.ipaddr') {
         callback(null, ip);
       } else {
@@ -3694,7 +3694,7 @@ exports['Tessel.AP'] = {
     var testError = 'This is a test';
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec', (cmd, callback) => {
+    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
       callback(testError);
     });
 
