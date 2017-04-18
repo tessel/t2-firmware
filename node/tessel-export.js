@@ -12,6 +12,8 @@ var defOptions = {
   }
 };
 
+var reusableNoOp = () => {};
+
 // Maximum number of ticks before period completes
 const PWM_MAX_PERIOD = 0xFFFF;
 // Actual lowest frequency is ~0.72Hz but 1Hz is easier to remember.
@@ -1240,7 +1242,7 @@ Tessel.LED.prototype.toggle = function(callback) {
 
 Tessel.LED.prototype.write = function(value, callback) {
   if (typeof callback !== 'function') {
-    callback = function() {};
+    callback = reusableNoOp;
   }
 
   this.value = value;
@@ -1277,7 +1279,7 @@ util.inherits(Tessel.Wifi, EventEmitter);
 
 Tessel.Wifi.prototype.enable = function(callback) {
   if (typeof callback !== 'function') {
-    callback = function() {};
+    callback = reusableNoOp;
   }
 
   turnOnWifi()
@@ -1298,7 +1300,7 @@ Tessel.Wifi.prototype.enable = function(callback) {
 
 Tessel.Wifi.prototype.disable = function(callback) {
   if (typeof callback !== 'function') {
-    callback = function() {};
+    callback = reusableNoOp;
   }
 
   turnOffWifi()
@@ -1316,7 +1318,7 @@ Tessel.Wifi.prototype.disable = function(callback) {
 
 Tessel.Wifi.prototype.reset = function(callback) {
   if (typeof callback !== 'function') {
-    callback = function() {};
+    callback = reusableNoOp;
   }
 
   this.emit('disconnect', 'Resetting connection');
@@ -1335,7 +1337,7 @@ Tessel.Wifi.prototype.reset = function(callback) {
 
 Tessel.Wifi.prototype.connection = function(callback) {
   if (typeof callback !== 'function') {
-    callback = function() {};
+    callback = reusableNoOp;
   }
 
   isEnabled()
@@ -1369,7 +1371,7 @@ Tessel.Wifi.prototype.connect = function(settings, callback) {
   }
 
   if (typeof callback !== 'function') {
-    callback = function() {};
+    callback = reusableNoOp;
   }
 
   if (settings.password && !settings.security) {
@@ -1546,7 +1548,7 @@ function getWifiInfo() {
           if (inetMatches === null) {
             recursiveWifi(network);
           } else {
-            // Successful matches will have a result that looks like: 
+            // Successful matches will have a result that looks like:
             // ["inet addr:0.0.0.0", "inet addr", "0.0.0.0"]
             if (inetMatches.length === 3) {
               network.ip = inetMatches[2];
@@ -1679,7 +1681,7 @@ util.inherits(Tessel.AP, EventEmitter);
 
 Tessel.AP.prototype.enable = function(callback) {
   if (typeof callback !== 'function') {
-    callback = function() {};
+    callback = reusableNoOp;
   }
 
   turnOnAP()
@@ -1698,7 +1700,7 @@ Tessel.AP.prototype.enable = function(callback) {
 
 Tessel.AP.prototype.disable = function(callback) {
   if (typeof callback !== 'function') {
-    callback = function() {};
+    callback = reusableNoOp;
   }
 
   turnOffAP()
@@ -1717,7 +1719,7 @@ Tessel.AP.prototype.disable = function(callback) {
 
 Tessel.AP.prototype.reset = function(callback) {
   if (typeof callback !== 'function') {
-    callback = function() {};
+    callback = reusableNoOp;
   }
 
   this.emit('reset', 'Resetting connection');
@@ -1741,7 +1743,7 @@ Tessel.AP.prototype.create = function(settings, callback) {
   }
 
   if (typeof callback !== 'function') {
-    callback = function() {};
+    callback = reusableNoOp;
   }
 
   if (settings.password && !settings.security) {
