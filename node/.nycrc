@@ -1,0 +1,12 @@
+{
+  "reporter": [
+    "lcov"
+  ],
+  "include": [
+    "tessel.js",
+    "tessel-export.js"
+  ],
+  "exclude": [
+    "Gruntfile.js"
+  ]
+}
