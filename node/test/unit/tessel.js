@@ -1,4 +1,5 @@
 process.env.IS_TEST_MODE = true;
+process.noDeprecation = true;
 
 var sinon = require('sinon');
 var Tessel = require('../../tessel-export');
@@ -296,6 +297,27 @@ exports['Tessel.prototype'] = {
     test.equal(execSync.lastCall.args[0], 'reboot');
     test.done();
   },
+  pollUntilSocketsDestroyed: function(test) {
+    test.expect(1);
+
+    sandbox.stub(global, 'setImmediate');
+    sandbox.stub(this.tessel, 'close');
+    sandbox.stub(childProcess, 'execSync');
+
+    var destroyed = false;
+
+    this.tessel.port.A.sock = {
+      destroyed
+    };
+    this.tessel.port.B.sock = {
+      destroyed
+    };
+
+    this.tessel.reboot();
+
+    test.equal(global.setImmediate.callCount, 1);
+    test.done();
+  },
 };
 
 
@@ -374,6 +396,29 @@ exports['Tessel.LED'] = {
     test.expect(1);
     this.ledWrite.restore();
     test.equal(Tessel.LED.prototype.output, Tessel.LED.prototype.write);
+    test.done();
+  },
+
+  readStateValueOfLED: function(test) {
+    test.expect(1);
+    this.tessel.led[0].write(0);
+    this.tessel.led[0].write(1);
+    this.tessel.led[0].read((error, state) => {
+      test.equal(state, 1);
+      test.done();
+    });
+  },
+
+  toggleUpdatesTheValue: function(test) {
+    test.expect(4);
+
+    test.strictEqual(this.tessel.led[0].value, 0);
+    this.tessel.led[0].write(1);
+    test.strictEqual(this.tessel.led[0].value, 1);
+    this.tessel.led[0].toggle();
+    test.strictEqual(this.tessel.led[0].value, 0);
+    this.tessel.led[0].toggle();
+    test.strictEqual(this.tessel.led[0].value, 1);
     test.done();
   },
 
@@ -485,6 +530,62 @@ exports['Tessel.Port'] = {
     var port = new Tessel.Port('foo', '/foo/bar/baz', this.tessel);
 
     test.ok(port instanceof EventEmitter);
+
+    test.done();
+  },
+
+  netConnection: function(test) {
+    test.expect(1);
+
+    this.createConnection.restore();
+    this.createConnection = sandbox.stub(net, 'createConnection').callsFake((options, callback) => {
+      callback(new Error('Some error'));
+    });
+
+    test.throws(() => new Tessel.Port());
+    test.done();
+  },
+
+  'socket event:error': function(test) {
+    test.expect(2);
+
+    var port = new Tessel.Port('foo', '/foo/bar/baz', this.tessel);
+
+    sandbox.stub(console, 'log');
+
+    port.sock.emit('error', new Error('some error'));
+
+    test.equal(console.log.callCount, 1);
+    test.equal(console.log.lastCall.args[0], 'Socket: Error occurred: Error: some error');
+
+    test.done();
+  },
+
+  'socket event:end': function(test) {
+    test.expect(2);
+
+    var port = new Tessel.Port('foo', '/foo/bar/baz', this.tessel);
+
+    sandbox.stub(console, 'log');
+
+    port.sock.emit('end');
+
+    test.equal(console.log.callCount, 1);
+    test.equal(console.log.lastCall.args[0], 'Socket: The other end sent FIN packet.');
+
+    test.done();
+  },
+
+  'socket event:close': function(test) {
+    test.expect(2);
+
+    var port = new Tessel.Port('foo', '/foo/bar/baz', this.tessel);
+
+    port.sock.isAllowedToClose = false;
+    test.throws(() => port.sock.emit('close'));
+
+    port.sock.isAllowedToClose = true;
+    test.doesNotThrow(() => port.sock.emit('close'));
 
     test.done();
   },
@@ -789,12 +890,12 @@ exports['Tessel.Port.prototype'] = {
 
     test.equal(this.port._spi, undefined);
 
-    var format = {};
-    this.port.SPI(format);
+    var options = {};
+    this.port.SPI(options);
 
     test.notEqual(this.port._spi, undefined);
     test.equal(Tessel.SPI.callCount, 1);
-    test.deepEqual(Tessel.SPI.lastCall.args[0], format);
+    test.deepEqual(Tessel.SPI.lastCall.args, [options, this.port]);
     test.equal(this.port._spi instanceof Tessel.SPI, true);
 
     test.done();
@@ -805,12 +906,12 @@ exports['Tessel.Port.prototype'] = {
 
     test.equal(this.port._uart, undefined);
 
-    var format = {};
-    this.port.UART(format);
+    var options = {};
+    this.port.UART(options);
 
     test.notEqual(this.port._uart, undefined);
     test.equal(Tessel.UART.callCount, 1);
-    test.deepEqual(Tessel.UART.lastCall.args, [this.port, format]);
+    test.deepEqual(Tessel.UART.lastCall.args, [options, this.port]);
     test.equal(this.port._uart instanceof Tessel.UART, true);
 
     test.done();
@@ -1171,7 +1272,7 @@ exports['Tessel.Port Commands (handling incoming socket stream)'] = {
     this.port.sock.emit('readable');
   },
 
-  replydatapartial: function(test) {
+  replyDataPartial: function(test) {
     test.expect(4);
 
     this.port.replyQueue.push({
@@ -1736,6 +1837,48 @@ exports['Tessel.Pin'] = {
     test.done();
   },
 
+  removeAllListenersByName: function(test) {
+    test.expect(8);
+
+    const spy = sandbox.spy();
+    const spy2 = sandbox.spy();
+    [2, 5, 6, 7].forEach(pinIndex => {
+      this.a.pin[pinIndex].on('change', spy);
+      this.a.pin[pinIndex].on('change', spy2);
+      test.equal(this.a.pin[pinIndex].listenerCount('change'), 2);
+
+      this.a.pin[pinIndex].removeAllListeners('change');
+      test.equal(this.a.pin[pinIndex].listenerCount('change'), 0);
+    });
+    test.done();
+  },
+
+  removeAllListeners: function(test) {
+    test.expect(9);
+
+    const spy = sandbox.spy();
+    const spy2 = sandbox.spy();
+    const _setInterruptMode = sandbox.stub(Tessel.Pin.prototype, '_setInterruptMode');
+
+    [2, 5, 6, 7].forEach(pinIndex => {
+      this.a.pin[pinIndex].once('change', spy);
+      // _setInterruptMode + 1
+      this.a.pin[pinIndex].once('change', spy2);
+      // _setInterruptMode + 1
+
+      test.equal(this.a.pin[pinIndex].listenerCount('change'), 2);
+
+      this.a.pin[pinIndex].removeAllListeners();
+      // _setInterruptMode + 1
+
+      test.equal(this.a.pin[pinIndex].listenerCount('change'), 0);
+    });
+
+    // 4 pins * 3 calls = 12
+    test.equal(_setInterruptMode.callCount, 12);
+    test.done();
+  },
+
   interruptNotSupported: function(test) {
     test.expect(8);
 
@@ -1944,6 +2087,192 @@ exports['Tessel.Pin'] = {
     this.a.sock.read.returns(new Buffer([0x84, value & 0xFF, value >> 8]));
     this.a.sock.emit('readable');
   },
+
+  rawWrite: function(test) {
+    this.a.pin[4].rawWrite(1);
+    this.a.pin[4].rawWrite(0);
+    test.done();
+  },
+
+  toggle: function(test) {
+    test.expect(2);
+    const pin = 2;
+    this.a.pin[pin].toggle();
+
+    test.equal(this._simple_cmd.callCount, 1);
+    test.deepEqual(this._simple_cmd.lastCall.args[0], [CMD.GPIO_TOGGLE, pin]);
+    test.done();
+  },
+
+  output: function(test) {
+    test.expect(2);
+
+    const pin = 2;
+    const callback = () => {};
+
+    sandbox.stub(this.a.pin[pin], 'low');
+    sandbox.stub(this.a.pin[pin], 'high');
+
+
+    this.a.pin[pin].output(1, callback);
+    test.equal(this.a.pin[pin].high.callCount, 1);
+
+    this.a.pin[pin].output(0, callback);
+    test.equal(this.a.pin[pin].low.callCount, 1);
+
+    test.done();
+  },
+
+  write: function(test) {
+    test.expect(6);
+
+    const pin = 2;
+    const callback = () => {};
+
+    sandbox.stub(this.a.pin[pin], 'output');
+
+    this.a.pin[pin].write(1, callback);
+    test.equal(this.a.pin[pin].output.callCount, 1);
+    test.equal(this.a.pin[pin].output.lastCall.args[0], 1);
+    test.equal(this.a.pin[pin].output.lastCall.args[1], callback);
+
+    this.a.pin[pin].write(0, callback);
+    test.equal(this.a.pin[pin].output.callCount, 2);
+    test.equal(this.a.pin[pin].output.lastCall.args[0], 0);
+    test.equal(this.a.pin[pin].output.lastCall.args[1], callback);
+
+    test.done();
+  },
+
+  rawDirection: function(test) {
+    test.expect(1);
+    test.throws(() => {
+      this.a.pin[2].rawDirection();
+    });
+    test.done();
+  },
+
+  _readPin: function(test) {
+    test.expect(8);
+    const pin = 2;
+    const callback = sandbox.spy((error, data) => {
+      // MUST NOT receive the actual REPLY.HIGH byte.
+
+      if (callback.callCount === 1) {
+        test.equal(data, 1);
+      }
+
+      if (callback.callCount === 2) {
+        test.equal(data, 0);
+        test.done();
+      }
+    });
+
+    sandbox.stub(this.a.pin[pin]._port, 'enqueue');
+
+    this.a.pin[pin]._readPin(CMD.GPIO_RAW_READ, callback);
+
+    test.equal(this.a.pin[pin]._port.sock.cork.callCount, 1);
+    test.equal(this.a.pin[pin]._port.sock.uncork.callCount, 1);
+    test.equal(this.a.pin[pin]._port.sock.write.callCount, 1);
+    test.equal(this.a.pin[pin]._port.enqueue.callCount, 1);
+
+    test.equal(this.a.pin[pin]._port.enqueue.lastCall.args[0].size, 0);
+    // Our callback MUST be wrapped for REPLY.HIGH/REPLY.LOW handling
+
+    const queued = this.a.pin[pin]._port.enqueue.lastCall.args[0].callback;
+
+    test.notEqual(queued, callback);
+
+    queued(null, REPLY.HIGH);
+    queued(null, REPLY.LOW);
+  },
+
+  rawRead: function(test) {
+    test.expect(2);
+
+    const pin = 2;
+    const callback = () => {};
+
+    sandbox.stub(this.a.pin[pin], '_readPin');
+
+    this.a.pin[pin].rawRead(callback);
+
+    test.equal(this.a.pin[pin]._readPin.lastCall.args[0], CMD.GPIO_RAW_READ);
+    test.equal(this.a.pin[pin]._readPin.lastCall.args[1], callback);
+    test.done();
+  },
+
+  input: function(test) {
+    test.expect(2);
+
+    const pin = 2;
+    const callback = () => {};
+
+    this.a.pin[pin].input(callback);
+
+    test.deepEqual(this._simple_cmd.lastCall.args[0], [CMD.GPIO_INPUT, pin]);
+    test.equal(this._simple_cmd.lastCall.args[1], callback);
+    test.done();
+  },
+
+  read: function(test) {
+    test.expect(2);
+    const callback = () => {};
+
+    sandbox.stub(this.a.pin[2], '_readPin');
+
+    this.a.pin[2].read(callback);
+
+    test.equal(this.a.pin[2]._readPin.lastCall.args[0], CMD.GPIO_IN);
+    test.equal(this.a.pin[2]._readPin.lastCall.args[1], callback);
+    test.done();
+  },
+
+  readIsAsync: function(test) {
+    test.expect(1);
+    test.throws(() => {
+      this.a.pin[2].read();
+    });
+    test.done();
+  },
+
+  rawReadIsAsync: function(test) {
+    test.expect(1);
+    test.throws(() => {
+      this.a.pin[2].rawRead();
+    });
+    test.done();
+  },
+
+  pullInvalid: function(test) {
+    test.expect(1);
+    test.throws(() => {
+      this.a.pin[2].pull('bonkers');
+    });
+    test.done();
+  },
+
+  pullNotSupported: function(test) {
+    test.expect(1);
+
+    test.throws(() => {
+      this.a.pin[0].pull();
+    });
+
+    test.done();
+  },
+
+  readPulse: function(test) {
+    test.expect(1);
+
+    test.throws(() => {
+      this.a.pin[4].readPulse();
+    });
+
+    test.done();
+  },
+
 
 };
 
@@ -2253,8 +2582,8 @@ exports['Tessel.UART'] = {
     // Block creation of automatically generated ports
     this.tessel = new Tessel({
       ports: {
-        'A': false,
-        'B': false
+        A: false,
+        B: false
       }
     });
 
@@ -2276,6 +2605,24 @@ exports['Tessel.UART'] = {
     Tessel.instance = null;
     sandbox.restore();
     done();
+  },
+
+  _write: function(test) {
+    test.expect(4);
+
+    const uart = new this.port.UART();
+    const data = new Buffer([0xFF]);
+    const callback = () => {};
+    uart._write(data, null, callback);
+
+    test.equal(this._tx.lastCall.args[0], data);
+    test.deepEqual(this._tx.lastCall.args[0], data);
+    test.equal(this._tx.lastCall.args[1], callback);
+
+    uart.disable();
+
+    test.throws(() => uart._write(data, null, callback));
+    test.done();
   },
 
   baudrateCmd: function(test) {
@@ -2413,19 +2760,48 @@ exports['Tessel.UART'] = {
 
     // Prod the socket to read our buffer
     u1._port.sock.emit('readable');
-  }
+  },
+
+  bufferOutputIncomplete: function(test) {
+    test.expect(2);
+
+    // Create our Tessel port
+    var u1 = new this.port.UART();
+
+    var payload = new Buffer([0x01, 0x02, 0x03, 0x04]);
+    var header = new Buffer([Tessel.REPLY.ASYNC_UART_RX, payload.length]);
+    var called = false;
+    this.socket.read = () => {
+      if (called) {
+        return payload;
+      }
+      called = true;
+      return header;
+    };
+
+    // When data is emitted on the uart peripheral
+    u1.once('data', (shouldBeBuf) => {
+      test.equal(shouldBeBuf.length, 4);
+      test.deepEqual(shouldBeBuf, payload);
+      test.done();
+    });
+
+    // Prod the socket to read our buffer
+    u1._port.sock.emit('readable');
+    u1._port.sock.emit('readable');
+  },
 };
 
 exports['Tessel.SPI'] = {
   setUp: function(done) {
     this.socket = new FakeSocket();
 
-    this.createConnection = sandbox.stub(net, 'createConnection').callsFake(function() {
+    this.createConnection = sandbox.stub(net, 'createConnection').callsFake(() => {
       this.socket.cork = sandbox.spy();
       this.socket.uncork = sandbox.spy();
       this.socket.write = sandbox.spy();
       return this.socket;
-    }.bind(this));
+    });
 
     this.tessel = new Tessel();
 
@@ -2433,6 +2809,7 @@ exports['Tessel.SPI'] = {
     this.uncork = sandbox.stub(Tessel.Port.prototype, 'uncork');
     this._tx = sandbox.stub(Tessel.Port.prototype, '_tx');
     this._rx = sandbox.stub(Tessel.Port.prototype, '_rx');
+    this._txrx = sandbox.stub(Tessel.Port.prototype, '_txrx');
     this._simple_cmd = sandbox.stub(Tessel.Port.prototype, '_simple_cmd');
 
     this.port = new Tessel.Port('foo', '/foo/bar/baz', this.tessel);
@@ -2446,6 +2823,218 @@ exports['Tessel.SPI'] = {
     Tessel.instance = null;
     sandbox.restore();
     done();
+  },
+
+  defaultOptionsWhenConstructedViaPort: function(test) {
+    test.expect(6);
+
+    var spi = new this.port.SPI();
+
+    test.equal(spi.chipSelectActive, 0);
+    test.equal(spi.clockSpeed, 2000000);
+    test.equal(spi._clockReg, 11);
+    test.equal(spi._clockDiv, 1);
+    test.equal(spi.cpol, 0);
+    test.equal(spi.cpha, 0);
+
+    test.done();
+  },
+
+  defaultOptionsWhenConstructedDirectly: function(test) {
+    test.expect(6);
+
+    var spi = new Tessel.SPI(null, this.port);
+
+    test.equal(spi.chipSelectActive, 0);
+    test.equal(spi.clockSpeed, 2000000);
+    test.equal(spi._clockReg, 11);
+    test.equal(spi._clockDiv, 1);
+    test.equal(spi.cpol, 0);
+    test.equal(spi.cpha, 0);
+
+    test.done();
+  },
+
+  chipSelectActiveHigh: function(test) {
+    test.expect(6);
+
+    var spi = new Tessel.SPI({
+      chipSelectActive: 'high'
+    }, this.port);
+
+    test.equal(spi.chipSelectActive, 1);
+    test.equal(spi.clockSpeed, 2000000);
+    test.equal(spi._clockReg, 11);
+    test.equal(spi._clockDiv, 1);
+    test.equal(spi.cpol, 0);
+    test.equal(spi.cpha, 0);
+
+    test.done();
+  },
+
+  chipSelectActive1: function(test) {
+    test.expect(6);
+
+    var spi = new Tessel.SPI({
+      chipSelectActive: 1
+    }, this.port);
+
+    test.equal(spi.chipSelectActive, 1);
+    test.equal(spi.clockSpeed, 2000000);
+    test.equal(spi._clockReg, 11);
+    test.equal(spi._clockDiv, 1);
+    test.equal(spi.cpol, 0);
+    test.equal(spi.cpha, 0);
+
+    test.done();
+  },
+
+  dataMode1: function(test) {
+    test.expect(5);
+
+    var spi = new Tessel.SPI({
+      dataMode: 1
+    }, this.port);
+
+    test.equal(spi.clockSpeed, 2000000);
+    test.equal(spi._clockReg, 11);
+    test.equal(spi._clockDiv, 1);
+    test.equal(spi.cpol, 1);
+    test.equal(spi.cpha, 0);
+
+    test.done();
+  },
+
+  dataMode0: function(test) {
+    test.expect(5);
+
+    var spi = new Tessel.SPI({
+      dataMode: 0
+    }, this.port);
+
+    test.equal(spi.clockSpeed, 2000000);
+    test.equal(spi._clockReg, 11);
+    test.equal(spi._clockDiv, 1);
+    test.equal(spi.cpol, 0);
+    test.equal(spi.cpha, 0);
+
+    test.done();
+  },
+
+  cpolHigh: function(test) {
+    test.expect(5);
+
+    var spi = new Tessel.SPI({
+      cpol: 'high'
+    }, this.port);
+
+    test.equal(spi.clockSpeed, 2000000);
+    test.equal(spi._clockReg, 11);
+    test.equal(spi._clockDiv, 1);
+    test.equal(spi.cpol, 1);
+    test.equal(spi.cpha, 0);
+
+    test.done();
+  },
+
+  cpol1: function(test) {
+    test.expect(5);
+
+    var spi = new Tessel.SPI({
+      cpol: 1
+    }, this.port);
+
+    test.equal(spi.clockSpeed, 2000000);
+    test.equal(spi._clockReg, 11);
+    test.equal(spi._clockDiv, 1);
+    test.equal(spi.cpol, 1);
+    test.equal(spi.cpha, 0);
+
+    test.done();
+  },
+
+  cphaSecond: function(test) {
+    test.expect(5);
+
+    var spi = new Tessel.SPI({
+      cpha: 'second'
+    }, this.port);
+
+    test.equal(spi.clockSpeed, 2000000);
+    test.equal(spi._clockReg, 11);
+    test.equal(spi._clockDiv, 1);
+    test.equal(spi.cpol, 0);
+    test.equal(spi.cpha, 1);
+
+    test.done();
+  },
+
+  cpha1: function(test) {
+    test.expect(5);
+
+    var spi = new Tessel.SPI({
+      cpha: 1
+    }, this.port);
+
+    test.equal(spi.clockSpeed, 2000000);
+    test.equal(spi._clockReg, 11);
+    test.equal(spi._clockDiv, 1);
+    test.equal(spi.cpol, 0);
+    test.equal(spi.cpha, 1);
+
+    test.done();
+  },
+
+  clockSpeed: function(test) {
+    test.expect(3);
+
+    var spi = new Tessel.SPI({
+      clockSpeed: 1e6
+    }, this.port);
+
+    test.equal(spi.clockSpeed, 1e6);
+    test.equal(spi._clockReg, 23);
+    test.equal(spi._clockDiv, 1);
+    test.done();
+  },
+
+  clockDivUpper: function(test) {
+    test.expect(3);
+
+    var spi = new Tessel.SPI({
+      clockSpeed: 24e6
+    }, this.port);
+
+    test.equal(spi.clockSpeed, 24e6);
+    test.equal(spi._clockReg, 0);
+    test.equal(spi._clockDiv, 1);
+    test.done();
+  },
+
+  clockDivLower: function(test) {
+    test.expect(3);
+
+    var spi = new Tessel.SPI({
+      clockSpeed: 368
+    }, this.port);
+
+    test.equal(spi.clockSpeed, 368);
+    test.equal(spi._clockReg, 255);
+    test.equal(spi._clockDiv, 254);
+    test.done();
+  },
+
+  clockDivFallback: function(test) {
+    test.expect(3);
+
+    var spi = new Tessel.SPI({
+      clockSpeed: 92770
+    }, this.port);
+
+    test.equal(spi.clockSpeed, 92770);
+    test.equal(spi._clockReg, 255);
+    test.equal(spi._clockDiv, 1);
+    test.done();
   },
 
   interfaceChange: function(test) {
@@ -2497,15 +3086,101 @@ exports['Tessel.SPI'] = {
     var s2 = new this.port.SPI();
 
     test.notStrictEqual(s1, s2);
-
     test.notStrictEqual(this.port._spi, s1);
-
     test.strictEqual(this.port._spi, s2);
-
     test.ok(this.spiDisable.calledOnce, true);
+    test.done();
+  },
+
+  send: function(test) {
+    test.expect(7);
+
+    const spi = new this.port.SPI({
+      chipSelect: {
+        low: sandbox.spy(),
+        high: sandbox.spy(),
+      },
+    });
+
+    spi.chipSelect.low.reset();
+    spi.chipSelect.high.reset();
+
+    const data = new Buffer([0xFF]);
+    const callback = () => {};
+
+    spi.send(data, callback);
+
+    test.equal(this.cork.callCount, 1);
+    test.equal(this.uncork.callCount, 1);
+    test.equal(this._tx.callCount, 1);
+    test.equal(spi.chipSelect.low.callCount, 1);
+    test.equal(spi.chipSelect.high.callCount, 1);
+
+    test.equal(this._tx.lastCall.args[0], data);
+    test.equal(this._tx.lastCall.args[1], callback);
 
     test.done();
-  }
+  },
+
+  receive: function(test) {
+    test.expect(7);
+
+    const spi = new this.port.SPI({
+      chipSelect: {
+        low: sandbox.spy(),
+        high: sandbox.spy(),
+      },
+    });
+
+    spi.chipSelect.low.reset();
+    spi.chipSelect.high.reset();
+
+    const length = 4;
+    const callback = () => {};
+
+    spi.receive(length, callback);
+
+    test.equal(this.cork.callCount, 1);
+    test.equal(this.uncork.callCount, 1);
+    test.equal(this._rx.callCount, 1);
+    test.equal(spi.chipSelect.low.callCount, 1);
+    test.equal(spi.chipSelect.high.callCount, 1);
+
+    test.equal(this._rx.lastCall.args[0], length);
+    test.equal(this._rx.lastCall.args[1], callback);
+
+    test.done();
+  },
+
+  transfer: function(test) {
+    test.expect(7);
+
+    const spi = new this.port.SPI({
+      chipSelect: {
+        low: sandbox.spy(),
+        high: sandbox.spy(),
+      },
+    });
+
+    spi.chipSelect.low.reset();
+    spi.chipSelect.high.reset();
+
+    const data = new Buffer([0xFF]);
+    const callback = () => {};
+
+    spi.transfer(data, callback);
+
+    test.equal(this.cork.callCount, 1);
+    test.equal(this.uncork.callCount, 1);
+    test.equal(this._txrx.callCount, 1);
+    test.equal(spi.chipSelect.low.callCount, 1);
+    test.equal(spi.chipSelect.high.callCount, 1);
+
+    test.equal(this._txrx.lastCall.args[0], data);
+    test.equal(this._txrx.lastCall.args[1], callback);
+
+    test.done();
+  },
 };
 
 exports['Tessel.Wifi'] = {
