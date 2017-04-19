@@ -1416,10 +1416,18 @@ Tessel.Wifi.prototype.findAvailableNetworks = function(callback) {
       if (enabled) {
         return scanWifi();
       } else {
-        return turnOnWifi()
-          .then(commitWireless)
-          .then(restartWifi)
-          .then(scanWifi);
+        isApEnabled()
+          .then((enabled) => {
+            if (enabled) {
+              return scanWifi();
+            }
+            else {
+              return turnOnWifi()
+                .then(commitWireless)
+                .then(restartWifi)
+                .then(scanWifi);
+            }
+          });
       }
     })
     .then((networks) => {
@@ -1508,6 +1516,18 @@ function isEnabled() {
   });
 }
 
+function isApEnabled() {
+  return new Promise((resolve) => {
+    childProcess.exec('uci get wireless.@wifi-iface[1].disabled', (error, result) => {
+      if (error) {
+        throw error;
+      }
+
+      resolve(!Number(result));
+    });
+  });
+}
+
 function getWifiInfo() {
   return new Promise((resolve, reject) => {
     var checkCount = 0;
@@ -1582,15 +1602,22 @@ function getWifiInfo() {
 }
 
 function scanWifi() {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     var checkCount = 0;
 
     function recursiveScan() {
       setImmediate(() => {
         childProcess.exec('iwinfo wlan0 scan', (error, results) => {
-          if (error) {
+        if (error) {
+          if (checkCount < 13) {
+            checkCount++;
             recursiveScan();
           }
+          else {
+            reject(error);
+          }
+          return;
+        }
 
           var ssidRegex = /ESSID: "(.*)"/;
           var qualityRegex = /Quality: (.*)/;
