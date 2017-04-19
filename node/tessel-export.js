@@ -1,9 +1,11 @@
-var util = require('util');
-var EventEmitter = require('events').EventEmitter;
+'use strict';
+
+var cp = require('child_process');
 var Duplex = require('stream').Duplex;
-var net = require('net');
+var EventEmitter = require('events').EventEmitter;
 var fs = require('fs');
-var childProcess = require('child_process');
+var net = require('net');
+var util = require('util');
 
 var defOptions = {
   ports: {
@@ -143,17 +145,17 @@ Tessel.prototype.reboot = function() {
       this.port.B.sock.destroyed) {
 
       // Stop SPI communication between SAMD21 and MediaTek
-      childProcess.execSync('/etc/init.d/spid stop');
+      cp.execSync('/etc/init.d/spid stop');
 
       // Create a GPIO entry for the SAMD21 RESET pin
-      childProcess.execSync(`echo "${SAMD21_RESET_GPIO}" > /sys/class/gpio/export`);
+      cp.execSync(`echo "${SAMD21_RESET_GPIO}" > /sys/class/gpio/export`);
       // Make that GPIO an output
-      childProcess.execSync(`echo "out" > /sys/class/gpio/gpio${SAMD21_RESET_GPIO}/direction`);
+      cp.execSync(`echo "out" > /sys/class/gpio/gpio${SAMD21_RESET_GPIO}/direction`);
       // Pull the output low to reset the SAMD21
-      childProcess.execSync(`echo "0" > /sys/class/gpio/gpio${SAMD21_RESET_GPIO}/value`);
+      cp.execSync(`echo "0" > /sys/class/gpio/gpio${SAMD21_RESET_GPIO}/value`);
 
       // Reboot the MediaTek
-      childProcess.execSync('reboot');
+      cp.execSync('reboot');
     } else {
       setImmediate(pollUntilSocketsDestroyed);
     }
@@ -1441,7 +1443,7 @@ function connectToNetwork(settings) {
   `;
 
   return new Promise((resolve) => {
-    childProcess.exec(commands, (error) => {
+    cp.exec(commands, (error) => {
       if (error) {
         throw error;
       }
@@ -1453,7 +1455,7 @@ function connectToNetwork(settings) {
 
 function turnOnWifi() {
   return new Promise((resolve) => {
-    childProcess.exec('uci set wireless.@wifi-iface[0].disabled=0', (error) => {
+    cp.exec('uci set wireless.@wifi-iface[0].disabled=0', (error) => {
       if (error) {
         throw error;
       }
@@ -1464,7 +1466,7 @@ function turnOnWifi() {
 
 function turnOffWifi() {
   return new Promise((resolve) => {
-    childProcess.exec('uci set wireless.@wifi-iface[0].disabled=1', (error) => {
+    cp.exec('uci set wireless.@wifi-iface[0].disabled=1', (error) => {
       if (error) {
         throw error;
       }
@@ -1475,7 +1477,7 @@ function turnOffWifi() {
 
 function commitWireless() {
   return new Promise((resolve) => {
-    childProcess.exec('uci commit wireless', (error) => {
+    cp.exec('uci commit wireless', (error) => {
       if (error) {
         throw error;
       }
@@ -1486,7 +1488,7 @@ function commitWireless() {
 
 function restartWifi() {
   return new Promise((resolve) => {
-    childProcess.exec('wifi', (error) => {
+    cp.exec('wifi', (error) => {
       if (error) {
         throw error;
       }
@@ -1498,7 +1500,7 @@ function restartWifi() {
 
 function isEnabled() {
   return new Promise((resolve) => {
-    childProcess.exec('uci get wireless.@wifi-iface[0].disabled', (error, result) => {
+    cp.exec('uci get wireless.@wifi-iface[0].disabled', (error, result) => {
       if (error) {
         throw error;
       }
@@ -1514,7 +1516,7 @@ function getWifiInfo() {
     var inetRegex = /(inet addr):([\w\.]+)/;
 
     function recursiveWifi() {
-      childProcess.exec(`ubus call iwinfo info '{"device":"wlan0"}'`, (error, results) => {
+      cp.exec(`ubus call iwinfo info '{"device":"wlan0"}'`, (error, results) => {
         if (error) {
           recursiveWifi();
         } else {
@@ -1543,7 +1545,7 @@ function getWifiInfo() {
     // when immediately connecting and restarting the wifi chip, it takes a few moments before an IP address is broadcast to Tessel.
     // This function keeps checking for that IP until it's available.
     function recursiveIP(network) {
-      childProcess.exec('ifconfig wlan0', (error, ipResults) => {
+      cp.exec('ifconfig wlan0', (error, ipResults) => {
         if (error) {
           reject(error);
         } else {
@@ -1587,7 +1589,7 @@ function scanWifi() {
 
     function recursiveScan() {
       setImmediate(() => {
-        childProcess.exec('iwinfo wlan0 scan', (error, results) => {
+        cp.exec('iwinfo wlan0 scan', (error, results) => {
           if (error) {
             recursiveScan();
           }
@@ -1788,7 +1790,7 @@ function createNetwork(settings) {
   `;
 
   return new Promise((resolve) => {
-    childProcess.exec(commands, (error) => {
+    cp.exec(commands, (error) => {
       if (error) {
         throw error;
       }
@@ -1800,7 +1802,7 @@ function createNetwork(settings) {
 
 function getAccessPointIP() {
   return new Promise((resolve) => {
-    childProcess.exec('uci get network.lan.ipaddr', (error, ip) => {
+    cp.exec('uci get network.lan.ipaddr', (error, ip) => {
       if (error) {
         throw error;
       }
@@ -1813,7 +1815,7 @@ function getAccessPointIP() {
 
 function turnOnAP() {
   return new Promise((resolve) => {
-    childProcess.exec('uci set wireless.@wifi-iface[1].disabled=0', (error) => {
+    cp.exec('uci set wireless.@wifi-iface[1].disabled=0', (error) => {
       if (error) {
         throw error;
       }
@@ -1824,7 +1826,7 @@ function turnOnAP() {
 
 function turnOffAP() {
   return new Promise((resolve) => {
-    childProcess.exec('uci set wireless.@wifi-iface[1].disabled=1', (error) => {
+    cp.exec('uci set wireless.@wifi-iface[1].disabled=1', (error) => {
       if (error) {
         throw error;
       }
