@@ -14,7 +14,13 @@ var defOptions = {
   }
 };
 
-var reusableNoOp = () => {};
+const reusableNoOp = () => {};
+const enforceCallback = callback => typeof callback === 'function' ? callback : reusableNoOp;
+
+
+// Port Name Constants
+const A = 'A';
+const B = 'B';
 
 // Maximum number of ticks before period completes
 const PWM_MAX_PERIOD = 0xFFFF;
@@ -62,8 +68,8 @@ function Tessel(options) {
   }
 
   this.ports = {
-    A: options.ports.A ? new Tessel.Port('A', Tessel.Port.PATH.A, this) : null,
-    B: options.ports.B ? new Tessel.Port('B', Tessel.Port.PATH.B, this) : null,
+    A: options.ports.A ? new Tessel.Port(A, Tessel.Port.PATH.A, this) : null,
+    B: options.ports.B ? new Tessel.Port(B, Tessel.Port.PATH.B, this) : null,
   };
 
   this.port = this.ports;
@@ -106,11 +112,12 @@ Tessel.prototype.close = function(portName) {
     // but is separate since the open() method has a
     // necessarily nested condition and this _may_ require
     // further conditional restrictions in the future.
+    /* istanbul ignore else */
     if (this.port[portName]) {
       this.port[portName].close();
     }
   } else {
-    ['A', 'B'].forEach(name => this.close(name));
+    [A, B].forEach(name => this.close(name));
   }
   return this;
 };
@@ -124,7 +131,7 @@ Tessel.prototype.open = function(portName) {
       this.port[portName] = new Tessel.Port(portName, Tessel.Port.PATH[portName], this);
     }
   } else {
-    ['A', 'B'].forEach(name => this.open(name));
+    [A, B].forEach(name => this.open(name));
   }
   return this;
 };
@@ -141,6 +148,7 @@ Tessel.prototype.reboot = function() {
   // that the sockets are closed before
   // `reboot` is executed.
   var pollUntilSocketsDestroyed = () => {
+    /* istanbul ignore else */
     if (this.port.A.sock.destroyed &&
       this.port.B.sock.destroyed) {
 
@@ -164,9 +172,10 @@ Tessel.prototype.reboot = function() {
   pollUntilSocketsDestroyed();
 };
 
-Tessel.prototype.pwmFrequency = function(frequency, cb) {
-  if (frequency < PWM_MIN_FREQUENCY || frequency > PWM_MAX_FREQUENCY) {
-    throw new RangeError(`pwmFrequency value must be between ${PWM_MIN_FREQUENCY} and ${PWM_MAX_FREQUENCY}`);
+Tessel.prototype.pwmFrequency = function(frequency, callback) {
+  if (frequency < PWM_MIN_FREQUENCY ||
+    frequency > PWM_MAX_FREQUENCY) {
+    throw new RangeError(`PWM Frequency value must be between ${PWM_MIN_FREQUENCY} and ${PWM_MAX_FREQUENCY}`);
   }
 
   var results = determineDutyCycleAndPrescalar(frequency);
@@ -188,7 +197,7 @@ Tessel.prototype.pwmFrequency = function(frequency, cb) {
 
   // Send the packet off to the samd21
   // on the first available port object (regardless of name)
-  this.port[['A', 'B'].find(name => this.ports[name] !== null)].sock.write(packet, cb);
+  this.port[[A, B].find(name => this.ports[name] !== null)].sock.write(packet, callback);
 };
 
 /*
@@ -225,17 +234,18 @@ function determineDutyCycleAndPrescalar(frequency) {
   };
 }
 
-Tessel.Port = function(name, socketPath, board) {
+Tessel.Port = function(name, path, board) {
   var port = this;
 
   this.name = name;
   this.board = board;
   // Connection to the SPI daemon
   this.sock = net.createConnection({
-    path: socketPath
-  }, function(e) {
-    if (e) {
-      throw e;
+    path
+  }, error => {
+    /* istanbul ignore else */
+    if (error) {
+      throw error;
     }
   });
 
@@ -247,7 +257,7 @@ Tessel.Port = function(name, socketPath, board) {
   this.unref();
 
   this.sock.on('error', error => {
-    console.log('Socket: Error occurred, ', error);
+    console.log(`Socket: Error occurred: ${error.toString()}`);
   });
 
   this.sock.on('end', () => {
@@ -284,7 +294,7 @@ Tessel.Port = function(name, socketPath, board) {
       if (byte === REPLY.ASYNC_UART_RX) {
         // Get the next byte which is the number of bytes
         var rxNum = replyBuf[1];
-        // As long as the number of butes of rx buffer exists
+        // As long as the number of bytes of rx buffer exists
         // and we have at least the number of bytes needed for a uart rx packet
         if (rxNum !== undefined && replyBuf.length >= 2 + rxNum) {
           // Read the incoming data
@@ -294,6 +304,7 @@ Tessel.Port = function(name, socketPath, board) {
           replyBuf = replyBuf.slice(2 + rxNum);
 
           // If a uart port was instantiated
+          /* istanbul ignore else */
           if (this._uart) {
             // Push this data into the buffer
             this._uart.push(rxData);
@@ -360,9 +371,10 @@ Tessel.Port = function(name, socketPath, board) {
             queued = this.dequeue();
 
             // If there is a callback for th ecommand
+            /* istanbul ignore else */
             if (queued.callback) {
               // Return the data in the callback
-              queued.callback.call(this, null, queued.size ? data : byte);
+              queued.callback.call(this, null, data);
             }
           } else {
             // The buffer does not have the correct number of
@@ -371,16 +383,20 @@ Tessel.Port = function(name, socketPath, board) {
             break;
           }
           // If it's just one byte being returned
-        } else if (byte === REPLY.HIGH || byte === REPLY.LOW) {
-          // Slice it off
-          replyBuf = replyBuf.slice(1);
-          // Get the callback in the queue
-          queued = this.dequeue();
+        } else {
+          /* istanbul ignore else */
+          if (byte === REPLY.HIGH || byte === REPLY.LOW) {
+            // Slice it off
+            replyBuf = replyBuf.slice(1);
+            // Get the callback in the queue
+            queued = this.dequeue();
 
-          // If a callback was provided
-          if (queued.callback) {
-            // Return the byte in the callback
-            queued.callback.call(this, null, byte);
+            // If a callback was provided
+            /* istanbul ignore else */
+            if (queued.callback) {
+              // Return the byte in the callback
+              queued.callback.call(this, null, byte);
+            }
           }
         }
       }
@@ -396,7 +412,7 @@ Tessel.Port = function(name, socketPath, board) {
   this.pin = [];
   for (var i = 0; i < 8; i++) {
     var interruptSupported = Tessel.Pin.interruptCapablePins.indexOf(i) !== -1;
-    var adcSupported = (name === 'B' || Tessel.Pin.adcCapablePins.indexOf(i) !== -1);
+    var adcSupported = (name === B || Tessel.Pin.adcCapablePins.indexOf(i) !== -1);
     var pullSupported = Tessel.Pin.pullCapablePins.indexOf(i) !== -1;
     var pwmSupported = Tessel.Pin.pwmCapablePins.indexOf(i) !== -1;
     this.pin.push(new Tessel.Pin(i, this, interruptSupported, adcSupported, pullSupported, pwmSupported));
@@ -410,7 +426,7 @@ Tessel.Port = function(name, socketPath, board) {
 
   this.pwm = [this.pin[5], this.pin[6]];
 
-  this.I2C = function I2CInit(address) {
+  this.I2C = function(address) {
     var options = {};
 
     if (typeof address === 'object' && address != null) {
@@ -443,6 +459,7 @@ Tessel.Port = function(name, socketPath, board) {
         the calling code accidentally sends
         a "port" that isn't this port.
       */
+      /* istanbul ignore else */
       if (options.port !== port) {
         options.port = port;
       }
@@ -453,22 +470,22 @@ Tessel.Port = function(name, socketPath, board) {
 
   this.I2C.enabled = false;
 
-  this.SPI = function SPIInit(format) {
+  this.SPI = function(options) {
     if (port._spi) {
       port._spi.disable();
     }
 
-    port._spi = new Tessel.SPI(format === null ? {} : format, port);
+    port._spi = new Tessel.SPI(options || {}, port);
 
     return port._spi;
   };
 
-  this.UART = function UARTInit(format) {
+  this.UART = function(options) {
     if (port._uart) {
       port._uart.disable();
     }
 
-    port._uart = new Tessel.UART(port, format || {});
+    port._uart = new Tessel.UART(options || {}, port);
     // Grab a reference to this socket so it doesn't close
     // if we're waiting for UART data
     port.ref();
@@ -480,6 +497,7 @@ Tessel.Port = function(name, socketPath, board) {
 util.inherits(Tessel.Port, EventEmitter);
 
 Tessel.Port.prototype.close = function() {
+  /* istanbul ignore else */
   if (!this.sock.destroyed) {
     this.sock.isAllowedToClose = true;
     this.sock.destroy();
@@ -526,32 +544,32 @@ Tessel.Port.prototype.uncork = function() {
   this.sock.uncork();
 };
 
-Tessel.Port.prototype.sync = function(cb) {
-  if (cb) {
+Tessel.Port.prototype.sync = function(callback) {
+  if (callback) {
     this.sock.write(new Buffer([CMD.ECHO, 1, 0x88]));
     this.enqueue({
       size: 1,
-      callback: cb
+      callback: callback
     });
   }
 };
 
-Tessel.Port.prototype._simple_cmd = function(buf, cb) {
+Tessel.Port.prototype._simple_cmd = function(buf, callback) {
   this.cork();
   this.sock.write(new Buffer(buf));
-  this.sync(cb);
+  this.sync(callback);
   this.uncork();
 };
 
-Tessel.Port.prototype._status_cmd = function(buf, cb) {
+Tessel.Port.prototype._status_cmd = function(buf, callback) {
   this.sock.write(new Buffer(buf));
   this.enqueue({
     size: 0,
-    callback: cb,
+    callback: callback,
   });
 };
 
-Tessel.Port.prototype._tx = function(buf, cb) {
+Tessel.Port.prototype._tx = function(buf, callback) {
   var offset = 0,
     chunk;
 
@@ -571,11 +589,11 @@ Tessel.Port.prototype._tx = function(buf, cb) {
     offset += 255;
   }
 
-  this.sync(cb);
+  this.sync(callback);
   this.uncork();
 };
 
-Tessel.Port.prototype._rx = function(len, cb) {
+Tessel.Port.prototype._rx = function(len, callback) {
   if (len === 0 || len > 255) {
     throw new RangeError('Buffer size must be within 1-255');
   }
@@ -583,11 +601,11 @@ Tessel.Port.prototype._rx = function(len, cb) {
   this.sock.write(new Buffer([CMD.RX, len]));
   this.enqueue({
     size: len,
-    callback: cb,
+    callback: callback,
   });
 };
 
-Tessel.Port.prototype._txrx = function(buf, cb) {
+Tessel.Port.prototype._txrx = function(buf, callback) {
   var len = buf.length;
 
   if (len === 0 || len > 255) {
@@ -599,14 +617,14 @@ Tessel.Port.prototype._txrx = function(buf, cb) {
   this.sock.write(buf);
   this.enqueue({
     size: len,
-    callback: cb,
+    callback: callback,
   });
   this.uncork();
 };
 
 Tessel.Port.PATH = {
-  'A': '/var/run/tessel/port_a',
-  'B': '/var/run/tessel/port_b'
+  A: '/var/run/tessel/port_a',
+  B: '/var/run/tessel/port_b'
 };
 
 Tessel.Pin = function(pin, port, interruptSupported, analogSupported, pullSupported, pwmSupported) {
@@ -653,6 +671,7 @@ Tessel.Pin.prototype.removeListener = function(event, listener) {
 };
 
 Tessel.Pin.prototype.removeAllListeners = function(event) {
+  /* istanbul ignore else */
   if (!event || event === this.interruptMode) {
     this._setInterruptMode(null);
   }
@@ -699,83 +718,80 @@ Tessel.Pin.prototype._setInterruptMode = function(mode) {
   this._port._simple_cmd([CMD.GPIO_INT, this.pin | bits]);
 };
 
-Tessel.Pin.prototype.high = function(cb) {
-  this._port._simple_cmd([CMD.GPIO_HIGH, this.pin], cb);
+Tessel.Pin.prototype.high = function(callback) {
+  this._port._simple_cmd([CMD.GPIO_HIGH, this.pin], callback);
   return this;
 };
 
-Tessel.Pin.prototype.low = function(cb) {
-  this._port._simple_cmd([CMD.GPIO_LOW, this.pin], cb);
+Tessel.Pin.prototype.low = function(callback) {
+  this._port._simple_cmd([CMD.GPIO_LOW, this.pin], callback);
   return this;
 };
 
-// Deprecated. Added for tessel 1 lib compat
-Tessel.Pin.prototype.rawWrite = function(value) {
+Tessel.Pin.prototype.rawWrite = util.deprecate(function(value) {
   if (value) {
     this.high();
   } else {
     this.low();
   }
   return this;
-};
+}, 'pin.rawWrite is deprecated. Use .high() or .low()');
 
-Tessel.Pin.prototype.toggle = function(cb) {
-  this._port._simple_cmd([CMD.GPIO_TOGGLE, this.pin], cb);
+Tessel.Pin.prototype.toggle = function(callback) {
+  this._port._simple_cmd([CMD.GPIO_TOGGLE, this.pin], callback);
   return this;
 };
 
-Tessel.Pin.prototype.output = function output(initialValue, cb) {
-  if (initialValue) {
-    this.high(cb);
+Tessel.Pin.prototype.output = function(value, callback) {
+  if (value) {
+    this.high(callback);
   } else {
-    this.low(cb);
+    this.low(callback);
   }
   return this;
 };
 
-Tessel.Pin.prototype.write = function(value, cb) {
+Tessel.Pin.prototype.write = function(value, callback) {
   // same as .output
-  return this.output(value, cb);
+  return this.output(value, callback);
 };
 
 Tessel.Pin.prototype.rawDirection = function() {
-  throw new Error('Pin.rawDirection is deprecated. Use Pin.input or .output instead.');
+  throw new Error('pin.rawDirection is not supported on Tessel 2. Use .input() or .output()');
 };
 
-Tessel.Pin.prototype._readPin = function(cmd, cb) {
+Tessel.Pin.prototype._readPin = function(cmd, callback) {
   this._port.cork();
   this._port.sock.write(new Buffer([cmd, this.pin]));
   this._port.enqueue({
     size: 0,
-    callback: function(err, data) {
-      cb(err, data === REPLY.HIGH ? 1 : 0);
-    },
+    callback: (error, data) => callback(error, data === REPLY.HIGH ? 1 : 0),
   });
   this._port.uncork();
 };
 
-Tessel.Pin.prototype.rawRead = function rawRead(cb) {
-  if (typeof cb !== 'function') {
-    console.warn('pin.rawRead is async, pass in a callback to get the value');
+Tessel.Pin.prototype.rawRead = function(callback) {
+  if (typeof callback !== 'function') {
+    throw new Error('pin.rawRead is async, pass in a callback to get the value');
   }
-  this._readPin(CMD.GPIO_RAW_READ, cb);
+  this._readPin(CMD.GPIO_RAW_READ, callback);
   return this;
 };
 
-Tessel.Pin.prototype.input = function input(cb) {
-  this._port._simple_cmd([CMD.GPIO_INPUT, this.pin], cb);
+Tessel.Pin.prototype.input = function(callback) {
+  this._port._simple_cmd([CMD.GPIO_INPUT, this.pin], callback);
   return this;
 };
 
-Tessel.Pin.prototype.read = function(cb) {
-  if (typeof cb !== 'function') {
-    console.warn('pin.read is async, pass in a callback to get the value');
+Tessel.Pin.prototype.read = function(callback) {
+  if (typeof callback !== 'function') {
+    throw new Error('pin.read is async, pass in a callback to get the value');
   }
-  this._readPin(CMD.GPIO_IN, cb);
+  this._readPin(CMD.GPIO_IN, callback);
   return this;
 };
 
-Tessel.Pin.prototype.pull = function(pullType, cb) {
+Tessel.Pin.prototype.pull = function(pullType, callback) {
 
   // Ensure this pin supports being pulled
   if (!this.pullSupported) {
@@ -795,7 +811,7 @@ Tessel.Pin.prototype.pull = function(pullType, cb) {
   }
 
   // Send the command to the coprocessor
-  this._port._simple_cmd([CMD.GPIO_PULL, (this.pin | (mode << 4))], cb);
+  this._port._simple_cmd([CMD.GPIO_PULL, (this.pin | (mode << 4))], callback);
 };
 
 Tessel.Pin.prototype.readPulse = function( /* type, timeout, callback */ ) {
@@ -805,12 +821,12 @@ Tessel.Pin.prototype.readPulse = function( /* type, timeout, callback */ ) {
 var ANALOG_RESOLUTION = 4096;
 Tessel.Pin.prototype.resolution = ANALOG_RESOLUTION;
 
-Tessel.Pin.prototype.analogRead = function(cb) {
+Tessel.Pin.prototype.analogRead = function(callback) {
   if (!this.analogSupported) {
     throw new RangeError('pin.analogRead is not supported on this pin. Analog read is supported on port A pins 4 and 7 and on all pins on port B');
   }
 
-  if (typeof cb !== 'function') {
+  if (typeof callback !== 'function') {
     throw new Error('analogPin.read is async, pass in a callback to get the value');
   }
 
@@ -818,7 +834,7 @@ Tessel.Pin.prototype.analogRead = function(cb) {
   this._port.enqueue({
     size: 2,
     callback: function(err, data) {
-      cb(err, (data[0] + (data[1] << 8)) / ANALOG_RESOLUTION);
+      callback(err, (data[0] + (data[1] << 8)) / ANALOG_RESOLUTION);
     },
   });
 
@@ -841,13 +857,13 @@ Tessel.Pin.prototype.analogWrite = function(val) {
 };
 
 // Duty cycle should be a value between 0 and 1
-Tessel.Pin.prototype.pwmDutyCycle = function(dutyCycle, cb) {
+Tessel.Pin.prototype.pwmDutyCycle = function(dutyCycle, callback) {
   // throw an error if this pin doesn't support PWM
   if (!this.pwmSupported) {
     throw new RangeError('PWM can only be used on TX (pin 5) and RX (pin 6) of either module port.');
   }
 
-  if (typeof dutyCycle !== 'number' || dutyCycle > 1.0 || dutyCycle < 0) {
+  if (typeof dutyCycle !== 'number' || dutyCycle < 0 || dutyCycle > 1) {
     throw new RangeError('PWM duty cycle must be a number between 0 and 1');
   }
 
@@ -862,7 +878,7 @@ Tessel.Pin.prototype.pwmDutyCycle = function(dutyCycle, cb) {
   var packet = new Buffer([CMD.PWM_DUTY_CYCLE, this.pin, dutyCycleTicks >> 8, dutyCycleTicks & 0xff]);
 
   // Write it to the socket
-  this._port.sock.write(packet, cb);
+  this._port.sock.write(packet, callback);
 
   return this;
 };
@@ -876,10 +892,10 @@ Tessel.I2C = function(params) {
 
   Object.defineProperties(this, {
     frequency: {
-      get: () => {
+      get() {
         return frequency;
       },
-      set: (value) => {
+      set(value) {
         // Restrict to between 100kHz and 400kHz.
         // Can actually go up to 4mhz without clk modification
         if (value !== 1e5 && value !== 4e5) {
@@ -891,7 +907,7 @@ Tessel.I2C = function(params) {
       }
     },
     baudrate: {
-      get: () => {
+      get() {
         return Tessel.I2C.computeBaud(frequency);
       }
     }
@@ -903,7 +919,7 @@ Tessel.I2C = function(params) {
   this.addr = this.address = params.address;
 
   // This is setting the accessor defined above
-  this.frequency = params.frequency ? params.frequency : 100000; // 100khz
+  this.frequency = params.frequency || 100000; // 100khz
 
   // Send the ENABLE_I2C command when the first I2C device is instantiated
   if (!this._port.I2C.enabled) {
@@ -939,6 +955,7 @@ Tessel.I2C.prototype.read = function(length, callback) {
 
 Tessel.I2C.prototype.transfer = function(txbuf, rxlen, callback) {
   this._port.cork();
+  /* istanbul ignore else */
   if (txbuf.length > 0) {
     this._port._simple_cmd([CMD.START, this.address << 1]);
     this._port._tx(txbuf);
@@ -955,7 +972,6 @@ Tessel.SPI = function(params, port) {
   params = params || {};
   // default to pin 5 of the module port as cs
   this.chipSelect = params.chipSelect || this._port.digital[0];
-
   this.chipSelectActive = params.chipSelectActive === 'high' || params.chipSelectActive === 1 ? 1 : 0;
 
   if (this.chipSelectActive) {
@@ -972,7 +988,7 @@ Tessel.SPI = function(params, port) {
    *  with a max clock divisor of 255, slowest clock is 368Hz unless we switch from 48MHz xtal to 32KHz xtal
    */
   // default is 2MHz
-  this.clockSpeed = params.clockSpeed ? params.clockSpeed : 2e6;
+  this.clockSpeed = params.clockSpeed || 2e6;
 
   // if speed is slower than 93750 then we need a clock divisor
   if (this.clockSpeed < 368 || this.clockSpeed > 24e6) {
@@ -981,12 +997,16 @@ Tessel.SPI = function(params, port) {
 
   this._clockReg = Math.floor(48e6 / (2 * this.clockSpeed) - 1);
 
-  // find the smallest clock divider such that clockReg is <=255
+  // Find the smallest clock divider such that clockReg is <=255
   if (this._clockReg > 255) {
-    // find the clock divider, make sure its at least 1
-    this._clockDiv = Math.floor(48e6 / (this.clockSpeed * (2 * 255 + 2))) || 1;
+    // Find the clock divider, make sure its at least 1
+    this._clockDiv = Math.floor(48e6 / (this.clockSpeed * (2 * 255 + 2)));
 
     // if the speed is still too low, set the clock divider to max and set baud accordingly
+    // This condition will only be met when the clockSpeed parameter
+    // is <= 366Hz, which is not possible given the Range condition
+    // above: (368Hz-24MHz)
+    /* istanbul ignore if*/
     if (this._clockDiv > 255) {
       this._clockReg = Math.floor(this._clockReg / 255) || 1;
       this._clockDiv = 255;
@@ -1024,10 +1044,10 @@ Tessel.SPI.prototype.disable = function() {
   this._port._spi = undefined;
 };
 
-Tessel.SPI.prototype.receive = function(data_len, callback) {
+Tessel.SPI.prototype.receive = function(length, callback) {
   this._port.cork();
   this.chipSelect.low();
-  this._port._rx(data_len, callback);
+  this._port._rx(length, callback);
   this.chipSelect.high();
   this._port.uncork();
 };
@@ -1040,7 +1060,7 @@ Tessel.SPI.prototype.transfer = function(data, callback) {
   this._port.uncork();
 };
 
-Tessel.UART = function(port, options) {
+Tessel.UART = function(options, port) {
   Duplex.call(this, {});
 
   var baudrate = 9600;
@@ -1075,12 +1095,15 @@ Tessel.UART = function(port, options) {
 
 util.inherits(Tessel.UART, Duplex);
 
-Tessel.UART.prototype._write = function(chunk, encoding, cb) {
-  // throw an error if not enabled
+Tessel.UART.prototype._write = function(chunk, encoding, callback) {
+  // It appears that UART _write has always ignored the encoding argument.
+  // This function is unused by this library code and appears only for
+  // compatibility with T1 module code.
+
   if (!this._port._uart) {
     throw new Error('UART is not enabled on this port');
   }
-  this._port._tx(chunk, cb);
+  this._port._tx(chunk, callback);
 };
 
 Tessel.UART.prototype._read = function() {};
@@ -1144,19 +1167,19 @@ var REPLY = {
 //   CPHA: 2
 // };
 //
-var prefix = '/sys/devices/leds/leds/tessel:';
-var suffix = '/brightness';
+const prefix = '/sys/devices/leds/leds/tessel:';
+const suffix = '/brightness';
 
 Tessel.LEDs = function(defs) {
-  var descriptors = {};
-  var leds = [];
+  const descriptors = {};
+  const leds = [];
 
-  defs.forEach(function(definition, index) {
-    var name = definition.color + ':' + definition.type;
-    var path = prefix + name + suffix;
-    var color = definition.color;
+  defs.forEach((definition, index) => {
+    const name = `${definition.color}:${definition.type}`;
+    const path = prefix + name + suffix;
+    const color = definition.color;
     descriptors[index] = {
-      get: function() {
+      get() {
         // On first access of any built-
         // in LED...
         if (leds[index] === undefined) {
@@ -1166,9 +1189,9 @@ Tessel.LEDs = function(defs) {
           leds[index].low();
         }
         return leds[index];
-      }
+      },
     };
-  }, this);
+  });
 
   descriptors.length = {
     value: defs.length
@@ -1177,25 +1200,24 @@ Tessel.LEDs = function(defs) {
   Object.defineProperties(this, descriptors);
 };
 
-['on', 'off', 'toggle'].forEach(function(operation) {
+for (const operation of ['on', 'off', 'toggle']) {
   Tessel.LEDs.prototype[operation] = function() {
-    for (var i = 0; i < this.length; i++) {
+    for (let i = 0; i < this.length; i++) {
       this[i][operation]();
     }
-
     return this;
   };
-});
+}
 
 Tessel.LED = function(color, path) {
   var state = {
-    color: color,
-    path: path,
+    color,
+    path,
     value: 0,
   };
 
   // Define data properties that enforce
-  // write privileges.
+  // restricted write privileges.
   Object.defineProperties(this, {
     color: {
       value: state.color
@@ -1204,16 +1226,16 @@ Tessel.LED = function(color, path) {
       value: state.path
     },
     value: {
-      get: function() {
+      get() {
         return state.value;
       },
-      set: function(value) {
+      set(value) {
         // Treat any truthiness as "high"
         state.value = value ? 1 : 0;
       }
     },
     isOn: {
-      get: function() {
+      get() {
         return state.value === 1;
       }
     }
@@ -1243,9 +1265,7 @@ Tessel.LED.prototype.toggle = function(callback) {
 };
 
 Tessel.LED.prototype.write = function(value, callback) {
-  if (typeof callback !== 'function') {
-    callback = reusableNoOp;
-  }
+  callback = enforceCallback(callback);
 
   // Setting this.value will invoke the setter
   // defined inside the constructor body. That
@@ -1261,7 +1281,7 @@ Tessel.LED.prototype.output = Tessel.LED.prototype.write;
 
 Tessel.LED.prototype.read = function(callback) {
   var value = this.value;
-  setImmediate(function() {
+  setImmediate(() => {
     callback(null, value);
   });
 };
@@ -1284,9 +1304,7 @@ Tessel.Wifi = function() {
 util.inherits(Tessel.Wifi, EventEmitter);
 
 Tessel.Wifi.prototype.enable = function(callback) {
-  if (typeof callback !== 'function') {
-    callback = reusableNoOp;
-  }
+  callback = enforceCallback(callback);
 
   turnOnWifi()
     .then(commitWireless)
@@ -1305,9 +1323,7 @@ Tessel.Wifi.prototype.enable = function(callback) {
 };
 
 Tessel.Wifi.prototype.disable = function(callback) {
-  if (typeof callback !== 'function') {
-    callback = reusableNoOp;
-  }
+  callback = enforceCallback(callback);
 
   turnOffWifi()
     .then(commitWireless)
@@ -1323,9 +1339,7 @@ Tessel.Wifi.prototype.disable = function(callback) {
 };
 
 Tessel.Wifi.prototype.reset = function(callback) {
-  if (typeof callback !== 'function') {
-    callback = reusableNoOp;
-  }
+  callback = enforceCallback(callback);
 
   this.emit('disconnect', 'Resetting connection');
   restartWifi()
@@ -1342,9 +1356,7 @@ Tessel.Wifi.prototype.reset = function(callback) {
 };
 
 Tessel.Wifi.prototype.connection = function(callback) {
-  if (typeof callback !== 'function') {
-    callback = reusableNoOp;
-  }
+  callback = enforceCallback(callback);
 
   isEnabled()
     .then((enabled) => {
@@ -1376,9 +1388,7 @@ Tessel.Wifi.prototype.connect = function(settings, callback) {
     throw new Error('Wifi settings must be an object with at least a "ssid" property.');
   }
 
-  if (typeof callback !== 'function') {
-    callback = reusableNoOp;
-  }
+  callback = enforceCallback(callback);
 
   if (settings.password && !settings.security) {
     settings.security = 'psk2';
@@ -1686,9 +1696,7 @@ Tessel.AP = function() {
 util.inherits(Tessel.AP, EventEmitter);
 
 Tessel.AP.prototype.enable = function(callback) {
-  if (typeof callback !== 'function') {
-    callback = reusableNoOp;
-  }
+  callback = enforceCallback(callback);
 
   turnOnAP()
     .then(commitWireless)
@@ -1705,9 +1713,7 @@ Tessel.AP.prototype.enable = function(callback) {
 };
 
 Tessel.AP.prototype.disable = function(callback) {
-  if (typeof callback !== 'function') {
-    callback = reusableNoOp;
-  }
+  callback = enforceCallback(callback);
 
   turnOffAP()
     .then(commitWireless)
@@ -1724,9 +1730,7 @@ Tessel.AP.prototype.disable = function(callback) {
 };
 
 Tessel.AP.prototype.reset = function(callback) {
-  if (typeof callback !== 'function') {
-    callback = reusableNoOp;
-  }
+  callback = enforceCallback(callback);
 
   this.emit('reset', 'Resetting connection');
   this.emit('off');
@@ -1748,9 +1752,7 @@ Tessel.AP.prototype.create = function(settings, callback) {
     throw new Error('Access point settings must be an object with at least a "ssid" property.');
   }
 
-  if (typeof callback !== 'function') {
-    callback = reusableNoOp;
-  }
+  callback = enforceCallback(callback);
 
   if (settings.password && !settings.security) {
     settings.security = 'psk2';
@@ -1835,6 +1837,7 @@ function turnOffAP() {
   });
 }
 
+/* istanbul ignore else*/
 if (process.env.IS_TEST_MODE) {
   Tessel.CMD = CMD;
   Tessel.REPLY = REPLY;
@@ -1847,6 +1850,7 @@ if (process.env.IS_TEST_MODE) {
 
 
 process.on('exit', function() {
+  /* istanbul ignore if*/
   if (Tessel.instance) {
     Tessel.instance.close();
   }
