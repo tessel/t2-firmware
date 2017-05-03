@@ -1570,6 +1570,7 @@ function getWifiInfo() {
 
           // attempt to parse out the security configuration from the returned network object
           if (network.encryption && network.encryption.enabled) {
+            /* istanbul ignore else*/
             if (network.encryption.wep) {
               network.security = 'wep';
             } else if (network.encryption.authentication && network.encryption.wpa) {

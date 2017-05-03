@@ -4805,7 +4805,8 @@ exports['Tessel.AP'] = {
     test.expect(4);
 
     var settings = {
-      ssid: 'TestNetwork'
+      ssid: 'TestNetwork',
+      security: 'none'
     };
     var ip = '192.168.1.101';
 
@@ -4875,6 +4876,43 @@ exports['Tessel.AP'] = {
     });
   },
 
+  createGetAccessPointIPThrowsError: function(test) {
+    test.expect(2);
+
+    var settings = {
+      ssid: 'TestNetwork'
+    };
+    var testError = 'This is a test';
+
+    this.exec.restore();
+    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+      if (cmd === 'uci get network.lan.ipaddr') {
+        callback(testError);
+      } else {
+        callback();
+      }
+    });
+
+    this.tessel.network.ap.on('create', () => {
+      test.fail('should not connect');
+      test.done();
+    });
+
+    this.tessel.network.ap.on('error', (error) => {
+      test.equal(error, testError, 'error event fires correctly');
+    });
+
+    this.tessel.network.ap.create(settings, (error) => {
+      if (error) {
+        test.equal(error, testError, 'error should be passed into callback');
+        test.done();
+      } else {
+        test.fail('should not connect');
+        test.done();
+      }
+    });
+  },
+
   reset: function(test) {
     test.expect(5);
 
@@ -4906,6 +4944,42 @@ exports['Tessel.AP'] = {
     });
   },
 
+  resetErrorCallback: function(test) {
+    test.expect(5);
+
+    const testError = new Error('Testing error');
+    this.exec.restore();
+    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+      callback(testError);
+    });
+
+    this.tessel.network.ap.on('reset', () => {
+      test.ok(true, 'reset event is fired');
+    });
+
+    this.tessel.network.ap.on('off', () => {
+      test.ok(true, 'off event is fired');
+    });
+
+    this.tessel.network.ap.on('disable', () => {
+      test.ok(true, 'disable event is fired');
+    });
+
+    this.tessel.network.ap.on('error', (error) => {
+      test.ok(error);
+    });
+
+    this.tessel.network.ap.reset((error) => {
+      if (error) {
+        test.ok(error);
+        test.done();
+      } else {
+        test.fail(error);
+        test.done();
+      }
+    });
+  },
+
   disable: function(test) {
     test.expect(2);
 
@@ -4927,6 +5001,30 @@ exports['Tessel.AP'] = {
     });
   },
 
+  disableErrorCallback: function(test) {
+    test.expect(2);
+
+    const testError = new Error('Testing error');
+    this.exec.restore();
+    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+      callback(testError);
+    });
+
+    this.tessel.network.ap.on('error', (error) => {
+      test.ok(error);
+    });
+
+    this.tessel.network.ap.disable((error) => {
+      if (error) {
+        test.ok(error);
+        test.done();
+      } else {
+        test.fail(error);
+        test.done();
+      }
+    });
+  },
+
   enable: function(test) {
     test.expect(2);
 
@@ -4943,6 +5041,30 @@ exports['Tessel.AP'] = {
         test.fail(error);
         test.done();
       } else {
+        test.done();
+      }
+    });
+  },
+
+  enableErrorCallback: function(test) {
+    test.expect(2);
+
+    const testError = new Error('Testing error');
+    this.exec.restore();
+    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+      callback(testError);
+    });
+
+    this.tessel.network.ap.on('error', (error) => {
+      test.ok(error);
+    });
+
+    this.tessel.network.ap.enable((error) => {
+      if (error) {
+        test.ok(error);
+        test.done();
+      } else {
+        test.fail(error);
         test.done();
       }
     });
