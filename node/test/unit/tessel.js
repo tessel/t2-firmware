@@ -3401,6 +3401,65 @@ exports['Tessel.Wifi'] = {
     });
   },
 
+  connectWithSecurityNone: function(test) {
+    test.expect(4);
+
+    var settings = {
+      ssid: 'TestNetwork',
+      security: 'none'
+    };
+    var ipResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
+        inet addr:10.0.1.11  Bcast:192.168.1.101  Mask:255.255.255.0
+        inet6 addr: fe80::a3:aaff:fea9:fb02/64 Scope:Link
+        UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+        RX packets:2786 errors:0 dropped:0 overruns:0 frame:0
+        TX packets:493 errors:0 dropped:0 overruns:0 carrier:0
+        collisions:0 txqueuelen:1000
+        RX bytes:833626 (814.0 KiB)  TX bytes:97959 (95.6 KiB)`;
+    var ip = '10.0.1.11';
+    var network = {
+      ssid: 'TestNetwork',
+      strength: '30/80',
+      encryption: {
+        enabled: false
+      }
+    };
+
+    this.exec.restore();
+    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+      if (cmd === 'ifconfig wlan0') {
+        callback(null, ipResult);
+      } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
+        callback(null, JSON.stringify(network));
+      } else {
+        callback();
+      }
+    });
+
+    var results = Object.assign({
+      ip: ip,
+      security: 'psk2'
+    }, settings, network);
+    delete results.password;
+
+    this.tessel.network.wifi.on('connect', (networkSettings) => {
+      test.deepEqual(networkSettings, results, 'correct settings');
+    });
+
+    this.tessel.network.wifi.connect(settings, (error, networkSettings) => {
+      if (error) {
+        test.fail(error);
+        test.done();
+      }
+
+      test.deepEqual(networkSettings, results, 'correct settings');
+      test.deepEqual(this.tessel.network.wifi.settings, results, 'correct settings property');
+      test.equal(this.exec.callCount, 6, 'exec called correctly');
+
+      test.done();
+    });
+  },
+
   connectWithoutPassword: function(test) {
     test.expect(4);
 
@@ -3614,6 +3673,30 @@ exports['Tessel.Wifi'] = {
     });
   },
 
+  connectionEnabledError: function(test) {
+    test.expect(2);
+
+    const testError = new Error('Testing errors');
+    this.exec.restore();
+    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+      callback(testError);
+    });
+
+    this.tessel.network.wifi.on('error', (error) => {
+      test.equal(error.message, testError.message);
+    });
+
+    this.tessel.network.wifi.connection((error) => {
+      if (error) {
+        test.equal(error.message, testError.message);
+        test.done();
+      } else {
+        test.fail('Wifi.connection: Error should be thrown.');
+        test.done();
+      }
+    });
+  },
+
   reset: function(test) {
     test.expect(2);
 
@@ -3661,6 +3744,34 @@ exports['Tessel.Wifi'] = {
     });
   },
 
+  resetErrorCallback: function(test) {
+    test.expect(3);
+
+    const testError = new Error('Testing errors');
+    this.exec.restore();
+    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+      callback(testError);
+    });
+
+    this.tessel.network.wifi.on('disconnect', () => {
+      test.ok(true, 'disconnect event is fired');
+    });
+
+    this.tessel.network.wifi.on('error', (error) => {
+      test.equal(error.message, testError.message);
+    });
+
+    this.tessel.network.wifi.reset((error) => {
+      if (error) {
+        test.equal(error.message, testError.message);
+        test.done();
+      } else {
+        test.fail('Wifi.reset: Error should be thrown.');
+        test.done();
+      }
+    });
+  },
+
   disable: function(test) {
     test.expect(1);
 
@@ -3673,6 +3784,58 @@ exports['Tessel.Wifi'] = {
         test.fail(error);
         test.done();
       } else {
+        test.done();
+      }
+    });
+  },
+
+  disableErrorCallback: function(test) {
+    test.expect(2);
+
+    const testError = new Error('Testing errors');
+    this.exec.restore();
+    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+      callback(testError);
+    });
+
+    this.tessel.network.wifi.on('error', (error) => {
+      test.equal(error.message, testError.message);
+    });
+
+    this.tessel.network.wifi.disable((error) => {
+      if (error) {
+        test.equal(error.message, testError.message);
+        test.done();
+      } else {
+        test.fail('Wifi.disable: Error should be thrown.');
+        test.done();
+      }
+    });
+  },
+
+  disableCommitWirelessError: function(test) {
+    test.expect(2);
+
+    const testError = new Error('Testing errors');
+    this.exec.restore();
+    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+      if (cmd === 'uci commit wireless') {
+        callback(testError);
+      } else {
+        callback();
+      }
+    });
+
+    this.tessel.network.wifi.on('error', (error) => {
+      test.equal(error.message, testError.message);
+    });
+
+    this.tessel.network.wifi.disable((error) => {
+      if (error) {
+        test.equal(error.message, testError.message);
+        test.done();
+      } else {
+        test.fail('Wifi.disable: Error should be thrown.');
         test.done();
       }
     });
@@ -3722,6 +3885,252 @@ exports['Tessel.Wifi'] = {
     });
   },
 
+  enableErrorCallback: function(test) {
+    test.expect(2);
+
+    const testError = new Error('Testing errors');
+    this.exec.restore();
+    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+      callback(testError);
+    });
+
+    this.tessel.network.wifi.on('error', (error) => {
+      test.equal(error.message, testError.message);
+    });
+
+    this.tessel.network.wifi.enable((error) => {
+      if (error) {
+        test.equal(error.message, testError.message);
+        test.done();
+      } else {
+        test.fail('Error should be thrown.');
+        test.done();
+      }
+    });
+  },
+
+  enableRejectGetWifiInfo: function(test) {
+    test.expect(2);
+
+    var network = {
+      ssid: 'TestNetwork',
+      strength: '30/80',
+      encryption: {
+        enabled: false
+      }
+    };
+
+    this.exec.restore();
+    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+      if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
+        callback(null, network);
+      } else {
+        callback();
+      }
+    });
+
+    this.tessel.network.wifi.on('error', (error) => {
+      test.ok(error);
+    });
+
+    this.tessel.network.wifi.enable((error) => {
+      if (error) {
+        test.ok(error);
+        test.done();
+      } else {
+        test.fail(error);
+        test.done();
+      }
+    });
+  },
+
+  enableRecursiveGetWifiInfo: function(test) {
+    test.expect(2);
+
+    var recursiveCheckCount = 0;
+    var ipResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
+        inet addr:10.0.1.11  Bcast:192.168.1.101  Mask:255.255.255.0
+        inet6 addr: fe80::a3:aaff:fea9:fb02/64 Scope:Link
+        UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+        RX packets:2786 errors:0 dropped:0 overruns:0 frame:0
+        TX packets:493 errors:0 dropped:0 overruns:0 carrier:0
+        collisions:0 txqueuelen:1000
+        RX bytes:833626 (814.0 KiB)  TX bytes:97959 (95.6 KiB)`;
+    var network = {
+      ssid: 'TestNetwork',
+      strength: '30/80',
+      encryption: {
+        enabled: false
+      }
+    };
+
+    this.exec.restore();
+    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+      if (cmd === 'ifconfig wlan0') {
+        callback(null, ipResult);
+      } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
+        switch (recursiveCheckCount) {
+          case 0:
+            recursiveCheckCount++;
+            callback(new Error('Recursive check'));
+            break;
+          case 1:
+            recursiveCheckCount++;
+            callback(null, JSON.stringify({}));
+            break;
+          default:
+            callback(null, JSON.stringify(network));
+            break;
+        }
+      } else {
+        callback();
+      }
+    });
+
+    this.tessel.network.wifi.on('connect', () => {
+      test.ok(true, 'connect event is fired');
+    });
+
+    this.tessel.network.wifi.enable((error) => {
+      if (error) {
+        test.fail(error);
+        test.done();
+      } else {
+        test.equal(recursiveCheckCount, 2);
+        test.done();
+      }
+    });
+  },
+
+  enableRecursiveGetWifiInfoError: function(test) {
+    test.expect(3);
+
+    var recursiveCheckCount = 0;
+
+    this.exec.restore();
+    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+      if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
+        recursiveCheckCount++;
+        callback(null, JSON.stringify({}));
+      } else {
+        callback();
+      }
+    });
+
+    this.tessel.network.wifi.on('error', (error) => {
+      test.ok(error);
+    });
+
+    this.tessel.network.wifi.enable((error) => {
+      if (error) {
+        test.equal(recursiveCheckCount, 7);
+        test.ok(error);
+        test.done();
+      } else {
+        test.fail(error);
+        test.done();
+      }
+    });
+  },
+
+  enableRecursiveIP: function(test) {
+    test.expect(2);
+
+    var recursiveCheckCount = 0;
+    var emptyResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
+        inet addr: Bcast:192.168.1.101  Mask:255.255.255.0`;
+    var ipResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
+        inet addr:10.0.1.11  Bcast:192.168.1.101  Mask:255.255.255.0
+        inet6 addr: fe80::a3:aaff:fea9:fb02/64 Scope:Link
+        UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+        RX packets:2786 errors:0 dropped:0 overruns:0 frame:0
+        TX packets:493 errors:0 dropped:0 overruns:0 carrier:0
+        collisions:0 txqueuelen:1000
+        RX bytes:833626 (814.0 KiB)  TX bytes:97959 (95.6 KiB)`;
+    var network = {
+      ssid: 'TestNetwork',
+      strength: '30/80',
+      encryption: {
+        enabled: false
+      }
+    };
+
+    this.exec.restore();
+    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+      if (cmd === 'ifconfig wlan0') {
+        switch (recursiveCheckCount) {
+          case 0:
+            recursiveCheckCount++;
+            callback(null, '');
+            break;
+          case 1:
+            recursiveCheckCount++;
+            callback(null, emptyResult);
+            break;
+          default:
+            callback(null, ipResult);
+            break;
+        }
+      } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
+        callback(null, JSON.stringify(network));
+      } else {
+        callback();
+      }
+    });
+
+    this.tessel.network.wifi.on('connect', () => {
+      test.ok(true, 'connect event is fired');
+    });
+
+    this.tessel.network.wifi.enable((error) => {
+      if (error) {
+        test.fail(error);
+        test.done();
+      } else {
+        test.equal(recursiveCheckCount, 2);
+        test.done();
+      }
+    });
+  },
+
+  enableRejectRecursiveIP: function(test) {
+    test.expect(2);
+
+    var network = {
+      ssid: 'TestNetwork',
+      strength: '30/80',
+      encryption: {
+        enabled: false
+      }
+    };
+    var testError = new Error('Testing the recursiveIP function.');
+
+    this.exec.restore();
+    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+      if (cmd === 'ifconfig wlan0') {
+        callback(testError);
+      } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
+        callback(null, JSON.stringify(network));
+      } else {
+        callback();
+      }
+    });
+
+    this.tessel.network.wifi.on('error', (error) => {
+      test.ok(error);
+    });
+
+    this.tessel.network.wifi.enable((error) => {
+      if (error) {
+        test.ok(error);
+        test.done();
+      } else {
+        test.fail(error);
+        test.done();
+      }
+    });
+  },
+
   findAvailableNetworks: function(test) {
     test.expect(3);
 
@@ -3738,12 +4147,61 @@ exports['Tessel.Wifi'] = {
               Signal: -51 dBm  Quality: 59/70
               Encryption: WPA2 PSK (CCMP)
 
+    Cell 03 - Address: 6C:70:9F:D9:7A:5C
+              ESSID: "Another SSID"
+              Mode: Master  Channel: 2
+              Signal: -49 dBm  Quality: 55/70
+              Encryption: WEP (CCMP)
+
+`;
+    var firstCheck = true;
+
+    this.exec.restore();
+    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+      if (cmd === 'iwinfo wlan0 scan') {
+        if (firstCheck) {
+          firstCheck = false;
+          callback(new Error('recursive error'));
+        } else {
+          callback(null, networks);
+        }
+      } else {
+        callback();
+      }
+    });
+
+    this.tessel.network.wifi.findAvailableNetworks((error, found) => {
+      test.equal(found.length, 3);
+      test.equal(found[0].ssid, 'Fried Chicken Sandwich');
+      test.equal(found[0].security, 'psk2');
+      test.done();
+    });
+  },
+
+  findAvailableNetworksNotEnabled: function(test) {
+    test.expect(3);
+
+    var networks =
+      `Cell 01 - Address: 14:35:8B:11:30:F0
+              ESSID: "technicallyHome"
+              Mode: Master  Channel: 11
+              Signal: -55 dBm  Quality: 59/70
+              Encryption: WPA PSK (TKIP, CCMP)
+
+    Cell 02 - Address: 6C:70:9F:D9:7A:5C
+              ESSID: "Fried Chicken Sandwich"
+              Mode: Master  Channel: 2
+              Signal: -51 dBm  Quality: 55/70
+              Encryption: WPA2 PSK (CCMP)
+
 `;
 
     this.exec.restore();
     this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
       if (cmd === 'iwinfo wlan0 scan') {
         callback(null, networks);
+      } else if (cmd === `uci get wireless.@wifi-iface[0].disabled`) {
+        callback(null, 1);
       } else {
         callback();
       }
@@ -3751,9 +4209,33 @@ exports['Tessel.Wifi'] = {
 
     this.tessel.network.wifi.findAvailableNetworks((error, found) => {
       test.equal(found.length, 2);
-      test.equal(found[0].ssid, 'Fried Chicken Sandwich');
-      test.equal(found[0].security, 'psk2');
+      test.equal(found[0].ssid, 'technicallyHome');
+      test.equal(found[0].security, 'psk');
       test.done();
+    });
+  },
+
+  findAvailableNetworksErrorCallback: function(test) {
+    test.expect(2);
+
+    const testError = new Error('Testing errors');
+    this.exec.restore();
+    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+      callback(testError);
+    });
+
+    this.tessel.network.wifi.on('error', (error) => {
+      test.equal(error.message, testError.message);
+    });
+
+    this.tessel.network.wifi.findAvailableNetworks((error) => {
+      if (error) {
+        test.equal(error.message, testError.message);
+        test.done();
+      } else {
+        test.fail('Error should be thrown.');
+        test.done();
+      }
     });
   },
 

@@ -1368,10 +1368,6 @@ Tessel.Wifi.prototype.connection = function(callback) {
             this.settings = network;
 
             callback(null, network);
-          })
-          .catch((error) => {
-            this.emit('error', error);
-            callback(error);
           });
       } else {
         callback(null, null);
@@ -1419,9 +1415,7 @@ Tessel.Wifi.prototype.connect = function(settings, callback) {
 };
 
 Tessel.Wifi.prototype.findAvailableNetworks = function(callback) {
-  if (typeof callback !== 'function') {
-    throw new Error('Must include a callback function');
-  }
+  callback = enforceCallback(callback);
 
   isEnabled()
     .then((enabled) => {
@@ -1566,6 +1560,7 @@ function getWifiInfo() {
           } else {
             // Successful matches will have a result that looks like:
             // ["inet addr:0.0.0.0", "inet addr", "0.0.0.0"]
+            /* istanbul ignore else*/
             if (inetMatches.length === 3) {
               network.ip = inetMatches[2];
             } else {
@@ -1602,6 +1597,7 @@ function scanWifi() {
         cp.exec('iwinfo wlan0 scan', (error, results) => {
           if (error) {
             recursiveScan();
+            return;
           }
 
           var ssidRegex = /ESSID: "(.*)"/;
@@ -1620,6 +1616,7 @@ function scanWifi() {
               };
 
               // normalize security info to match configuration settings, i.e. none, wep, psk, psk2. "none" is already set correctly
+              /* istanbul ignore else*/
               if (networkInfo.security.includes('WEP')) {
                 networkInfo.security = 'wep';
               } else if (networkInfo.security.includes('WPA2')) {
