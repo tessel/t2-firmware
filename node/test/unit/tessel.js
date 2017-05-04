@@ -766,6 +766,32 @@ exports['Tessel.Port'] = {
 
     test.done();
   },
+
+  busProtocolClassWrappersAreConstructors: function(test) {
+    test.expect(6);
+
+    sandbox.stub(Tessel, 'I2C');
+    sandbox.stub(Tessel, 'SPI');
+    sandbox.stub(Tessel, 'UART');
+
+    var port = new Tessel.Port('B', '/foo/bar/baz', this.tessel);
+
+    test.doesNotThrow(() => {
+      new port.I2C(1);
+    });
+    test.doesNotThrow(() => {
+      new port.SPI({});
+    });
+    test.doesNotThrow(() => {
+      new port.UART({});
+    });
+
+    test.equal(Tessel.I2C.callCount, 1);
+    test.equal(Tessel.SPI.callCount, 1);
+    test.equal(Tessel.UART.callCount, 1);
+
+    test.done();
+  },
 };
 
 exports['Tessel.Port.prototype'] = {
