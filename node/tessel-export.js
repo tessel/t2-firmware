@@ -42,10 +42,10 @@ const SAMD21_TICKS_PER_SECOND = 48000000;
 const SAMD21_RESET_GPIO = 39;
 
 // Per pin capabilities
-const ADC_CAPABLE_PINS = [4, 7];
-const PULL_CAPABLE_PINS = [2, 3, 4, 5, 6, 7];
-const INT_CAPABLE_PINS = [2, 5, 6, 7];
-const PWM_CAPABLE_PINS = [5, 6];
+const ADC_PINS = [4, 7];
+const INT_PINS = [2, 5, 6, 7];
+const PULL_PINS = [2, 3, 4, 5, 6, 7];
+const PWM_PINS = [5, 6];
 
 const INT_MODES = {
   rise: 1,
@@ -162,7 +162,7 @@ class Tessel {
 
     this.network = {
       wifi: new Tessel.Wifi(),
-      ap: new Tessel.AP()
+      ap: new Tessel.AP(),
     };
 
     // tessel v1 does not have this version number
@@ -266,14 +266,47 @@ class Tessel {
   }
 }
 
+const priv = new WeakMap();
+
 class Port extends EventEmitter {
   constructor(name, path, board) {
     super();
 
     const port = this;
+    let uart = null;
+    let spi = null
+
+    priv.set(this, {
+      get uart() {
+        return uart;
+      },
+      set uart(value) {
+        uart = value;
+      },
+      get spi() {
+        return spi;
+      },
+      set spi(value) {
+        spi = value;
+      },
+    });
+
+    Object.defineProperties(this, {
+      spi: {
+        get() {
+          return spi;
+        },
+      },
+      uart: {
+        get() {
+          return uart;
+        },
+      },
+    });
 
     this.name = name;
     this.board = board;
+
     // Connection to the SPI daemon
     this.sock = net.createConnection({
       path
@@ -340,9 +373,9 @@ class Port extends EventEmitter {
 
             // If a uart port was instantiated
             /* istanbul ignore else */
-            if (this._uart) {
+            if (uart) {
               // Push this data into the buffer
-              this._uart.push(rxData);
+              uart.push(rxData);
             }
             // Something went wrong and the packet is malformed
           } else {
@@ -446,11 +479,6 @@ class Port extends EventEmitter {
 
     this.pin = [];
     for (let i = 0; i < 8; i++) {
-      // const interruptSupported = INT_CAPABLE_PINS.indexOf(i) !== -1;
-      // const adcSupported = (name === B || ADC_CAPABLE_PINS.indexOf(i)) !== -1;
-      // const pullSupported = PULL_CAPABLE_PINS.indexOf(i) !== -1;
-      // const pwmSupported = PWM_CAPABLE_PINS.indexOf(i) !== -1;
-      // this.pin.push(new Tessel.Pin(i, this, interruptSupported, adcSupported, pullSupported, pwmSupported));
       this.pin.push(new Tessel.Pin(i, this));
     }
 
@@ -462,6 +490,8 @@ class Port extends EventEmitter {
 
     this.pwm = [this.pin[5], this.pin[6]];
 
+    // This are function expressions because
+    // they MUST be constructable (arrows disallow)
     this.I2C = function(address) {
       const options = {};
 
@@ -506,27 +536,31 @@ class Port extends EventEmitter {
 
     this.I2C.enabled = false;
 
+    // This are function expressions because
+    // they MUST be constructable (arrows disallow)
     this.SPI = function(options) {
-      if (port._spi) {
-        port._spi.disable();
+      if (spi) {
+        spi.disable();
       }
 
-      port._spi = new Tessel.SPI(options || {}, port);
+      spi = new Tessel.SPI(options || {}, port);
 
-      return port._spi;
+      return spi;
     };
 
+    // This are function expressions because
+    // they MUST be constructable (arrows disallow)
     this.UART = function(options) {
-      if (port._uart) {
-        port._uart.disable();
+      if (uart) {
+        uart.disable();
       }
 
-      port._uart = new Tessel.UART(options || {}, port);
+      uart = new Tessel.UART(options || {}, port);
       // Grab a reference to this socket so it doesn't close
       // if we're waiting for UART data
       port.ref();
 
-      return port._uart;
+      return uart;
     };
   }
 
@@ -661,14 +695,6 @@ Port.PATH = {
   B: '/var/run/tessel/port_b'
 };
 
-
-
-
-
-
-
-
-
 /*
  Takes in a desired frequency setting and outputs the
  necessary prescalar and duty cycle settings based on set period.
@@ -704,21 +730,35 @@ function determineDutyCycleAndPrescalar(frequency) {
 }
 
 class Pin extends EventEmitter {
-  constructor(pin, port, interruptSupported, analogSupported, pullSupported, pwmSupported) {
+  constructor(pin, port) {
     super();
 
     this.pin = pin;
     this.port = port;
-
-    console.log(port.name);
-
-
-    this.interruptSupported = interruptSupported || false;
-    this.analogSupported = analogSupported || false;
-    this.pullSupported = pullSupported || false;
-    this.pwmSupported = pwmSupported || false;
-    this.interruptMode = null;
     this.isPWM = false;
+    this.supports = {
+      // These can be updated to use .includes()
+      // once > Node 6 is supported.
+      INT: INT_PINS.indexOf(pin) !== -1,
+      ADC: ADC_PINS.indexOf(pin) !== -1 || port.name === B,
+      PWM: PWM_PINS.indexOf(pin) !== -1,
+      PULL: PULL_PINS.indexOf(pin) !== -1,
+    };
+
+    let interruptMode = null;
+
+    Object.defineProperties(this, {
+      interruptMode: {
+        configurable: true,
+        get() {
+          return interruptMode;
+        },
+        set(mode) {
+          interruptMode = (mode === 'rise' || mode === 'fall') ? 'change' : mode;
+          port.command([CMD.GPIO_INT, pin | (mode ? INT_MODES[mode] << 4 : 0)]);
+        }
+      }
+    })
   }
 
   get resolution() {
@@ -730,7 +770,7 @@ class Pin extends EventEmitter {
     super.removeListener(event, listener);
 
     if (event === this.interruptMode && this.listenerCount(event) === 0) {
-      this._setInterruptMode(null);
+      this.interruptMode = null;
     }
 
     return this;
@@ -739,7 +779,7 @@ class Pin extends EventEmitter {
   removeAllListeners(event) {
     /* istanbul ignore else */
     if (!event || event === this.interruptMode) {
-      this._setInterruptMode(null);
+      this.interruptMode = null;
     }
 
     super.removeAllListeners.apply(this, arguments);
@@ -750,7 +790,7 @@ class Pin extends EventEmitter {
   addListener(mode, callback) {
     // Check for valid pin event mode
     if (typeof INT_MODES[mode] !== 'undefined') {
-      if (!this.interruptSupported) {
+      if (!this.supports.INT) {
         throw new Error(`Interrupts are not supported on pin ${this.pin}. Pins 2, 5, 6, and 7 on either port support interrupts.`);
       }
 
@@ -769,20 +809,13 @@ class Pin extends EventEmitter {
 
       // Set the socket reference so the script doesn't exit
       this.port.ref();
-      this._setInterruptMode(mode);
+      this.interruptMode = mode;
 
       // Add the event listener
       super.on(mode, callback);
     } else {
       throw new Error(`Invalid pin event mode "${mode}". Valid modes are "change", "rise", "fall", "high" and "low".`);
     }
-  }
-
-  _setInterruptMode(mode) {
-    // rise and fall events will be emitted by change event
-    this.interruptMode = (mode === 'rise' || mode === 'fall') ? 'change' : mode;
-    const bits = mode ? INT_MODES[mode] << 4 : 0;
-    this.port.command([CMD.GPIO_INT, this.pin | bits]);
   }
 
   high(callback) {
@@ -852,7 +885,7 @@ class Pin extends EventEmitter {
   pull(pullType, callback) {
 
     // Ensure this pin supports being pulled
-    if (!this.pullSupported) {
+    if (!this.supports.PULL) {
       throw new Error('Internal pull resistors are not available on this pin. Please use pins 2-7.');
     }
 
@@ -877,7 +910,7 @@ class Pin extends EventEmitter {
   }
 
   analogRead(callback) {
-    if (!this.analogSupported) {
+    if (!this.supports.ADC) {
       throw new RangeError('pin.analogRead is not supported on this pin. Analog read is supported on port A pins 4 and 7 and on all pins on port B');
     }
 
@@ -914,7 +947,7 @@ class Pin extends EventEmitter {
   // Duty cycle should be a value between 0 and 1
   pwmDutyCycle(dutyCycle, callback) {
     // throw an error if this pin doesn't support PWM
-    if (!this.pwmSupported) {
+    if (!this.supports.PWM) {
       throw new RangeError('PWM can only be used on TX (pin 5) and RX (pin 6) of either module port.');
     }
 
@@ -937,13 +970,7 @@ class Pin extends EventEmitter {
 
     return this;
   }
-
-
-  static get ANALOG_RESOLUTION() {
-    return ANALOG_RESOLUTION;
-  }
 }
-
 
 Pin.prototype.rawWrite = util.deprecate(function(value) {
   if (value) {
@@ -1120,7 +1147,8 @@ class SPI {
     // Tell the coprocessor to disable this interface
     this.port.command([CMD.CMD_DISABLE_SPI]);
     // Unreference the previous SPI object
-    this.port._spi = undefined;
+
+    priv.get(this.port).spi = undefined;
   }
 
   receive(length, callback) {
@@ -1179,7 +1207,7 @@ class UART extends Duplex {
     // This function is unused by this library code and appears only for
     // compatibility with T1 module code.
 
-    if (!this.port._uart) {
+    if (!this.port.uart) {
       throw new Error('UART is not enabled on this port');
     }
     this.port.tx(chunk, callback);
@@ -1194,7 +1222,7 @@ class UART extends Duplex {
     // Specifically because it is asynchronous
     this.port.unref();
     // Unreference the previous uart object
-    this.port._uart = undefined;
+    priv.get(this.port).uart = undefined;
   }
 }
 
@@ -1349,7 +1377,7 @@ class Wifi extends EventEmitter {
       .then(commitWireless)
       .then(restartWifi)
       .then(getWifiInfo)
-      .then(network => emitConnectCallback(this, Object.assign(this.settings, network), callback))
+      .then(network => emitAndCallback('connect', this, Object.assign(this.settings, network), callback))
       .catch(error => {
         this.connected = false;
         emitErrorCallback(this, error, callback);
@@ -1362,10 +1390,7 @@ class Wifi extends EventEmitter {
     turnOffWifi()
       .then(commitWireless)
       .then(restartWifi)
-      .then(() => {
-        this.emit('disconnect');
-        callback();
-      })
+      .then(() => emitAndCallback('disconnect', this, this.settings, callback))
       .catch(error => emitErrorCallback(this, error, callback));
   }
 
@@ -1375,7 +1400,7 @@ class Wifi extends EventEmitter {
     this.emit('disconnect', 'Resetting connection');
     restartWifi()
       .then(getWifiInfo)
-      .then(network => emitConnectCallback(this, Object.assign(this.settings, network), callback))
+      .then(network => emitAndCallback('connect', this, Object.assign(this.settings, network), callback))
       .catch(error => emitErrorCallback(this, error, callback));
   }
 
@@ -1423,7 +1448,7 @@ class Wifi extends EventEmitter {
       .then(getWifiInfo)
       .then(network => {
         delete settings.password;
-        emitConnectCallback(this, Object.assign(this.settings, network, settings), callback);
+        emitAndCallback('connect', this, Object.assign(this.settings, network, settings), callback);
       })
       .catch(error => emitErrorCallback(this, error, callback));
   }
@@ -1447,9 +1472,23 @@ class Wifi extends EventEmitter {
   }
 }
 
-function emitConnectCallback(instance, data, callback) {
-  instance.emit('connect', data);
-  callback(null, data);
+function emitAndCallback(events, instance, data, callback) {
+
+  if (!Array.isArray(events)) {
+    emitAndCallback([events], instance, data, callback);
+    return;
+  }
+
+  let event = events.shift();
+
+  instance.emit(event, data);
+
+  if (events.length === 0) {
+    callback(null, data);
+    return;
+  }
+
+  emitAndCallback(events, instance, data, callback);
 }
 
 function emitErrorCallback(instance, error, callback) {
@@ -1720,11 +1759,7 @@ class AP extends EventEmitter {
     turnOnAP()
       .then(commitWireless)
       .then(restartWifi)
-      .then(() => {
-        this.emit('on', this.settings);
-        this.emit('enable', this.settings);
-        callback();
-      })
+      .then(() => emitAndCallback(['on', 'enable'], this, this.settings, callback))
       .catch(error => emitErrorCallback(this, error, callback));
   }
 
@@ -1734,11 +1769,7 @@ class AP extends EventEmitter {
     turnOffAP()
       .then(commitWireless)
       .then(restartWifi)
-      .then(() => {
-        this.emit('off');
-        this.emit('disable');
-        callback();
-      })
+      .then(() => emitAndCallback(['off', 'disable'], this, this.settings, callback))
       .catch(error => emitErrorCallback(this, error, callback));
   }
 
@@ -1749,11 +1780,7 @@ class AP extends EventEmitter {
     this.emit('off');
     this.emit('disable');
     restartWifi()
-      .then(() => {
-        this.emit('on', this.settings);
-        this.emit('enable', this.settings);
-        callback();
-      })
+      .then(() => emitAndCallback(['on', 'enable'], this, this.settings, callback))
       .catch(error => emitErrorCallback(this, error, callback));
   }
 
@@ -1778,14 +1805,7 @@ class AP extends EventEmitter {
       .then(commitWireless)
       .then(restartWifi)
       .then(getAccessPointIP)
-      .then((ip) => {
-        this.settings = Object.assign(settings, {
-          ip
-        });
-        this.emit('create', this.settings);
-
-        callback(null, this.settings);
-      })
+      .then(ip => emitAndCallback('create', this, Object.assign(this.settings, settings, { ip }), callback))
       .catch(error => emitErrorCallback(this, error, callback));
   }
 }
@@ -1856,13 +1876,12 @@ Tessel.SPI = SPI;
 Tessel.UART = UART;
 Tessel.Wifi = Wifi;
 
-
-Tessel.Pin.adcCapablePins = ADC_CAPABLE_PINS;
-Tessel.Pin.interruptCapablePins = INT_CAPABLE_PINS;
-Tessel.Pin.interruptModes = INT_MODES;
-Tessel.Pin.pullCapablePins = PULL_CAPABLE_PINS;
-Tessel.Pin.pullModes = PULL_MODES;
-Tessel.Pin.pwmCapablePins = PWM_CAPABLE_PINS;
+Tessel.Pin.ADC_PINS = ADC_PINS;
+Tessel.Pin.INT_PINS = INT_PINS;
+Tessel.Pin.INT_MODES = INT_MODES;
+Tessel.Pin.PULL_PINS = PULL_PINS;
+Tessel.Pin.PULL_MODES = PULL_MODES;
+Tessel.Pin.PWM_PINS = PWM_PINS;
 
 /* istanbul ignore else*/
 if (process.env.IS_TEST_MODE) {
