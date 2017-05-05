@@ -405,7 +405,7 @@ exports['Tessel.LED'] = {
 
     test.equal(this.tessel.led[0].isOn, true);
 
-    test.throws(function() {
+    test.throws(() => {
       this.tessel.led[0].isOn = false;
     });
     test.done();
@@ -610,7 +610,7 @@ exports['Tessel.Port'] = {
   },
 
   instanceProperties(test) {
-    test.expect(14);
+    test.expect(16);
 
     const port = new Tessel.Port('foo', '/foo/bar/baz', this.tessel);
 
@@ -626,8 +626,29 @@ exports['Tessel.Port'] = {
     test.ok(port.sock);
     test.ok(port.I2C);
     test.equal(port.I2C.enabled, false);
+
     test.ok(port.SPI);
     test.ok(port.UART);
+
+    test.equal(port.spi, null);
+    test.equal(port.uart, null);
+
+    test.done();
+  },
+
+  privateData(test) {
+    test.expect(3);
+
+    this.wm = sandbox.spy(WeakMap.prototype, 'set');
+
+    const port = new Tessel.Port('foo', '/foo/bar/baz', this.tessel);
+
+    const key = this.wm.lastCall.args[0];
+    const state = this.wm.lastCall.args[1];
+
+    test.equal(key, port);
+    test.equal(state.spi, null);
+    test.equal(state.uart, null);
 
     test.done();
   },
@@ -715,73 +736,73 @@ exports['Tessel.Port'] = {
     test.done();
   },
 
-  analogSupportedA(test) {
+  supportsADC_A(test) {
     test.expect(8);
 
     const port = new Tessel.Port('A', '/foo/bar/baz', this.tessel);
 
-    test.equal(port.pin[0].analogSupported, false);
-    test.equal(port.pin[1].analogSupported, false);
-    test.equal(port.pin[2].analogSupported, false);
-    test.equal(port.pin[3].analogSupported, false);
-    test.equal(port.pin[5].analogSupported, false);
-    test.equal(port.pin[6].analogSupported, false);
+    test.equal(port.pin[0].supports.ADC, false);
+    test.equal(port.pin[1].supports.ADC, false);
+    test.equal(port.pin[2].supports.ADC, false);
+    test.equal(port.pin[3].supports.ADC, false);
+    test.equal(port.pin[5].supports.ADC, false);
+    test.equal(port.pin[6].supports.ADC, false);
 
-    test.equal(port.pin[4].analogSupported, true);
-    test.equal(port.pin[7].analogSupported, true);
+    test.equal(port.pin[4].supports.ADC, true);
+    test.equal(port.pin[7].supports.ADC, true);
 
     test.done();
   },
 
-  analogSupportedB(test) {
+  supportsADC_B(test) {
     test.expect(8);
 
     const port = new Tessel.Port('B', '/foo/bar/baz', this.tessel);
 
-    test.equal(port.pin[0].analogSupported, true);
-    test.equal(port.pin[1].analogSupported, true);
-    test.equal(port.pin[2].analogSupported, true);
-    test.equal(port.pin[3].analogSupported, true);
-    test.equal(port.pin[4].analogSupported, true);
-    test.equal(port.pin[5].analogSupported, true);
-    test.equal(port.pin[6].analogSupported, true);
-    test.equal(port.pin[7].analogSupported, true);
+    test.equal(port.pin[0].supports.ADC, true);
+    test.equal(port.pin[1].supports.ADC, true);
+    test.equal(port.pin[2].supports.ADC, true);
+    test.equal(port.pin[3].supports.ADC, true);
+    test.equal(port.pin[4].supports.ADC, true);
+    test.equal(port.pin[5].supports.ADC, true);
+    test.equal(port.pin[6].supports.ADC, true);
+    test.equal(port.pin[7].supports.ADC, true);
 
     test.done();
   },
 
-  interruptSupportedA(test) {
+  supports_INTA(test) {
     test.expect(8);
 
     const port = new Tessel.Port('A', '/foo/bar/baz', this.tessel);
 
-    test.equal(port.pin[0].interruptSupported, false);
-    test.equal(port.pin[1].interruptSupported, false);
-    test.equal(port.pin[3].interruptSupported, false);
-    test.equal(port.pin[4].interruptSupported, false);
+    test.equal(port.pin[0].supports.INT, false);
+    test.equal(port.pin[1].supports.INT, false);
+    test.equal(port.pin[3].supports.INT, false);
+    test.equal(port.pin[4].supports.INT, false);
 
-    test.equal(port.pin[2].interruptSupported, true);
-    test.equal(port.pin[5].interruptSupported, true);
-    test.equal(port.pin[6].interruptSupported, true);
-    test.equal(port.pin[7].interruptSupported, true);
+    test.equal(port.pin[2].supports.INT, true);
+    test.equal(port.pin[5].supports.INT, true);
+    test.equal(port.pin[6].supports.INT, true);
+    test.equal(port.pin[7].supports.INT, true);
 
     test.done();
   },
 
-  interruptSupportedB(test) {
+  supports_INTB(test) {
     test.expect(8);
 
     const port = new Tessel.Port('B', '/foo/bar/baz', this.tessel);
 
-    test.equal(port.pin[0].interruptSupported, false);
-    test.equal(port.pin[1].interruptSupported, false);
-    test.equal(port.pin[3].interruptSupported, false);
-    test.equal(port.pin[4].interruptSupported, false);
+    test.equal(port.pin[0].supports.INT, false);
+    test.equal(port.pin[1].supports.INT, false);
+    test.equal(port.pin[3].supports.INT, false);
+    test.equal(port.pin[4].supports.INT, false);
 
-    test.equal(port.pin[2].interruptSupported, true);
-    test.equal(port.pin[5].interruptSupported, true);
-    test.equal(port.pin[6].interruptSupported, true);
-    test.equal(port.pin[7].interruptSupported, true);
+    test.equal(port.pin[2].supports.INT, true);
+    test.equal(port.pin[5].supports.INT, true);
+    test.equal(port.pin[6].supports.INT, true);
+    test.equal(port.pin[7].supports.INT, true);
 
     test.done();
   },
@@ -931,34 +952,34 @@ exports['Tessel.Port.prototype'] = {
     test.done();
   },
 
-  _spi(test) {
+  spi(test) {
     test.expect(5);
 
-    test.equal(this.port._spi, undefined);
+    test.equal(this.port.spi, undefined);
 
     const options = {};
     this.port.SPI(options);
 
-    test.notEqual(this.port._spi, undefined);
+    test.notEqual(this.port.spi, undefined);
     test.equal(Tessel.SPI.callCount, 1);
     test.deepEqual(Tessel.SPI.lastCall.args, [options, this.port]);
-    test.equal(this.port._spi instanceof Tessel.SPI, true);
+    test.equal(this.port.spi instanceof Tessel.SPI, true);
 
     test.done();
   },
 
-  _uart(test) {
+  uart(test) {
     test.expect(5);
 
-    test.equal(this.port._uart, undefined);
+    test.equal(this.port.uart, undefined);
 
     const options = {};
     this.port.UART(options);
 
-    test.notEqual(this.port._uart, undefined);
+    test.notEqual(this.port.uart, undefined);
     test.equal(Tessel.UART.callCount, 1);
     test.deepEqual(Tessel.UART.lastCall.args, [options, this.port]);
-    test.equal(this.port._uart instanceof Tessel.UART, true);
+    test.equal(this.port.uart instanceof Tessel.UART, true);
 
     test.done();
   },
@@ -1444,17 +1465,12 @@ exports['Tessel.Pin'] = {
   },
 
   initializationA(test) {
-    test.expect(46);
+    test.expect(54);
 
     const pins = [];
 
     for (let i = 0; i < 8; i++) {
-      const intSupported = Tessel.Pin.interruptCapablePins.indexOf(i) !== -1;
-      const adcSupported = Tessel.Pin.adcCapablePins.indexOf(i) !== -1;
-      const pullSupported = Tessel.Pin.pullCapablePins.indexOf(i) !== -1;
-      pins.push(
-        new Tessel.Pin(i, this.a, intSupported, adcSupported, pullSupported)
-      );
+      pins.push(new Tessel.Pin(i, this.a));
     }
 
     // Pin Number (matches index)
@@ -1467,6 +1483,16 @@ exports['Tessel.Pin'] = {
     test.equal(pins[6].pin, 6);
     test.equal(pins[7].pin, 7);
 
+    // resolution property
+    test.equal(pins[0].resolution, 4096);
+    test.equal(pins[1].resolution, 4096);
+    test.equal(pins[2].resolution, 4096);
+    test.equal(pins[3].resolution, 4096);
+    test.equal(pins[4].resolution, 4096);
+    test.equal(pins[5].resolution, 4096);
+    test.equal(pins[6].resolution, 4096);
+    test.equal(pins[7].resolution, 4096);
+
     // Port
     test.equal(pins[0].port, this.a);
     test.equal(pins[1].port, this.a);
@@ -1478,24 +1504,24 @@ exports['Tessel.Pin'] = {
     test.equal(pins[7].port, this.a);
 
     // Interrupts on 2, 5, 6, 7
-    test.equal(pins[2].interruptSupported, true);
-    test.equal(pins[5].interruptSupported, true);
-    test.equal(pins[6].interruptSupported, true);
-    test.equal(pins[7].interruptSupported, true);
+    test.equal(pins[2].supports.INT, true);
+    test.equal(pins[5].supports.INT, true);
+    test.equal(pins[6].supports.INT, true);
+    test.equal(pins[7].supports.INT, true);
 
     // Analog on 4, 7
-    test.equal(pins[4].analogSupported, true);
-    test.equal(pins[7].analogSupported, true);
+    test.equal(pins[4].supports.ADC, true);
+    test.equal(pins[7].supports.ADC, true);
 
     // Pull resistors on 2-7
-    test.equal(pins[0].pullSupported, false);
-    test.equal(pins[1].pullSupported, false);
-    test.equal(pins[2].pullSupported, true);
-    test.equal(pins[3].pullSupported, true);
-    test.equal(pins[4].pullSupported, true);
-    test.equal(pins[5].pullSupported, true);
-    test.equal(pins[6].pullSupported, true);
-    test.equal(pins[7].pullSupported, true);
+    test.equal(pins[0].supports.PULL, false);
+    test.equal(pins[1].supports.PULL, false);
+    test.equal(pins[2].supports.PULL, true);
+    test.equal(pins[3].supports.PULL, true);
+    test.equal(pins[4].supports.PULL, true);
+    test.equal(pins[5].supports.PULL, true);
+    test.equal(pins[6].supports.PULL, true);
+    test.equal(pins[7].supports.PULL, true);
 
     // Present Interrupt Mode
     test.equal(pins[0].interruptMode, null);
@@ -1526,11 +1552,7 @@ exports['Tessel.Pin'] = {
     const pins = [];
 
     for (let i = 0; i < 8; i++) {
-      const intSupported = Tessel.Pin.interruptCapablePins.indexOf(i) !== -1;
-      const pullSupported = Tessel.Pin.pullCapablePins.indexOf(i) !== -1;
-      pins.push(
-        new Tessel.Pin(i, this.b, intSupported, true, pullSupported)
-      );
+      pins.push(new Tessel.Pin(i, this.b));
     }
 
     // Pin Number (matches index)
@@ -1554,30 +1576,30 @@ exports['Tessel.Pin'] = {
     test.equal(pins[7].port, this.b);
 
     // Interrupts on 2, 5, 6, 7
-    test.equal(pins[2].interruptSupported, true);
-    test.equal(pins[5].interruptSupported, true);
-    test.equal(pins[6].interruptSupported, true);
-    test.equal(pins[7].interruptSupported, true);
+    test.equal(pins[2].supports.INT, true);
+    test.equal(pins[5].supports.INT, true);
+    test.equal(pins[6].supports.INT, true);
+    test.equal(pins[7].supports.INT, true);
 
     // Analog on all
-    test.equal(pins[0].analogSupported, true);
-    test.equal(pins[1].analogSupported, true);
-    test.equal(pins[2].analogSupported, true);
-    test.equal(pins[3].analogSupported, true);
-    test.equal(pins[4].analogSupported, true);
-    test.equal(pins[5].analogSupported, true);
-    test.equal(pins[6].analogSupported, true);
-    test.equal(pins[7].analogSupported, true);
+    test.equal(pins[0].supports.ADC, true);
+    test.equal(pins[1].supports.ADC, true);
+    test.equal(pins[2].supports.ADC, true);
+    test.equal(pins[3].supports.ADC, true);
+    test.equal(pins[4].supports.ADC, true);
+    test.equal(pins[5].supports.ADC, true);
+    test.equal(pins[6].supports.ADC, true);
+    test.equal(pins[7].supports.ADC, true);
 
     // Pull resistors on 2-7
-    test.equal(pins[0].pullSupported, false);
-    test.equal(pins[1].pullSupported, false);
-    test.equal(pins[2].pullSupported, true);
-    test.equal(pins[3].pullSupported, true);
-    test.equal(pins[4].pullSupported, true);
-    test.equal(pins[5].pullSupported, true);
-    test.equal(pins[6].pullSupported, true);
-    test.equal(pins[7].pullSupported, true);
+    test.equal(pins[0].supports.PULL, false);
+    test.equal(pins[1].supports.PULL, false);
+    test.equal(pins[2].supports.PULL, true);
+    test.equal(pins[3].supports.PULL, true);
+    test.equal(pins[4].supports.PULL, true);
+    test.equal(pins[5].supports.PULL, true);
+    test.equal(pins[6].supports.PULL, true);
+    test.equal(pins[7].supports.PULL, true);
 
     // Present Interrupt Mode
     test.equal(pins[0].interruptMode, null);
@@ -1900,57 +1922,71 @@ exports['Tessel.Pin'] = {
   },
 
   removeAllListeners(test) {
-    test.expect(9);
+    test.expect(29);
 
     const spy = sandbox.spy();
     const spy2 = sandbox.spy();
-    const _setInterruptMode = sandbox.stub(Tessel.Pin.prototype, '_setInterruptMode');
+    let setter = sandbox.spy();
 
     [2, 5, 6, 7].forEach(pinIndex => {
-      this.a.pin[pinIndex].once('change', spy);
-      // _setInterruptMode + 1
-      this.a.pin[pinIndex].once('change', spy2);
-      // _setInterruptMode + 1
 
+      let descriptor = Object.getOwnPropertyDescriptor(this.a.pin[pinIndex], 'interruptMode');
+
+      Object.defineProperties(this.a.pin[pinIndex], {
+        interruptMode: {
+          set(value) {
+            setter();
+            descriptor.set(value);
+          },
+        },
+      });
+
+
+      test.equal(this.a.pin[pinIndex].interruptMode, null);
+      test.equal(this.a.pin[pinIndex].listenerCount('change'), 0);
+      this.a.pin[pinIndex].once('change', spy);
+      test.equal(this.a.pin[pinIndex].interruptMode, 'change');
+
+      this.a.pin[pinIndex].once('change', spy2);
+      test.equal(this.a.pin[pinIndex].interruptMode, 'change');
       test.equal(this.a.pin[pinIndex].listenerCount('change'), 2);
 
       this.a.pin[pinIndex].removeAllListeners();
-      // _setInterruptMode + 1
-
+      test.equal(this.a.pin[pinIndex].interruptMode, null);
       test.equal(this.a.pin[pinIndex].listenerCount('change'), 0);
     });
 
     // 4 pins * 3 calls = 12
-    test.equal(_setInterruptMode.callCount, 12);
+    test.equal(setter.callCount, 12);
     test.done();
   },
 
   interruptNotSupported(test) {
     test.expect(8);
 
-    [0, 1, 3, 4].forEach(function(pinIndex) {
+    [0, 1, 3, 4].forEach(pinIndex => {
       test.throws(() => {
         this.a.pin[pinIndex].once('low');
       }, Error);
       test.throws(() => {
         this.b.pin[pinIndex].once('low');
       }, Error);
-    }, this);
+    });
     test.done();
   },
 
-  _setInterruptModes(test) {
+  validInterruptModes(test) {
     test.expect(10);
 
-    ['high', 'low', 'rise', 'fall', 'change'].forEach(function(mode) {
-      this.a.pin[2]._setInterruptMode(mode);
+    ['high', 'low', 'rise', 'fall', 'change'].forEach(mode => {
+      this.a.pin[2].interruptMode = mode;
 
       test.equal(this.command.callCount, 1);
       test.deepEqual(
-        this.command.lastCall.args[0], [CMD.GPIO_INT, 2 | (Tessel.Pin.interruptModes[mode] << 4)]
+        this.command.lastCall.args[0], [CMD.GPIO_INT, 2 | (Tessel.Pin.INT_MODES[mode] << 4)]
       );
       this.command.reset();
-    }, this);
+    });
     test.done();
   },
 
@@ -1958,7 +1994,7 @@ exports['Tessel.Pin'] = {
   invalidPullParam(test) {
     test.expect(1);
 
-    test.throws(function() {
+    test.throws(() => {
       this.a.pin[2].pull('invalid');
     }, Error);
 
@@ -1969,7 +2005,7 @@ exports['Tessel.Pin'] = {
   pullIncompatiblePin(test) {
     test.expect(1);
 
-    test.throws(function() {
+    test.throws(() => {
       this.a.pin[0].pull('pullup');
     }, Error);
 
@@ -1985,7 +2021,7 @@ exports['Tessel.Pin'] = {
     test.equal(this.command.callCount, 1);
 
     test.deepEqual(
-      this.command.lastCall.args[0], [CMD.GPIO_PULL, pin | (Tessel.Pin.pullModes['none'] << 4)]
+      this.command.lastCall.args[0], [CMD.GPIO_PULL, pin | (Tessel.Pin.PULL_MODES.none << 4)]
     );
 
     test.done();
@@ -2000,7 +2036,7 @@ exports['Tessel.Pin'] = {
 
       test.equal(this.command.callCount, 1);
       test.deepEqual(
-        this.command.lastCall.args[0], [CMD.GPIO_PULL, pin | (Tessel.Pin.pullModes[pullMode] << 4)]
+        this.command.lastCall.args[0], [CMD.GPIO_PULL, pin | (Tessel.Pin.PULL_MODES[pullMode] << 4)]
       );
       this.command.reset();
     }, this);
@@ -2762,9 +2798,9 @@ exports['Tessel.UART'] = {
 
     test.notStrictEqual(u1, u2);
 
-    test.notStrictEqual(this.port._uart, u1);
+    test.notStrictEqual(this.port.uart, u1);
 
-    test.strictEqual(this.port._uart, u2);
+    test.strictEqual(this.port.uart, u2);
 
     test.ok(this.uartDisable.calledOnce, true);
 
@@ -3130,8 +3166,8 @@ exports['Tessel.SPI'] = {
     const s2 = new this.port.SPI();
 
     test.notStrictEqual(s1, s2);
-    test.notStrictEqual(this.port._spi, s1);
-    test.strictEqual(this.port._spi, s2);
+    test.notStrictEqual(this.port.spi, s1);
+    test.strictEqual(this.port.spi, s2);
     test.ok(this.spiDisable.calledOnce, true);
     test.done();
   },
@@ -3376,7 +3412,7 @@ exports['Tessel.Wifi'] = {
       test.done();
     });
 
-    this.tessel.network.wifi.on('error', (error) => {
+    this.tessel.network.wifi.on('error', error => {
       test.fail(error);
       test.done();
     });
@@ -3543,17 +3579,17 @@ exports['Tessel.Wifi'] = {
       security: 'none'
     }, settings, network);
 
-    this.tessel.network.wifi.on('connect', (networkSettings) => {
-      test.deepEqual(networkSettings, results, 'correct settings');
+    this.tessel.network.wifi.on('connect', settings => {
+      test.deepEqual(settings, results, 'correct settings');
     });
 
-    this.tessel.network.wifi.connect(settings, (error, networkSettings) => {
+    this.tessel.network.wifi.connect(settings, (error, settings) => {
       if (error) {
         test.fail(error);
         test.done();
       }
 
-      test.deepEqual(networkSettings, results, 'correct settings');
+      test.deepEqual(settings, results, 'correct settings');
       test.deepEqual(this.tessel.network.wifi.settings, results, 'correct settings property');
       test.equal(this.exec.callCount, 6, 'exec called correctly');
 
@@ -3597,17 +3633,17 @@ exports['Tessel.Wifi'] = {
       security: 'none'
     }, settings, network);
 
-    this.tessel.network.wifi.on('connect', (networkSettings) => {
-      test.deepEqual(networkSettings, results, 'correct settings');
+    this.tessel.network.wifi.on('connect', settings => {
+      test.deepEqual(settings, results, 'correct settings');
     });
 
-    this.tessel.network.wifi.connect(settings, (error, networkSettings) => {
+    this.tessel.network.wifi.connect(settings, (error, settings) => {
       if (error) {
         test.fail(error);
         test.done();
       }
 
-      test.deepEqual(networkSettings, results, 'correct settings');
+      test.deepEqual(settings, results, 'correct settings');
       test.deepEqual(this.tessel.network.wifi.settings, results, 'correct settings property');
       test.equal(this.exec.callCount, 6, 'exec called correctly');
 
@@ -3633,11 +3669,11 @@ exports['Tessel.Wifi'] = {
       test.done();
     });
 
-    this.tessel.network.wifi.on('error', (error) => {
+    this.tessel.network.wifi.on('error', error => {
       test.equal(error, testError, 'error event fires correctly');
     });
 
-    this.tessel.network.wifi.connect(settings, (error) => {
+    this.tessel.network.wifi.connect(settings, error => {
       if (error) {
         test.equal(error, testError, 'error should be passed into callback');
         test.done();
@@ -3703,7 +3739,7 @@ exports['Tessel.Wifi'] = {
 
       test.equal(network, null, 'no settings yet');
 
-      this.tessel.network.wifi.connect(settings, (error) => {
+      this.tessel.network.wifi.connect(settings, error => {
         if (error) {
           test.fail(error);
           test.done();
@@ -3726,11 +3762,11 @@ exports['Tessel.Wifi'] = {
       callback(testError);
     });
 
-    this.tessel.network.wifi.on('error', (error) => {
+    this.tessel.network.wifi.on('error', error => {
       test.equal(error.message, testError.message);
     });
 
-    this.tessel.network.wifi.connection((error) => {
+    this.tessel.network.wifi.connection(error => {
       if (error) {
         test.equal(error.message, testError.message);
         test.done();
@@ -3771,14 +3807,10 @@ exports['Tessel.Wifi'] = {
       }
     });
 
-    this.tessel.network.wifi.on('disconnect', () => {
-      test.ok(true, 'disconnect event is fired');
-    });
-    this.tessel.network.wifi.on('connect', () => {
-      test.ok(true, 'connect event is fired');
-    });
+    this.tessel.network.wifi.on('disconnect', () => test.ok(true, 'disconnect event is fired'));
+    this.tessel.network.wifi.on('connect', () => test.ok(true, 'connect event is fired'));
 
-    this.tessel.network.wifi.reset((error) => {
+    this.tessel.network.wifi.reset(error => {
       if (error) {
         test.fail(error);
         test.done();
@@ -3797,15 +3829,13 @@ exports['Tessel.Wifi'] = {
       callback(testError);
     });
 
-    this.tessel.network.wifi.on('disconnect', () => {
-      test.ok(true, 'disconnect event is fired');
-    });
+    this.tessel.network.wifi.on('disconnect', () => test.ok(true, 'disconnect event is fired'));
 
-    this.tessel.network.wifi.on('error', (error) => {
+    this.tessel.network.wifi.on('error', error => {
       test.equal(error.message, testError.message);
     });
 
-    this.tessel.network.wifi.reset((error) => {
+    this.tessel.network.wifi.reset(error => {
       if (error) {
         test.equal(error.message, testError.message);
         test.done();
@@ -3819,11 +3849,9 @@ exports['Tessel.Wifi'] = {
   disable(test) {
     test.expect(1);
 
-    this.tessel.network.wifi.on('disconnect', () => {
-      test.ok(true, 'disconnect event is fired');
-    });
+    this.tessel.network.wifi.on('disconnect', () => test.ok(true, 'disconnect event is fired'));
 
-    this.tessel.network.wifi.disable((error) => {
+    this.tessel.network.wifi.disable(error => {
       if (error) {
         test.fail(error);
         test.done();
@@ -3842,11 +3870,11 @@ exports['Tessel.Wifi'] = {
       callback(testError);
     });
 
-    this.tessel.network.wifi.on('error', (error) => {
+    this.tessel.network.wifi.on('error', error => {
       test.equal(error.message, testError.message);
     });
 
-    this.tessel.network.wifi.disable((error) => {
+    this.tessel.network.wifi.disable(error => {
       if (error) {
         test.equal(error.message, testError.message);
         test.done();
@@ -3870,11 +3898,11 @@ exports['Tessel.Wifi'] = {
       }
     });
 
-    this.tessel.network.wifi.on('error', (error) => {
+    this.tessel.network.wifi.on('error', error => {
       test.equal(error.message, testError.message);
     });
 
-    this.tessel.network.wifi.disable((error) => {
+    this.tessel.network.wifi.disable(error => {
       if (error) {
         test.equal(error.message, testError.message);
         test.done();
@@ -3915,11 +3943,9 @@ exports['Tessel.Wifi'] = {
       }
     });
 
-    this.tessel.network.wifi.on('connect', () => {
-      test.ok(true, 'connect event is fired');
-    });
+    this.tessel.network.wifi.on('connect', () => test.ok(true, 'connect event is fired'));
 
-    this.tessel.network.wifi.enable((error) => {
+    this.tessel.network.wifi.enable(error => {
       if (error) {
         test.fail(error);
         test.done();
@@ -3938,11 +3964,11 @@ exports['Tessel.Wifi'] = {
       callback(testError);
     });
 
-    this.tessel.network.wifi.on('error', (error) => {
+    this.tessel.network.wifi.on('error', error => {
       test.equal(error.message, testError.message);
     });
 
-    this.tessel.network.wifi.enable((error) => {
+    this.tessel.network.wifi.enable(error => {
       if (error) {
         test.equal(error.message, testError.message);
         test.done();
@@ -3973,11 +3999,11 @@ exports['Tessel.Wifi'] = {
       }
     });
 
-    this.tessel.network.wifi.on('error', (error) => {
+    this.tessel.network.wifi.on('error', error => {
       test.ok(error);
     });
 
-    this.tessel.network.wifi.enable((error) => {
+    this.tessel.network.wifi.enable(error => {
       if (error) {
         test.ok(error);
         test.done();
@@ -4031,11 +4057,9 @@ exports['Tessel.Wifi'] = {
       }
     });
 
-    this.tessel.network.wifi.on('connect', () => {
-      test.ok(true, 'connect event is fired');
-    });
+    this.tessel.network.wifi.on('connect', () => test.ok(true, 'connect event is fired'));
 
-    this.tessel.network.wifi.enable((error) => {
+    this.tessel.network.wifi.enable(error => {
       if (error) {
         test.fail(error);
         test.done();
@@ -4061,11 +4085,11 @@ exports['Tessel.Wifi'] = {
       }
     });
 
-    this.tessel.network.wifi.on('error', (error) => {
+    this.tessel.network.wifi.on('error', error => {
       test.ok(error);
     });
 
-    this.tessel.network.wifi.enable((error) => {
+    this.tessel.network.wifi.enable(error => {
       if (error) {
         test.equal(recursiveCheckCount, 7);
         test.ok(error);
@@ -4122,11 +4146,9 @@ exports['Tessel.Wifi'] = {
       }
     });
 
-    this.tessel.network.wifi.on('connect', () => {
-      test.ok(true, 'connect event is fired');
-    });
+    this.tessel.network.wifi.on('connect', () => test.ok(true, 'connect event is fired'));
 
-    this.tessel.network.wifi.enable((error) => {
+    this.tessel.network.wifi.enable(error => {
       if (error) {
         test.fail(error);
         test.done();
@@ -4160,11 +4182,11 @@ exports['Tessel.Wifi'] = {
       }
     });
 
-    this.tessel.network.wifi.on('error', (error) => {
+    this.tessel.network.wifi.on('error', error => {
       test.ok(error);
     });
 
-    this.tessel.network.wifi.enable((error) => {
+    this.tessel.network.wifi.enable(error => {
       if (error) {
         test.ok(error);
         test.done();
@@ -4268,11 +4290,11 @@ exports['Tessel.Wifi'] = {
       callback(testError);
     });
 
-    this.tessel.network.wifi.on('error', (error) => {
+    this.tessel.network.wifi.on('error', error => {
       test.equal(error.message, testError.message);
     });
 
-    this.tessel.network.wifi.findAvailableNetworks((error) => {
+    this.tessel.network.wifi.findAvailableNetworks(error => {
       if (error) {
         test.equal(error.message, testError.message);
         test.done();
@@ -4376,32 +4398,32 @@ exports['Tessel.port.pwm'] = {
 
     test.equal(this.tessel.port.A.pwm.length, 2);
     test.equal(this.tessel.port.A.pwm[0], this.tessel.port.A.digital[0]);
-    test.ok(this.tessel.port.A.digital[0].pwmSupported);
+    test.ok(this.tessel.port.A.digital[0].supports.PWM);
     test.equal(this.tessel.port.A.pwm[1], this.tessel.port.A.digital[1]);
-    test.ok(this.tessel.port.A.digital[1].pwmSupported);
+    test.ok(this.tessel.port.A.digital[1].supports.PWM);
     test.equal(this.tessel.port.B.pwm.length, 2);
     test.equal(this.tessel.port.B.pwm[0], this.tessel.port.B.digital[0]);
-    test.ok(this.tessel.port.B.digital[0].pwmSupported);
+    test.ok(this.tessel.port.B.digital[0].supports.PWM);
     test.equal(this.tessel.port.B.pwm[1], this.tessel.port.B.digital[1]);
-    test.ok(this.tessel.port.B.digital[1].pwmSupported);
+    test.ok(this.tessel.port.B.digital[1].supports.PWM);
 
-    test.equal(this.tessel.port.A.pin[0].pwmSupported, false);
-    test.equal(this.tessel.port.A.pin[1].pwmSupported, false);
-    test.equal(this.tessel.port.A.pin[2].pwmSupported, false);
-    test.equal(this.tessel.port.A.pin[3].pwmSupported, false);
-    test.equal(this.tessel.port.A.pin[4].pwmSupported, false);
-    test.equal(this.tessel.port.A.pin[5].pwmSupported, true);
-    test.equal(this.tessel.port.A.pin[6].pwmSupported, true);
-    test.equal(this.tessel.port.A.pin[7].pwmSupported, false);
+    test.equal(this.tessel.port.A.pin[0].supports.PWM, false);
+    test.equal(this.tessel.port.A.pin[1].supports.PWM, false);
+    test.equal(this.tessel.port.A.pin[2].supports.PWM, false);
+    test.equal(this.tessel.port.A.pin[3].supports.PWM, false);
+    test.equal(this.tessel.port.A.pin[4].supports.PWM, false);
+    test.equal(this.tessel.port.A.pin[5].supports.PWM, true);
+    test.equal(this.tessel.port.A.pin[6].supports.PWM, true);
+    test.equal(this.tessel.port.A.pin[7].supports.PWM, false);
 
-    test.equal(this.tessel.port.B.pin[0].pwmSupported, false);
-    test.equal(this.tessel.port.B.pin[1].pwmSupported, false);
-    test.equal(this.tessel.port.B.pin[2].pwmSupported, false);
-    test.equal(this.tessel.port.B.pin[3].pwmSupported, false);
-    test.equal(this.tessel.port.B.pin[4].pwmSupported, false);
-    test.equal(this.tessel.port.B.pin[5].pwmSupported, true);
-    test.equal(this.tessel.port.B.pin[6].pwmSupported, true);
-    test.equal(this.tessel.port.B.pin[7].pwmSupported, false);
+    test.equal(this.tessel.port.B.pin[0].supports.PWM, false);
+    test.equal(this.tessel.port.B.pin[1].supports.PWM, false);
+    test.equal(this.tessel.port.B.pin[2].supports.PWM, false);
+    test.equal(this.tessel.port.B.pin[3].supports.PWM, false);
+    test.equal(this.tessel.port.B.pin[4].supports.PWM, false);
+    test.equal(this.tessel.port.B.pin[5].supports.PWM, true);
+    test.equal(this.tessel.port.B.pin[6].supports.PWM, true);
+    test.equal(this.tessel.port.B.pin[7].supports.PWM, false);
     test.done();
   }
 };
@@ -4582,64 +4604,64 @@ exports['pin.pwmDutyCycle'] = {
     sandbox.restore();
     done();
   },
-  // Should throw an error if the pin does not support PWM
-  pwmNotSupportedPin(test) {
+
+  throwsWhenNotSupportedPin(test) {
     test.expect(2);
 
     // test.throws is not handling the thrown error for whatever reason
     try {
       // Attempt to set the duty cycle
       this.tessel.port.A.digital[2].pwmDutyCycle(1);
-    } catch (err) {
+    } catch (error) {
       // Ensure an error was thrown
-      test.ok(err);
-      test.ok(err instanceof RangeError);
+      test.ok(error);
+      test.ok(error instanceof RangeError);
       test.done();
     }
   },
-  dutyCycleNotNumber(test) {
+  throwsWhenDutyCycleNotNumber(test) {
     test.expect(2);
 
     // test.throws is not handling the thrown error for whatever reason
     try {
       // Attempt to set the duty cycle
       this.tessel.port.A.pwm[0].pwmDutyCycle('five');
-    } catch (err) {
+    } catch (error) {
       // Ensure an error was thrown
-      test.ok(err);
-      test.ok(err instanceof RangeError);
+      test.ok(error);
+      test.ok(error instanceof RangeError);
       test.done();
     }
   },
-  dutyCycleTooHigh(test) {
+  throwsWhenDutyCycleTooHigh(test) {
     test.expect(2);
 
     // test.throws is not handling the thrown error for whatever reason
     try {
       // Attempt to set the duty cycle
       this.tessel.port.A.pwm[0].pwmDutyCycle(1.5);
-    } catch (err) {
+    } catch (error) {
       // Ensure an error was thrown
-      test.ok(err);
-      test.ok(err instanceof RangeError);
+      test.ok(error);
+      test.ok(error instanceof RangeError);
       test.done();
     }
   },
-  dutyCycleTooLow(test) {
+  throwsWhenDutyCycleTooLow(test) {
     test.expect(2);
 
     // test.throws is not handling the thrown error for whatever reason
     try {
       // Attempt to set the duty cycle
       this.tessel.port.A.pwm[0].pwmDutyCycle(-0.5);
-    } catch (err) {
+    } catch (error) {
       // Ensure an error was thrown
-      test.ok(err);
-      test.ok(err instanceof RangeError);
+      test.ok(error);
+      test.ok(error instanceof RangeError);
       test.done();
     }
   },
-  periodNotSet(test) {
+  throwsWhenPeriodNotSet(test) {
     test.expect(2);
 
     // test.throws is not handling the thrown error for whatever reason
@@ -4648,10 +4670,10 @@ exports['pin.pwmDutyCycle'] = {
       Tessel.pwmBankSettings.period = 0;
       // Attempt to set the duty cycle
       this.tessel.port.A.pwm[0].pwmDutyCycle(0.5);
-    } catch (err) {
+    } catch (error) {
       // Ensure an error was thrown
-      test.ok(err);
-      test.ok(err.toString().includes('Frequency is not configured'));
+      test.ok(error);
+      test.ok(error.toString().includes('Frequency is not configured'));
       test.done();
     }
   },
@@ -4661,9 +4683,9 @@ exports['pin.pwmDutyCycle'] = {
     // Set some valid duty cycle value
     const dutyCycle = 0.5;
     const pin = this.tessel.port.A.pwm[0];
-    pin.pwmDutyCycle(dutyCycle, (err) => {
+    pin.pwmDutyCycle(dutyCycle, error => {
       // Ensure no error was thrown
-      test.ifError(err);
+      test.ifError(error);
       // Finish the test
       test.done();
     });
@@ -4705,9 +4727,16 @@ exports['Tessel.AP'] = {
 
   initialized(test) {
     test.expect(1);
-
     test.deepEqual(this.tessel.network.ap.settings, {}, 'no setings by default');
+    test.done();
+  },
 
+  assignSettingsDirectly(test) {
+    test.expect(1);
+
+    this.tessel.network.ap.settings = { foo: 1 };
+
+    test.deepEqual(this.tessel.network.ap.settings, { foo: 1 });
     test.done();
   },
 
@@ -4730,9 +4759,7 @@ exports['Tessel.AP'] = {
       }
     });
 
-    const results = Object.assign({
-      ip
-    }, settings);
+    const results = Object.assign({ ip }, settings);
 
     this.tessel.network.ap.on('create', (networkSettings) => {
       test.deepEqual(networkSettings, results, 'correct settings');
@@ -4754,14 +4781,12 @@ exports['Tessel.AP'] = {
 
   createErrorNoSettings(test) {
     test.expect(1);
-
     test.throws(this.tessel.network.ap.create, 'throws without settings');
     test.done();
   },
 
   createErrorNoSSID(test) {
     test.expect(1);
-
     test.throws(this.tessel.network.ap.create.bind({}), 'throws without ssid');
     test.done();
   },
@@ -4785,9 +4810,7 @@ exports['Tessel.AP'] = {
       }
     });
 
-    const results = Object.assign({
-      ip
-    }, settings);
+    const results = Object.assign({ ip }, settings);
 
     this.tessel.network.ap.on('create', (networkSettings) => {
       test.deepEqual(networkSettings, results, 'correct settings');
@@ -4796,7 +4819,7 @@ exports['Tessel.AP'] = {
       test.done();
     });
 
-    this.tessel.network.ap.on('error', (error) => {
+    this.tessel.network.ap.on('error', error => {
       test.fail(error);
       test.done();
     });
@@ -4812,6 +4835,7 @@ exports['Tessel.AP'] = {
       password: 'TestPassword'
     };
     const ip = '192.168.1.101';
+    const security = 'psk2';
 
     this.exec.restore();
     this.exec = sandbox.stub(cp, 'exec').callsFake((cmd, callback) => {
@@ -4824,7 +4848,7 @@ exports['Tessel.AP'] = {
 
     const results = Object.assign({
       ip,
-      security: 'psk2'
+      security,
     }, settings);
 
     this.tessel.network.ap.on('create', (networkSettings) => {
@@ -4848,11 +4872,14 @@ exports['Tessel.AP'] = {
   createWithoutPassword(test) {
     test.expect(4);
 
-    const settings = {
-      ssid: 'TestNetwork',
-      security: 'none'
-    };
     const ip = '192.168.1.101';
+    const ssid = 'TestNetwork';
+    const password = '';
+    const security = 'none';
+    const settings = {
+      ssid,
+      security,
+    };
 
     this.exec.restore();
     this.exec = sandbox.stub(cp, 'exec').callsFake((cmd, callback) => {
@@ -4865,8 +4892,8 @@ exports['Tessel.AP'] = {
 
     const results = Object.assign({
       ip,
-      password: '',
-      security: 'none'
+      password,
+      security,
     }, settings);
 
     this.tessel.network.ap.on('create', (networkSettings) => {
@@ -4905,11 +4932,11 @@ exports['Tessel.AP'] = {
       test.done();
     });
 
-    this.tessel.network.ap.on('error', (error) => {
+    this.tessel.network.ap.on('error', error => {
       test.equal(error, testError, 'error event fires correctly');
     });
 
-    this.tessel.network.ap.create(settings, (error) => {
+    this.tessel.network.ap.create(settings, error => {
       if (error) {
         test.equal(error, testError, 'error should be passed into callback');
         test.done();
@@ -4942,11 +4969,11 @@ exports['Tessel.AP'] = {
       test.done();
     });
 
-    this.tessel.network.ap.on('error', (error) => {
+    this.tessel.network.ap.on('error', error => {
       test.equal(error, testError, 'error event fires correctly');
     });
 
-    this.tessel.network.ap.create(settings, (error) => {
+    this.tessel.network.ap.create(settings, error => {
       if (error) {
         test.equal(error, testError, 'error should be passed into callback');
         test.done();
@@ -4960,25 +4987,13 @@ exports['Tessel.AP'] = {
   reset(test) {
     test.expect(5);
 
-    this.tessel.network.ap.on('reset', () => {
-      test.ok(true, 'reset event is fired');
-    });
+    this.tessel.network.ap.on('reset', () => test.ok(true, 'reset event is fired'));
+    this.tessel.network.ap.on('off', () => test.ok(true, 'off event is fired'));
+    this.tessel.network.ap.on('on', () => test.ok(true, 'on event is fired'));
+    this.tessel.network.ap.on('disable', () => test.ok(true, 'disable event is fired'));
+    this.tessel.network.ap.on('enable', () => test.ok(true, 'enable event is fired'));
 
-    this.tessel.network.ap.on('off', () => {
-      test.ok(true, 'off event is fired');
-    });
-    this.tessel.network.ap.on('on', () => {
-      test.ok(true, 'on event is fired');
-    });
-
-    this.tessel.network.ap.on('disable', () => {
-      test.ok(true, 'disable event is fired');
-    });
-    this.tessel.network.ap.on('enable', () => {
-      test.ok(true, 'enable event is fired');
-    });
-
-    this.tessel.network.ap.reset((error) => {
+    this.tessel.network.ap.reset(error => {
       if (error) {
         test.fail(error);
         test.done();
@@ -4997,23 +5012,11 @@ exports['Tessel.AP'] = {
       callback(testError);
     });
 
-    this.tessel.network.ap.on('reset', () => {
-      test.ok(true, 'reset event is fired');
-    });
-
-    this.tessel.network.ap.on('off', () => {
-      test.ok(true, 'off event is fired');
-    });
-
-    this.tessel.network.ap.on('disable', () => {
-      test.ok(true, 'disable event is fired');
-    });
-
-    this.tessel.network.ap.on('error', (error) => {
-      test.ok(error);
-    });
-
-    this.tessel.network.ap.reset((error) => {
+    this.tessel.network.ap.on('reset', () => test.ok(true, 'reset event is fired'));
+    this.tessel.network.ap.on('off', () => test.ok(true, 'off event is fired'));
+    this.tessel.network.ap.on('disable', () => test.ok(true, 'disable event is fired'));
+    this.tessel.network.ap.on('error', error => test.ok(error));
+    this.tessel.network.ap.reset(error => {
       if (error) {
         test.ok(error);
         test.done();
@@ -5027,15 +5030,9 @@ exports['Tessel.AP'] = {
   disable(test) {
     test.expect(2);
 
-    this.tessel.network.ap.on('off', () => {
-      test.ok(true, 'off event is fired');
-    });
-
-    this.tessel.network.ap.on('disable', () => {
-      test.ok(true, 'disable event is fired');
-    });
-
-    this.tessel.network.ap.disable((error) => {
+    this.tessel.network.ap.on('off', () => test.ok(true, 'off event is fired'));
+    this.tessel.network.ap.on('disable', () => test.ok(true, 'disable event is fired'));
+    this.tessel.network.ap.disable(error => {
       if (error) {
         test.fail(error);
         test.done();
@@ -5054,11 +5051,11 @@ exports['Tessel.AP'] = {
       callback(testError);
     });
 
-    this.tessel.network.ap.on('error', (error) => {
+    this.tessel.network.ap.on('error', error => {
       test.ok(error);
     });
 
-    this.tessel.network.ap.disable((error) => {
+    this.tessel.network.ap.disable(error => {
       if (error) {
         test.ok(error);
         test.done();
@@ -5080,7 +5077,7 @@ exports['Tessel.AP'] = {
       test.ok(true, 'enable event is fired');
     });
 
-    this.tessel.network.ap.enable((error) => {
+    this.tessel.network.ap.enable(error => {
       if (error) {
         test.fail(error);
         test.done();
@@ -5099,11 +5096,11 @@ exports['Tessel.AP'] = {
       callback(testError);
     });
 
-    this.tessel.network.ap.on('error', (error) => {
+    this.tessel.network.ap.on('error', error => {
       test.ok(error);
     });
 
-    this.tessel.network.ap.enable((error) => {
+    this.tessel.network.ap.enable(error => {
       if (error) {
         test.ok(error);
         test.done();
