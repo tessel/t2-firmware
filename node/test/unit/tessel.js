@@ -1,36 +1,44 @@
+'use strict';
+
 process.env.IS_TEST_MODE = true;
 process.noDeprecation = true;
 
-var sinon = require('sinon');
-var Tessel = require('../../tessel-export');
-var version = 2;
+// System Objects
+// spy/syub as needed
+const cp = require('child_process');
+const Duplex = require('stream').Duplex;
+const Emitter = require('events').EventEmitter;
+const fs = require('fs');
+const net = require('net');
+
+// Third Party Dependencies
+const sinon = require('sinon');
+
+// Exported Module
+const Tessel = require('../../tessel-export');
 
 // These are ONLY exported for testing.
-var CMD = Tessel.CMD;
-var REPLY = Tessel.REPLY;
+const CMD = Tessel.CMD;
+const REPLY = Tessel.REPLY;
 
 // Shared sinon sandbox
-var sandbox = sinon.sandbox.create();
+const sandbox = sinon.sandbox.create();
 
-// Used within tessel.js, can be stubs/spies
-// Uncomment as necessary.
-//
-var util = require('util');
-var EventEmitter = require('events').EventEmitter;
-// var Duplex = require('stream').Duplex;
-var net = require('net');
-var fs = require('fs');
-var childProcess = require('child_process');
-
-function FakeSocket() {
-  this.ref = function() {};
-  this.unref = function() {};
+class FakeSocket extends Duplex {
+  constructor() {
+    super();
+    this.ref = () => {};
+    this.unref = () => {};
+  }
+  read() {
+    // Do not remove
+  }
 }
-util.inherits(FakeSocket, EventEmitter);
 
 exports['Tessel'] = {
-  setUp: function(done) {
-    this.LED = sandbox.spy(Tessel, 'LED');
+  setUp(done) {
+    this.led = new Tessel.LED('red', '/sys/devices/leds/leds/tessel:red:error/brightness');
+    this.LED = sandbox.stub(Tessel, 'LED').callsFake(() => this.led);
     this.Port = sandbox.stub(Tessel, 'Port');
     this.fsWrite = sandbox.stub(fs, 'writeFile');
 
@@ -38,19 +46,19 @@ exports['Tessel'] = {
     done();
   },
 
-  tearDown: function(done) {
+  tearDown(done) {
     Tessel.instance = null;
     sandbox.restore();
     done();
   },
 
-  instanceReused: function(test) {
+  instanceReused(test) {
     test.expect(1);
     test.equal(new Tessel(), this.tessel);
     test.done();
   },
 
-  instanceProperties: function(test) {
+  instanceProperties(test) {
     test.expect(5);
     test.notEqual(typeof this.tessel.ports, undefined);
     test.notEqual(typeof this.tessel.port, undefined);
@@ -60,13 +68,13 @@ exports['Tessel'] = {
     test.done();
   },
 
-  portsAliasToPort: function(test) {
+  portsAliasToPort(test) {
     test.expect(1);
     test.equal(this.tessel.port, this.tessel.ports);
     test.done();
   },
 
-  twoPortsInitialized: function(test) {
+  twoPortsInitialized(test) {
     test.expect(5);
     test.equal(this.tessel.ports.A instanceof Tessel.Port, true);
     test.equal(this.tessel.ports.B instanceof Tessel.Port, true);
@@ -76,17 +84,18 @@ exports['Tessel'] = {
     test.done();
   },
 
-  ledsLazyInitialization: function(test) {
+  ledsLazyInitialization(test) {
     test.expect(3);
     test.equal(this.LED.callCount, 0);
-    // Trigger a [[Get]]
-    test.equal(this.tessel.led[0] instanceof Tessel.LED, true);
+    // Trigger a [[Get]], which will return the stub above
+    test.equal(this.tessel.led[0], this.led);
     test.equal(this.LED.callCount, 1);
     test.done();
   },
 
-  ledsLazyInitializedAndOff: function(test) {
+  ledsLazyInitializedAndOff(test) {
     test.expect(5);
+
     test.strictEqual(this.tessel.led[0].value, 0);
     test.equal(this.fsWrite.callCount, 1);
     test.equal(this.fsWrite.lastCall.args[0], '/sys/devices/leds/leds/tessel:red:error/brightness');
@@ -95,12 +104,22 @@ exports['Tessel'] = {
     test.done();
   },
 
-  fourLEDsInitialized: function(test) {
+  fourLEDsInitialized(test) {
     test.expect(9);
-    test.equal(this.tessel.led[0] instanceof Tessel.LED, true);
-    test.equal(this.tessel.led[1] instanceof Tessel.LED, true);
-    test.equal(this.tessel.led[2] instanceof Tessel.LED, true);
-    test.equal(this.tessel.led[3] instanceof Tessel.LED, true);
+    this.LED.restore();
+    this.leds = [
+      new Tessel.LED('red', '/sys/devices/leds/leds/tessel:red:error/brightness'),
+      new Tessel.LED('amber', '/sys/devices/leds/leds/tessel:amber:wlan/brightness'),
+      new Tessel.LED('green', '/sys/devices/leds/leds/tessel:green:user1/brightness'),
+      new Tessel.LED('blue', '/sys/devices/leds/leds/tessel:blue:user2/brightness'),
+    ];
+
+    this.LED = sandbox.stub(Tessel, 'LED').callsFake(() => this.leds[this.LED.callCount - 1]);
+
+    test.equal(this.tessel.led[0], this.leds[0]);
+    test.equal(this.tessel.led[1], this.leds[1]);
+    test.equal(this.tessel.led[2], this.leds[2]);
+    test.equal(this.tessel.led[3], this.leds[3]);
     test.equal(this.LED.callCount, 4);
     test.deepEqual(
       this.LED.getCall(0).args, ['red', '/sys/devices/leds/leds/tessel:red:error/brightness']
@@ -118,22 +137,21 @@ exports['Tessel'] = {
     test.done();
   },
 
-  networkWifiInitialized: function(test) {
+  networkWifiInitialized(test) {
     test.expect(1);
     test.equal(this.tessel.network.wifi instanceof Tessel.Wifi, true);
-
     test.done();
   },
 
-  tesselVersion: function(test) {
+  tesselVersion(test) {
     test.expect(1);
-    test.equal(this.tessel.version, version);
+    test.equal(this.tessel.version, 2);
     test.done();
   },
 };
 
 exports['Tessel.prototype'] = {
-  setUp: function(done) {
+  setUp(done) {
     this.LED = sandbox.spy(Tessel, 'LED');
     this.Port = sandbox.stub(Tessel, 'Port');
     this.fsWrite = sandbox.stub(fs, 'writeFile');
@@ -142,16 +160,16 @@ exports['Tessel.prototype'] = {
     done();
   },
 
-  tearDown: function(done) {
+  tearDown(done) {
     Tessel.instance = null;
     sandbox.restore();
     done();
   },
 
-  closeBoth: function(test) {
+  closeBoth(test) {
     test.expect(1);
 
-    var spy = sandbox.spy();
+    const spy = sandbox.spy();
 
     this.tessel.port.A.close = spy;
     this.tessel.port.B.close = spy;
@@ -162,7 +180,7 @@ exports['Tessel.prototype'] = {
     test.done();
   },
 
-  closeSpecificA: function(test) {
+  closeSpecificA(test) {
     test.expect(2);
 
     this.tessel.port.A.close = sandbox.spy();
@@ -175,7 +193,7 @@ exports['Tessel.prototype'] = {
     test.done();
   },
 
-  closeSpecificB: function(test) {
+  closeSpecificB(test) {
     test.expect(2);
 
     this.tessel.port.A.close = sandbox.spy();
@@ -188,13 +206,13 @@ exports['Tessel.prototype'] = {
     test.done();
   },
 
-  openOnlyIfNotAlreadyOpen: function(test) {
+  openOnlyIfNotAlreadyOpen(test) {
     test.expect(1);
 
     Tessel.Port.reset();
 
-    var destroyed = false;
-    var sock = {
+    const destroyed = false;
+    const sock = {
       destroyed
     };
 
@@ -212,7 +230,7 @@ exports['Tessel.prototype'] = {
     test.done();
   },
 
-  openInstantiatesTesselPortWithTheseArgs: function(test) {
+  openInstantiatesTesselPortWithTheseArgs(test) {
     test.expect(7);
 
     test.equal(Tessel.Port.firstCall.args[0], 'A');
@@ -232,7 +250,7 @@ exports['Tessel.prototype'] = {
     test.done();
   },
 
-  openBothFromNothing: function(test) {
+  openBothFromNothing(test) {
     test.expect(3);
 
     Tessel.Port.reset();
@@ -249,12 +267,12 @@ exports['Tessel.prototype'] = {
     test.done();
   },
 
-  openBothFromPreviouslyDestroyedPort: function(test) {
+  openBothFromPreviouslyDestroyedPort(test) {
     test.expect(3);
 
     Tessel.Port.reset();
 
-    var destroyed = true;
+    const destroyed = true;
 
     this.tessel.port.A.sock = {
       destroyed
@@ -272,12 +290,12 @@ exports['Tessel.prototype'] = {
     test.done();
   },
 
-  reboot: function(test) {
+  reboot(test) {
     test.expect(7);
 
-    var close = sandbox.stub(this.tessel, 'close');
-    var execSync = sandbox.stub(childProcess, 'execSync');
-    var destroyed = true;
+    const close = sandbox.stub(this.tessel, 'close');
+    const execSync = sandbox.stub(cp, 'execSync');
+    const destroyed = true;
 
     this.tessel.port.A.sock = {
       destroyed
@@ -297,14 +315,14 @@ exports['Tessel.prototype'] = {
     test.equal(execSync.lastCall.args[0], 'reboot');
     test.done();
   },
-  pollUntilSocketsDestroyed: function(test) {
+  pollUntilSocketsDestroyed(test) {
     test.expect(1);
 
     sandbox.stub(global, 'setImmediate');
     sandbox.stub(this.tessel, 'close');
-    sandbox.stub(childProcess, 'execSync');
+    sandbox.stub(cp, 'execSync');
 
-    var destroyed = false;
+    const destroyed = false;
 
     this.tessel.port.A.sock = {
       destroyed
@@ -322,22 +340,23 @@ exports['Tessel.prototype'] = {
 
 
 exports['Tessel.LED'] = {
-  setUp: function(done) {
-    this.LED = sandbox.spy(Tessel, 'LED');
+  setUp(done) {
+    this.led = new Tessel.LED('red', '/sys/devices/leds/leds/tessel:red:error/brightness');
+    this.LED = sandbox.stub(Tessel, 'LED').callsFake(() => this.led);
     this.Port = sandbox.stub(Tessel, 'Port');
     this.fsWrite = sandbox.stub(fs, 'writeFile');
-    this.ledWrite = sandbox.spy(Tessel.LED.prototype, 'write');
+    this.ledWrite = sandbox.spy(this.led, 'write');
     this.tessel = new Tessel();
     done();
   },
 
-  tearDown: function(done) {
+  tearDown(done) {
     Tessel.instance = null;
     sandbox.restore();
     done();
   },
 
-  high: function(test) {
+  high(test) {
     test.expect(3);
 
     this.tessel.led[0].high();
@@ -348,7 +367,7 @@ exports['Tessel.LED'] = {
     test.done();
   },
 
-  on: function(test) {
+  on(test) {
     test.expect(4);
     test.equal(this.tessel.led[0].on(), this.tessel.led[0]);
     test.strictEqual(this.tessel.led[0].value, 1);
@@ -357,7 +376,7 @@ exports['Tessel.LED'] = {
     test.done();
   },
 
-  low: function(test) {
+  low(test) {
     test.expect(3);
 
     this.tessel.led[0].low();
@@ -368,7 +387,7 @@ exports['Tessel.LED'] = {
     test.done();
   },
 
-  off: function(test) {
+  off(test) {
     test.expect(4);
     test.equal(this.tessel.led[0].off(), this.tessel.led[0]);
     test.strictEqual(this.tessel.led[0].value, 0);
@@ -377,7 +396,7 @@ exports['Tessel.LED'] = {
     test.done();
   },
 
-  isOn: function(test) {
+  isOn(test) {
     test.expect(3);
 
     test.equal(this.tessel.led[0].isOn, false);
@@ -392,14 +411,14 @@ exports['Tessel.LED'] = {
     test.done();
   },
 
-  outputIsTheSameAsWrite: function(test) {
+  outputIsTheSameAsWrite(test) {
     test.expect(1);
     this.ledWrite.restore();
     test.equal(Tessel.LED.prototype.output, Tessel.LED.prototype.write);
     test.done();
   },
 
-  readStateValueOfLED: function(test) {
+  readStateValueOfLED(test) {
     test.expect(1);
     this.tessel.led[0].write(0);
     this.tessel.led[0].write(1);
@@ -409,7 +428,7 @@ exports['Tessel.LED'] = {
     });
   },
 
-  toggleUpdatesTheValue: function(test) {
+  toggleUpdatesTheValue(test) {
     test.expect(4);
 
     test.strictEqual(this.tessel.led[0].value, 0);
@@ -422,7 +441,7 @@ exports['Tessel.LED'] = {
     test.done();
   },
 
-  writeUpdatesTheValue: function(test) {
+  writeUpdatesTheValue(test) {
     test.expect(2);
 
     test.strictEqual(this.tessel.led[0].value, 0);
@@ -432,7 +451,7 @@ exports['Tessel.LED'] = {
     test.done();
   },
 
-  writeAcceptsBooleanOrNumberForBackCompat: function(test) {
+  writeAcceptsBooleanOrNumberForBackCompat(test) {
     test.expect(9);
 
     test.strictEqual(this.tessel.led[0].value, 0);
@@ -458,47 +477,49 @@ exports['Tessel.LED'] = {
 };
 
 exports['Tessel.LEDs (collection operations)'] = {
-  setUp: function(done) {
-    this.LED = sandbox.spy(Tessel, 'LED');
+  setUp(done) {
+    this.led = new Tessel.LED('red', '/sys/devices/leds/leds/tessel:red:error/brightness');
+    this.LED = sandbox.stub(Tessel, 'LED').callsFake(() => this.led);
     this.LEDs = sandbox.spy(Tessel, 'LEDs');
     this.Port = sandbox.stub(Tessel, 'Port');
     this.fsWrite = sandbox.stub(fs, 'writeFile');
 
-    this.on = sandbox.spy(Tessel.LED.prototype, 'on');
-    this.off = sandbox.spy(Tessel.LED.prototype, 'off');
-    this.toggle = sandbox.spy(Tessel.LED.prototype, 'toggle');
+    // The same LED instance is used, so all callCounts should be 4
+    this.on = sandbox.spy(this.led, 'on');
+    this.off = sandbox.spy(this.led, 'off');
+    this.toggle = sandbox.spy(this.led, 'toggle');
 
     this.tessel = new Tessel();
     done();
   },
 
-  tearDown: function(done) {
+  tearDown(done) {
     Tessel.instance = null;
     sandbox.restore();
     done();
   },
 
-  alias: function(test) {
+  alias(test) {
     test.expect(1);
     test.equal(this.tessel.led, this.tessel.leds);
     test.done();
   },
 
-  on: function(test) {
+  on(test) {
     test.expect(2);
     test.equal(this.tessel.leds.on(), this.tessel.leds);
     test.equal(this.on.callCount, 4);
     test.done();
   },
 
-  off: function(test) {
+  off(test) {
     test.expect(2);
     test.equal(this.tessel.leds.off(), this.tessel.leds);
     test.equal(this.off.callCount, 4);
     test.done();
   },
 
-  toggle: function(test) {
+  toggle(test) {
     test.expect(2);
     test.equal(this.tessel.leds.toggle(), this.tessel.leds);
     test.equal(this.toggle.callCount, 4);
@@ -509,32 +530,30 @@ exports['Tessel.LEDs (collection operations)'] = {
 
 
 exports['Tessel.Port'] = {
-  setUp: function(done) {
-    this.createConnection = sandbox.stub(net, 'createConnection').callsFake(function() {
-      return new FakeSocket();
-    });
+  setUp(done) {
+    this.createConnection = sandbox.stub(net, 'createConnection').callsFake(() => new FakeSocket());
 
     this.tessel = new Tessel();
     done();
   },
 
-  tearDown: function(done) {
+  tearDown(done) {
     Tessel.instance = null;
     sandbox.restore();
     done();
   },
 
-  emitter: function(test) {
+  emitter(test) {
     test.expect(1);
 
-    var port = new Tessel.Port('foo', '/foo/bar/baz', this.tessel);
+    const port = new Tessel.Port('foo', '/foo/bar/baz', this.tessel);
 
-    test.ok(port instanceof EventEmitter);
+    test.ok(port instanceof Emitter);
 
     test.done();
   },
 
-  netConnection: function(test) {
+  netConnection(test) {
     test.expect(1);
 
     this.createConnection.restore();
@@ -546,10 +565,10 @@ exports['Tessel.Port'] = {
     test.done();
   },
 
-  'socket event:error': function(test) {
+  'socket event:error' (test) {
     test.expect(2);
 
-    var port = new Tessel.Port('foo', '/foo/bar/baz', this.tessel);
+    const port = new Tessel.Port('foo', '/foo/bar/baz', this.tessel);
 
     sandbox.stub(console, 'log');
 
@@ -561,10 +580,10 @@ exports['Tessel.Port'] = {
     test.done();
   },
 
-  'socket event:end': function(test) {
+  'socket event:end' (test) {
     test.expect(2);
 
-    var port = new Tessel.Port('foo', '/foo/bar/baz', this.tessel);
+    const port = new Tessel.Port('foo', '/foo/bar/baz', this.tessel);
 
     sandbox.stub(console, 'log');
 
@@ -576,10 +595,10 @@ exports['Tessel.Port'] = {
     test.done();
   },
 
-  'socket event:close': function(test) {
+  'socket event:close' (test) {
     test.expect(2);
 
-    var port = new Tessel.Port('foo', '/foo/bar/baz', this.tessel);
+    const port = new Tessel.Port('foo', '/foo/bar/baz', this.tessel);
 
     port.sock.isAllowedToClose = false;
     test.throws(() => port.sock.emit('close'));
@@ -590,10 +609,10 @@ exports['Tessel.Port'] = {
     test.done();
   },
 
-  instanceProperties: function(test) {
+  instanceProperties(test) {
     test.expect(14);
 
-    var port = new Tessel.Port('foo', '/foo/bar/baz', this.tessel);
+    const port = new Tessel.Port('foo', '/foo/bar/baz', this.tessel);
 
     test.equal(port.board, this.tessel);
     test.equal(port.mode, 'none');
@@ -613,21 +632,21 @@ exports['Tessel.Port'] = {
     test.done();
   },
 
-  isAllowedToCloseFalse: function(test) {
+  isAllowedToCloseFalse(test) {
     test.expect(1);
 
-    var port = new Tessel.Port('foo', '/foo/bar/baz', this.tessel);
+    const port = new Tessel.Port('foo', '/foo/bar/baz', this.tessel);
 
     test.equal(port.sock.isAllowedToClose, false);
     test.done();
   },
 
-  isAllowedToCloseTrue: function(test) {
+  isAllowedToCloseTrue(test) {
     test.expect(5);
 
-    var spy = sandbox.spy();
-    var A = this.tessel.port.A;
-    var B = this.tessel.port.B;
+    const spy = sandbox.spy();
+    const A = this.tessel.port.A;
+    const B = this.tessel.port.B;
 
     test.equal(A.sock.isAllowedToClose, false);
     test.equal(B.sock.isAllowedToClose, false);
@@ -651,10 +670,10 @@ exports['Tessel.Port'] = {
     test.done();
   },
 
-  instancePropertiesDeprecated: function(test) {
+  instancePropertiesDeprecated(test) {
     test.expect(7);
 
-    var port = new Tessel.Port('foo', '/foo/bar/baz', this.tessel);
+    const port = new Tessel.Port('foo', '/foo/bar/baz', this.tessel);
 
     test.equal(port.pin.G1, port.pin.g1);
     test.equal(port.pin.G1, port.pin[5]);
@@ -666,7 +685,7 @@ exports['Tessel.Port'] = {
     test.done();
   },
 
-  forwardSocketPath: function(test) {
+  forwardSocketPath(test) {
     test.expect(1);
 
     new Tessel.Port('foo', '/foo/bar/baz', this.tessel);
@@ -676,12 +695,12 @@ exports['Tessel.Port'] = {
     test.done();
   },
 
-  eightPinsInitialized: function(test) {
+  eightPinsInitialized(test) {
     test.expect(9);
 
     this.Pin = sandbox.stub(Tessel, 'Pin');
 
-    var port = new Tessel.Port('A', '/foo/bar/baz', this.tessel);
+    const port = new Tessel.Port('A', '/foo/bar/baz', this.tessel);
 
     test.equal(this.Pin.callCount, 8);
     test.equal(port.pin[0] instanceof Tessel.Pin, true);
@@ -696,10 +715,10 @@ exports['Tessel.Port'] = {
     test.done();
   },
 
-  analogSupportedA: function(test) {
+  analogSupportedA(test) {
     test.expect(8);
 
-    var port = new Tessel.Port('A', '/foo/bar/baz', this.tessel);
+    const port = new Tessel.Port('A', '/foo/bar/baz', this.tessel);
 
     test.equal(port.pin[0].analogSupported, false);
     test.equal(port.pin[1].analogSupported, false);
@@ -714,10 +733,10 @@ exports['Tessel.Port'] = {
     test.done();
   },
 
-  analogSupportedB: function(test) {
+  analogSupportedB(test) {
     test.expect(8);
 
-    var port = new Tessel.Port('B', '/foo/bar/baz', this.tessel);
+    const port = new Tessel.Port('B', '/foo/bar/baz', this.tessel);
 
     test.equal(port.pin[0].analogSupported, true);
     test.equal(port.pin[1].analogSupported, true);
@@ -731,10 +750,10 @@ exports['Tessel.Port'] = {
     test.done();
   },
 
-  interruptSupportedA: function(test) {
+  interruptSupportedA(test) {
     test.expect(8);
 
-    var port = new Tessel.Port('A', '/foo/bar/baz', this.tessel);
+    const port = new Tessel.Port('A', '/foo/bar/baz', this.tessel);
 
     test.equal(port.pin[0].interruptSupported, false);
     test.equal(port.pin[1].interruptSupported, false);
@@ -749,10 +768,10 @@ exports['Tessel.Port'] = {
     test.done();
   },
 
-  interruptSupportedB: function(test) {
+  interruptSupportedB(test) {
     test.expect(8);
 
-    var port = new Tessel.Port('B', '/foo/bar/baz', this.tessel);
+    const port = new Tessel.Port('B', '/foo/bar/baz', this.tessel);
 
     test.equal(port.pin[0].interruptSupported, false);
     test.equal(port.pin[1].interruptSupported, false);
@@ -767,14 +786,14 @@ exports['Tessel.Port'] = {
     test.done();
   },
 
-  busProtocolClassWrappersAreConstructors: function(test) {
+  busProtocolClassWrappersAreConstructors(test) {
     test.expect(6);
 
     sandbox.stub(Tessel, 'I2C');
     sandbox.stub(Tessel, 'SPI');
     sandbox.stub(Tessel, 'UART');
 
-    var port = new Tessel.Port('B', '/foo/bar/baz', this.tessel);
+    const port = new Tessel.Port('B', '/foo/bar/baz', this.tessel);
 
     test.doesNotThrow(() => {
       new port.I2C(1);
@@ -792,19 +811,20 @@ exports['Tessel.Port'] = {
 
     test.done();
   },
+
 };
 
 exports['Tessel.Port.prototype'] = {
-  setUp: function(done) {
+  setUp(done) {
     this.socket = new FakeSocket();
 
-    this.createConnection = sandbox.stub(net, 'createConnection').callsFake(function() {
+    this.createConnection = sandbox.stub(net, 'createConnection').callsFake(() => {
       this.socket.cork = sandbox.spy();
       this.socket.uncork = sandbox.spy();
       this.socket.write = sandbox.spy();
       this.socket.read = sandbox.stub().returns(new Buffer([REPLY.DATA]));
       return this.socket;
-    }.bind(this));
+    });
 
     this.tessel = new Tessel();
 
@@ -818,16 +838,16 @@ exports['Tessel.Port.prototype'] = {
     done();
   },
 
-  tearDown: function(done) {
+  tearDown(done) {
     Tessel.instance = null;
     sandbox.restore();
     done();
   },
 
-  close: function(test) {
+  close(test) {
     test.expect(3);
 
-    var spy = sandbox.spy();
+    const spy = sandbox.spy();
     this.tessel.port.A.sock.destroy = spy;
 
     test.equal(this.tessel.port.A.sock.isAllowedToClose, false);
@@ -840,7 +860,7 @@ exports['Tessel.Port.prototype'] = {
     test.done();
   },
 
-  cork: function(test) {
+  cork(test) {
     test.expect(1);
 
     this.port.cork();
@@ -848,7 +868,7 @@ exports['Tessel.Port.prototype'] = {
     test.done();
   },
 
-  uncork: function(test) {
+  uncork(test) {
     test.expect(1);
 
     this.port.uncork();
@@ -856,18 +876,18 @@ exports['Tessel.Port.prototype'] = {
     test.done();
   },
 
-  sync: function(test) {
+  sync(test) {
     test.expect(6);
 
     this.port.sync();
     test.equal(this.socket.write.callCount, 0);
     test.equal(this.port.replyQueue.length, 0);
 
-    this.port.sync(function() {});
+    this.port.sync(() => {});
     test.equal(this.socket.write.callCount, 1);
     test.equal(this.port.replyQueue.length, 1);
 
-    var buffer = this.socket.write.lastCall.args[0];
+    const buffer = this.socket.write.lastCall.args[0];
 
     test.equal(buffer instanceof Buffer, true);
     test.equal(buffer.readUInt8(0), CMD.ECHO);
@@ -878,45 +898,45 @@ exports['Tessel.Port.prototype'] = {
     test.done();
   },
 
-  _simple_cmd: function(test) {
+  command(test) {
     test.expect(4);
 
-    this.port._simple_cmd([], function() {});
+    this.port.command([], () => {});
 
     test.equal(this.socket.cork.callCount, 1);
     test.equal(this.socket.uncork.callCount, 1);
 
-    // Called by _simple_cmd and sync
+    // Called by command and sync
     test.equal(this.socket.write.callCount, 2);
 
-    // The first call is from _simple_cmd.
-    var buffer = this.socket.write.firstCall.args[0];
+    // The first call is from command.
+    const buffer = this.socket.write.firstCall.args[0];
 
     test.equal(buffer instanceof Buffer, true);
 
     test.done();
   },
 
-  _status_cmd: function(test) {
+  status(test) {
     test.expect(3);
 
-    this.port._status_cmd([], function() {});
+    this.port.status([], () => {});
     test.equal(this.socket.write.callCount, 1);
     test.equal(this.port.replyQueue.length, 1);
 
-    var buffer = this.socket.write.lastCall.args[0];
+    const buffer = this.socket.write.lastCall.args[0];
 
     test.equal(buffer instanceof Buffer, true);
 
     test.done();
   },
 
-  _spi: function(test) {
+  _spi(test) {
     test.expect(5);
 
     test.equal(this.port._spi, undefined);
 
-    var options = {};
+    const options = {};
     this.port.SPI(options);
 
     test.notEqual(this.port._spi, undefined);
@@ -927,12 +947,12 @@ exports['Tessel.Port.prototype'] = {
     test.done();
   },
 
-  _uart: function(test) {
+  _uart(test) {
     test.expect(5);
 
     test.equal(this.port._uart, undefined);
 
-    var options = {};
+    const options = {};
     this.port.UART(options);
 
     test.notEqual(this.port._uart, undefined);
@@ -943,10 +963,10 @@ exports['Tessel.Port.prototype'] = {
     test.done();
   },
 
-  I2CnoArgsAlwaysHasPort: function(test) {
+  I2CnoArgsAlwaysHasPort(test) {
     test.expect(3);
 
-    var device1 = new this.port.I2C();
+    const device1 = new this.port.I2C();
 
     test.equal(device1 instanceof Tessel.I2C, true);
 
@@ -956,11 +976,11 @@ exports['Tessel.Port.prototype'] = {
     test.done();
   },
 
-  I2CwithAddressArg: function(test) {
+  I2CwithAddressArg(test) {
     test.expect(6);
 
-    var device1 = new this.port.I2C(0x00);
-    var device2 = new this.port.I2C(0x01);
+    const device1 = new this.port.I2C(0x00);
+    const device2 = new this.port.I2C(0x01);
 
     test.notEqual(device1, device2);
     test.equal(device1 instanceof Tessel.I2C, true);
@@ -973,10 +993,10 @@ exports['Tessel.Port.prototype'] = {
     test.done();
   },
 
-  I2CwithOptsAlwaysHasPort: function(test) {
+  I2CwithOptsAlwaysHasPort(test) {
     test.expect(4);
 
-    var device1 = new this.port.I2C({
+    const device1 = new this.port.I2C({
       address: 0x00
     });
 
@@ -988,10 +1008,10 @@ exports['Tessel.Port.prototype'] = {
     test.done();
   },
 
-  I2CwithOptsWrongPortOverridden: function(test) {
+  I2CwithOptsWrongPortOverridden(test) {
     test.expect(3);
 
-    var device1 = new this.port.I2C({
+    const device1 = new this.port.I2C({
       address: 0x00,
       port: this.b
     });
@@ -1004,10 +1024,10 @@ exports['Tessel.Port.prototype'] = {
     test.done();
   },
 
-  I2CwithOptsForwarded: function(test) {
+  I2CwithOptsForwarded(test) {
     test.expect(4);
 
-    var device1 = new this.port.I2C({
+    const device1 = new this.port.I2C({
       address: 0x00,
       frequency: 1e5,
       port: this.b
@@ -1022,14 +1042,14 @@ exports['Tessel.Port.prototype'] = {
     test.done();
   },
 
-  multiplePortsI2C: function(test) {
+  multiplePortsI2C(test) {
     test.expect(11);
 
-    var aDevice1 = new this.a.I2C(0x00);
-    var aDevice2 = new this.a.I2C(0x01);
+    const aDevice1 = new this.a.I2C(0x00);
+    const aDevice2 = new this.a.I2C(0x01);
 
-    var bDevice1 = new this.b.I2C(0x00);
-    var bDevice2 = new this.b.I2C(0x01);
+    const bDevice1 = new this.b.I2C(0x00);
+    const bDevice2 = new this.b.I2C(0x01);
 
     test.notEqual(aDevice1, aDevice2);
     test.notEqual(bDevice1, bDevice2);
@@ -1050,16 +1070,16 @@ exports['Tessel.Port.prototype'] = {
     test.done();
   },
 
-  _txLessThanByteTransferLimit: function(test) {
+  txLessThanByteTransferLimit(test) {
     test.expect(6);
 
-    var buffer = new Buffer(255);
+    const buffer = new Buffer(255);
 
     this.cork = sandbox.stub(Tessel.Port.prototype, 'cork');
     this.sync = sandbox.stub(Tessel.Port.prototype, 'sync');
     this.uncork = sandbox.stub(Tessel.Port.prototype, 'uncork');
 
-    this.a._tx(buffer, function() {});
+    this.a.tx(buffer, () => {});
 
     test.equal(this.cork.callCount, 1);
     test.equal(this.sync.callCount, 1);
@@ -1073,16 +1093,16 @@ exports['Tessel.Port.prototype'] = {
     test.done();
   },
 
-  _txGreaterThanByteTransferLimit: function(test) {
+  txGreaterThanByteTransferLimit(test) {
     test.expect(8);
 
-    var buffer = new Buffer(510);
+    const buffer = new Buffer(510);
 
     this.cork = sandbox.stub(Tessel.Port.prototype, 'cork');
     this.sync = sandbox.stub(Tessel.Port.prototype, 'sync');
     this.uncork = sandbox.stub(Tessel.Port.prototype, 'uncork');
 
-    this.a._tx(buffer, function() {});
+    this.a.tx(buffer, () => {});
 
     test.equal(this.cork.callCount, 1);
     test.equal(this.sync.callCount, 1);
@@ -1100,33 +1120,33 @@ exports['Tessel.Port.prototype'] = {
     test.done();
   },
 
-  _txInvalidBuffer: function(test) {
+  txInvalidBuffer(test) {
     test.expect(1);
 
-    test.throws(function() {
-      this.a._tx(new Buffer(0));
-    }.bind(this), RangeError);
+    test.throws(() => {
+      this.a.tx(new Buffer(0));
+    }, RangeError);
 
     test.done();
   },
 
-  _rx: function(test) {
+  rx(test) {
     test.expect(5);
 
     this.cork = sandbox.stub(Tessel.Port.prototype, 'cork');
     this.uncork = sandbox.stub(Tessel.Port.prototype, 'uncork');
 
-    var size = 4;
-    var callback = sandbox.spy();
+    const size = 4;
+    const callback = sandbox.spy();
 
-    this.a._rx(size, callback);
+    this.a.rx(size, callback);
 
     test.equal(this.a.sock.write.callCount, 1);
     test.ok(this.a.sock.write.lastCall.args[0].equals(new Buffer([CMD.RX, size])));
 
     test.equal(this.a.replyQueue.length, 1);
 
-    var replyQueueEntry = this.a.replyQueue[0];
+    const replyQueueEntry = this.a.replyQueue[0];
 
     test.equal(replyQueueEntry.size, size);
     test.equal(replyQueueEntry.callback, callback);
@@ -1139,36 +1159,36 @@ exports['Tessel.Port.prototype'] = {
     test.done();
   },
 
-  _rxInvalidLengthZero: function(test) {
+  rxInvalidLengthZero(test) {
     test.expect(1);
 
-    test.throws(function() {
-      this.a._rx(0);
-    }.bind(this), RangeError);
+    test.throws(() => {
+      this.a.rx(0);
+    }, RangeError);
 
     test.done();
   },
 
-  _rxInvalidLengthMax: function(test) {
+  rxInvalidLengthMax(test) {
     test.expect(1);
 
-    test.throws(function() {
-      this.a._rx(256);
-    }.bind(this), RangeError);
+    test.throws(() => {
+      this.a.rx(256);
+    }, RangeError);
 
     test.done();
   },
 
-  _txrx: function(test) {
+  txrx(test) {
     test.expect(8);
 
     this.cork = sandbox.stub(Tessel.Port.prototype, 'cork');
     this.uncork = sandbox.stub(Tessel.Port.prototype, 'uncork');
 
-    var buffer = new Buffer(4);
-    var callback = sandbox.spy();
+    const buffer = new Buffer(4);
+    const callback = sandbox.spy();
 
-    this.a._txrx(buffer, callback);
+    this.a.txrx(buffer, callback);
 
     test.equal(this.cork.callCount, 1);
     test.equal(this.uncork.callCount, 1);
@@ -1176,7 +1196,7 @@ exports['Tessel.Port.prototype'] = {
 
     test.equal(this.a.replyQueue.length, 1);
 
-    var replyQueueEntry = this.a.replyQueue[0];
+    const replyQueueEntry = this.a.replyQueue[0];
 
     test.equal(replyQueueEntry.size, buffer.length);
     test.equal(replyQueueEntry.callback, callback);
@@ -1187,26 +1207,26 @@ exports['Tessel.Port.prototype'] = {
     test.done();
   },
 
-  _txrxInvalidLengthZero: function(test) {
+  txrxInvalidLengthZero(test) {
     test.expect(1);
 
-    var buffer = new Buffer(0);
+    const buffer = new Buffer(0);
 
-    test.throws(function() {
-      this.a._txrx(buffer);
-    }.bind(this), RangeError);
+    test.throws(() => {
+      this.a.txrx(buffer);
+    }, RangeError);
 
     test.done();
   },
 
-  _txrxInvalidLengthMax: function(test) {
+  txrxInvalidLengthMax(test) {
     test.expect(1);
 
-    var buffer = new Buffer(256);
+    const buffer = new Buffer(256);
 
-    test.throws(function() {
-      this.a._txrx(buffer);
-    }.bind(this), RangeError);
+    test.throws(() => {
+      this.a.txrx(buffer);
+    }, RangeError);
 
     test.done();
   },
@@ -1214,49 +1234,49 @@ exports['Tessel.Port.prototype'] = {
 };
 
 exports['Tessel.Port Commands (handling incoming socket stream)'] = {
-  setUp: function(done) {
+  setUp(done) {
     this.socket = new FakeSocket();
 
-    this.createConnection = sandbox.stub(net, 'createConnection').callsFake(function() {
+    this.createConnection = sandbox.stub(net, 'createConnection').callsFake(() => {
       this.socket.cork = sandbox.spy();
       this.socket.uncork = sandbox.spy();
       this.socket.write = sandbox.spy();
       // Stubbed as needed
       this.socket.read = sandbox.stub().returns(new Buffer([REPLY.DATA]));
       return this.socket;
-    }.bind(this));
+    });
 
     this.port = new Tessel.Port('foo', '/foo/bar/baz', {});
 
     done();
   },
 
-  tearDown: function(done) {
+  tearDown(done) {
     Tessel.instance = null;
     sandbox.restore();
     done();
   },
 
-  readableButNull: function(test) {
+  readableButNull(test) {
     test.expect(1);
 
     this.port.sock.read.returns(null);
 
     this.port.sock.emit('readable');
 
-    setImmediate(function() {
+    setImmediate(() => {
       test.ok(true, 'Reaching the next execution turns means that Buffer.concat did not fail on `null`');
       test.done();
-    }.bind(this));
+    });
   },
 
-  replyhigh: function(test) {
+  replyhigh(test) {
     test.expect(1);
 
     this.port.sock.read.returns(new Buffer([REPLY.HIGH]));
     this.port.replyQueue.push({
       size: 0,
-      callback: function(err, data) {
+      callback(err, data) {
         test.equal(data, REPLY.HIGH);
         test.done();
       },
@@ -1265,13 +1285,13 @@ exports['Tessel.Port Commands (handling incoming socket stream)'] = {
     this.port.sock.emit('readable');
   },
 
-  replylow: function(test) {
+  replylow(test) {
     test.expect(1);
 
     this.port.sock.read.returns(new Buffer([REPLY.LOW]));
     this.port.replyQueue.push({
       size: 0,
-      callback: function(err, data) {
+      callback(err, data) {
         test.equal(data, REPLY.LOW);
         test.done();
       },
@@ -1280,13 +1300,13 @@ exports['Tessel.Port Commands (handling incoming socket stream)'] = {
     this.port.sock.emit('readable');
   },
 
-  replydata: function(test) {
+  replydata(test) {
     test.expect(4);
 
     this.port.sock.read.returns(new Buffer([REPLY.DATA, 0xff, 0x7f, 0x3f, 0x1f]));
     this.port.replyQueue.push({
       size: 4,
-      callback: function(err, data) {
+      callback(err, data) {
         test.equal(data[0], 0xff);
         test.equal(data[1], 0x7f);
         test.equal(data[2], 0x3f);
@@ -1298,12 +1318,12 @@ exports['Tessel.Port Commands (handling incoming socket stream)'] = {
     this.port.sock.emit('readable');
   },
 
-  replyDataPartial: function(test) {
+  replyDataPartial(test) {
     test.expect(4);
 
     this.port.replyQueue.push({
       size: 4,
-      callback: function(err, data) {
+      callback(err, data) {
         test.equal(data[0], 0xff);
         test.equal(data[1], 0x7f);
         test.equal(data[2], 0x3f);
@@ -1319,24 +1339,24 @@ exports['Tessel.Port Commands (handling incoming socket stream)'] = {
     this.port.sock.emit('readable');
   },
 
-  noregisteredreplyhandler: function(test) {
+  noregisteredreplyhandler(test) {
     test.expect(1);
 
-    test.throws(function() {
+    test.throws(() => {
       this.port.replyQueue.length = 0;
       this.port.sock.read.returns(new Buffer([REPLY.HIGH]));
       this.port.sock.emit('readable');
-    }.bind(this), Error);
+    }, Error);
 
     test.done();
   },
 
-  replydataunexpected: function(test) {
+  replydataunexpected(test) {
     test.expect(2);
 
-    var spy = sandbox.spy();
+    const spy = sandbox.spy();
 
-    test.throws(function() {
+    test.throws(() => {
       this.port.replyQueue.push({
         size: 0,
         callback: spy,
@@ -1344,18 +1364,18 @@ exports['Tessel.Port Commands (handling incoming socket stream)'] = {
 
       this.port.sock.read.returns(new Buffer([REPLY.DATA, 0xff, 0x7f]));
       this.port.sock.emit('readable');
-    }.bind(this), Error);
+    }, Error);
 
     test.equal(spy.callCount, 0);
     test.done();
   },
 
 
-  replyasyncpinchange: function(test) {
+  replyasyncpinchange(test) {
     test.expect(4);
 
-    var low = sandbox.spy();
-    var high = sandbox.spy();
+    const low = sandbox.spy();
+    const high = sandbox.spy();
 
     this.port.pin[2].once('low', low);
     this.port.pin[5].once('high', high);
@@ -1375,10 +1395,10 @@ exports['Tessel.Port Commands (handling incoming socket stream)'] = {
     test.done();
   },
 
-  replyminasync: function(test) {
+  replyminasync(test) {
     test.expect(1);
 
-    this.port.on('async-event', function(data) {
+    this.port.on('async-event', data => {
       test.equal(data, REPLY.MIN_ASYNC);
       test.done();
     });
@@ -1389,10 +1409,10 @@ exports['Tessel.Port Commands (handling incoming socket stream)'] = {
 };
 
 exports['Tessel.Pin'] = {
-  setUp: function(done) {
+  setUp(done) {
 
-    this.createConnection = sandbox.stub(net, 'createConnection').callsFake(function() {
-      var socket = new FakeSocket();
+    this.createConnection = sandbox.stub(net, 'createConnection').callsFake(() => {
+      const socket = new FakeSocket();
       socket.cork = sandbox.spy();
       socket.uncork = sandbox.spy();
       socket.write = sandbox.spy();
@@ -1401,7 +1421,7 @@ exports['Tessel.Pin'] = {
       return socket;
     });
 
-    this._simple_cmd = sandbox.stub(Tessel.Port.prototype, '_simple_cmd');
+    this.command = sandbox.stub(Tessel.Port.prototype, 'command');
 
     this.tessel = new Tessel();
 
@@ -1411,27 +1431,27 @@ exports['Tessel.Pin'] = {
     done();
   },
 
-  tearDown: function(done) {
+  tearDown(done) {
     Tessel.instance = null;
     sandbox.restore();
     done();
   },
 
-  emitter: function(test) {
+  emitter(test) {
     test.expect(1);
-    test.equal(new Tessel.Pin(0, this.a) instanceof EventEmitter, true);
+    test.equal(new Tessel.Pin(0, this.a) instanceof Emitter, true);
     test.done();
   },
 
-  initializationA: function(test) {
+  initializationA(test) {
     test.expect(46);
 
-    var pins = [];
+    const pins = [];
 
-    for (var i = 0; i < 8; i++) {
-      var intSupported = Tessel.Pin.interruptCapablePins.indexOf(i) !== -1;
-      var adcSupported = Tessel.Pin.adcCapablePins.indexOf(i) !== -1;
-      var pullSupported = Tessel.Pin.pullCapablePins.indexOf(i) !== -1;
+    for (let i = 0; i < 8; i++) {
+      const intSupported = Tessel.Pin.interruptCapablePins.indexOf(i) !== -1;
+      const adcSupported = Tessel.Pin.adcCapablePins.indexOf(i) !== -1;
+      const pullSupported = Tessel.Pin.pullCapablePins.indexOf(i) !== -1;
       pins.push(
         new Tessel.Pin(i, this.a, intSupported, adcSupported, pullSupported)
       );
@@ -1448,14 +1468,14 @@ exports['Tessel.Pin'] = {
     test.equal(pins[7].pin, 7);
 
     // Port
-    test.equal(pins[0]._port, this.a);
-    test.equal(pins[1]._port, this.a);
-    test.equal(pins[2]._port, this.a);
-    test.equal(pins[3]._port, this.a);
-    test.equal(pins[4]._port, this.a);
-    test.equal(pins[5]._port, this.a);
-    test.equal(pins[6]._port, this.a);
-    test.equal(pins[7]._port, this.a);
+    test.equal(pins[0].port, this.a);
+    test.equal(pins[1].port, this.a);
+    test.equal(pins[2].port, this.a);
+    test.equal(pins[3].port, this.a);
+    test.equal(pins[4].port, this.a);
+    test.equal(pins[5].port, this.a);
+    test.equal(pins[6].port, this.a);
+    test.equal(pins[7].port, this.a);
 
     // Interrupts on 2, 5, 6, 7
     test.equal(pins[2].interruptSupported, true);
@@ -1500,14 +1520,14 @@ exports['Tessel.Pin'] = {
     test.done();
   },
 
-  initializationB: function(test) {
+  initializationB(test) {
     test.expect(52);
 
-    var pins = [];
+    const pins = [];
 
-    for (var i = 0; i < 8; i++) {
-      var intSupported = Tessel.Pin.interruptCapablePins.indexOf(i) !== -1;
-      var pullSupported = Tessel.Pin.pullCapablePins.indexOf(i) !== -1;
+    for (let i = 0; i < 8; i++) {
+      const intSupported = Tessel.Pin.interruptCapablePins.indexOf(i) !== -1;
+      const pullSupported = Tessel.Pin.pullCapablePins.indexOf(i) !== -1;
       pins.push(
         new Tessel.Pin(i, this.b, intSupported, true, pullSupported)
       );
@@ -1524,14 +1544,14 @@ exports['Tessel.Pin'] = {
     test.equal(pins[7].pin, 7);
 
     // Port
-    test.equal(pins[0]._port, this.b);
-    test.equal(pins[1]._port, this.b);
-    test.equal(pins[2]._port, this.b);
-    test.equal(pins[3]._port, this.b);
-    test.equal(pins[4]._port, this.b);
-    test.equal(pins[5]._port, this.b);
-    test.equal(pins[6]._port, this.b);
-    test.equal(pins[7]._port, this.b);
+    test.equal(pins[0].port, this.b);
+    test.equal(pins[1].port, this.b);
+    test.equal(pins[2].port, this.b);
+    test.equal(pins[3].port, this.b);
+    test.equal(pins[4].port, this.b);
+    test.equal(pins[5].port, this.b);
+    test.equal(pins[6].port, this.b);
+    test.equal(pins[7].port, this.b);
 
     // Interrupts on 2, 5, 6, 7
     test.equal(pins[2].interruptSupported, true);
@@ -1582,10 +1602,10 @@ exports['Tessel.Pin'] = {
     test.done();
   },
 
-  interruptErrorMessages: function(test) {
+  interruptErrorMessages(test) {
     test.expect(4);
 
-    var spy = sandbox.spy();
+    const spy = sandbox.spy();
 
     try {
       this.a.pin[0].once('test', spy);
@@ -1619,10 +1639,10 @@ exports['Tessel.Pin'] = {
     test.done();
   },
 
-  levelInterruptInvalidPin: function(test) {
+  levelInterruptInvalidPin(test) {
     test.expect(16);
 
-    var spy = sandbox.spy();
+    const spy = sandbox.spy();
 
     [0, 1, 3, 4].forEach(pinIndex => {
       test.throws(() => this.a.pin[pinIndex].once('high', spy));
@@ -1634,10 +1654,10 @@ exports['Tessel.Pin'] = {
     test.done();
   },
 
-  interruptRiseInvalidPin: function(test) {
+  interruptRiseInvalidPin(test) {
     test.expect(8);
 
-    var spy = sandbox.spy();
+    const spy = sandbox.spy();
 
     [0, 1, 3, 4].forEach(pinIndex => {
       test.throws(() => this.a.pin[pinIndex].on('rise', spy));
@@ -1647,10 +1667,10 @@ exports['Tessel.Pin'] = {
     test.done();
   },
 
-  interruptFallInvalidPin: function(test) {
+  interruptFallInvalidPin(test) {
     test.expect(8);
 
-    var spy = sandbox.spy();
+    const spy = sandbox.spy();
 
     [0, 1, 3, 4].forEach(pinIndex => {
       test.throws(() => this.a.pin[pinIndex].on('fall', spy));
@@ -1660,10 +1680,10 @@ exports['Tessel.Pin'] = {
     test.done();
   },
 
-  interruptHigh: function(test) {
+  interruptHigh(test) {
     test.expect(9);
 
-    var spy = sandbox.spy();
+    const spy = sandbox.spy();
 
     [2, 5, 6, 7].forEach(function(pinIndex) {
       this.a.pin[pinIndex].once('high', spy);
@@ -1684,10 +1704,10 @@ exports['Tessel.Pin'] = {
     test.done();
   },
 
-  interruptLow: function(test) {
+  interruptLow(test) {
     test.expect(9);
 
-    var spy = sandbox.spy();
+    const spy = sandbox.spy();
 
     [2, 5, 6, 7].forEach(function(pinIndex) {
       this.a.pin[pinIndex].once('low', spy);
@@ -1708,10 +1728,10 @@ exports['Tessel.Pin'] = {
     test.done();
   },
 
-  interruptRise: function(test) {
+  interruptRise(test) {
     test.expect(9);
 
-    var spy = sandbox.spy();
+    const spy = sandbox.spy();
 
     [2, 5, 6, 7].forEach(function(pinIndex) {
       this.a.pin[pinIndex].on('rise', spy);
@@ -1732,10 +1752,10 @@ exports['Tessel.Pin'] = {
     test.done();
   },
 
-  interruptFall: function(test) {
+  interruptFall(test) {
     test.expect(9);
 
-    var spy = sandbox.spy();
+    const spy = sandbox.spy();
 
     [2, 5, 6, 7].forEach(function(pinIndex) {
       this.a.pin[pinIndex].on('fall', spy);
@@ -1756,10 +1776,10 @@ exports['Tessel.Pin'] = {
     test.done();
   },
 
-  interruptChange: function(test) {
+  interruptChange(test) {
     test.expect(9);
 
-    var spy = sandbox.spy();
+    const spy = sandbox.spy();
 
     [2, 5, 6, 7].forEach(function(pinIndex) {
       this.a.pin[pinIndex].on('change', spy);
@@ -1780,10 +1800,10 @@ exports['Tessel.Pin'] = {
     test.done();
   },
 
-  interruptChangeStateLow: function(test) {
+  interruptChangeStateLow(test) {
     test.expect(17);
 
-    var spy = sandbox.spy();
+    const spy = sandbox.spy();
 
     [2, 5, 6, 7].forEach(function(pinIndex) {
       this.a.pin[pinIndex].on('change', spy);
@@ -1802,17 +1822,17 @@ exports['Tessel.Pin'] = {
 
     test.equal(spy.callCount, 8);
 
-    for (var i = 0; i < 8; i++) {
+    for (let i = 0; i < 8; i++) {
       test.equal(spy.getCall(i).args[0], 0);
     }
 
     test.done();
   },
 
-  interruptChangeStateHigh: function(test) {
+  interruptChangeStateHigh(test) {
     test.expect(17);
 
-    var spy = sandbox.spy();
+    const spy = sandbox.spy();
 
     [2, 5, 6, 7].forEach(function(pinIndex) {
       this.a.pin[pinIndex].on('change', spy);
@@ -1831,18 +1851,18 @@ exports['Tessel.Pin'] = {
 
     test.equal(spy.callCount, 8);
 
-    for (var i = 0; i < 8; i++) {
+    for (let i = 0; i < 8; i++) {
       test.equal(spy.getCall(i).args[0], 1);
     }
 
     test.done();
   },
 
-  removeListener: function(test) {
+  removeListener(test) {
     test.expect(14);
 
-    var spy = sandbox.spy();
-    var spy2 = sandbox.spy();
+    const spy = sandbox.spy();
+    const spy2 = sandbox.spy();
     [2, 5, 6, 7].forEach(function(pinIndex) {
       this.a.pin[pinIndex].on('change', spy);
       this.a.pin[pinIndex].on('change', spy2);
@@ -1863,7 +1883,7 @@ exports['Tessel.Pin'] = {
     test.done();
   },
 
-  removeAllListenersByName: function(test) {
+  removeAllListenersByName(test) {
     test.expect(8);
 
     const spy = sandbox.spy();
@@ -1879,7 +1899,7 @@ exports['Tessel.Pin'] = {
     test.done();
   },
 
-  removeAllListeners: function(test) {
+  removeAllListeners(test) {
     test.expect(9);
 
     const spy = sandbox.spy();
@@ -1905,37 +1925,37 @@ exports['Tessel.Pin'] = {
     test.done();
   },
 
-  interruptNotSupported: function(test) {
+  interruptNotSupported(test) {
     test.expect(8);
 
     [0, 1, 3, 4].forEach(function(pinIndex) {
-      test.throws(function() {
+      test.throws(() => {
         this.a.pin[pinIndex].once('low');
-      }.bind(this), Error);
-      test.throws(function() {
+      }, Error);
+      test.throws(() => {
         this.b.pin[pinIndex].once('low');
-      }.bind(this), Error);
+      }, Error);
     }, this);
     test.done();
   },
 
-  _setInterruptModes: function(test) {
+  _setInterruptModes(test) {
     test.expect(10);
 
     ['high', 'low', 'rise', 'fall', 'change'].forEach(function(mode) {
       this.a.pin[2]._setInterruptMode(mode);
 
-      test.equal(this._simple_cmd.callCount, 1);
+      test.equal(this.command.callCount, 1);
       test.deepEqual(
-        this._simple_cmd.lastCall.args[0], [CMD.GPIO_INT, 2 | (Tessel.Pin.interruptModes[mode] << 4)]
+        this.command.lastCall.args[0], [CMD.GPIO_INT, 2 | (Tessel.Pin.interruptModes[mode] << 4)]
       );
-      this._simple_cmd.reset();
+      this.command.reset();
     }, this);
     test.done();
   },
 
   // It should throw an error if an invalid pull mode is provided
-  invalidPullParam: function(test) {
+  invalidPullParam(test) {
     test.expect(1);
 
     test.throws(function() {
@@ -1946,7 +1966,7 @@ exports['Tessel.Pin'] = {
   },
 
   // It should throw an error if a pin is not compatible with pulls
-  pullIncompatiblePin: function(test) {
+  pullIncompatiblePin(test) {
     test.expect(1);
 
     test.throws(function() {
@@ -1957,37 +1977,37 @@ exports['Tessel.Pin'] = {
   },
 
   // It should default to `none` pull if one was not provided
-  noModeDefaultNone: function(test) {
+  noModeDefaultNone(test) {
     test.expect(2);
-    var pin = 2;
+    const pin = 2;
     this.a.pin[pin].pull();
 
-    test.equal(this._simple_cmd.callCount, 1);
+    test.equal(this.command.callCount, 1);
 
     test.deepEqual(
-      this._simple_cmd.lastCall.args[0], [CMD.GPIO_PULL, pin | (Tessel.Pin.pullModes['none'] << 4)]
+      this.command.lastCall.args[0], [CMD.GPIO_PULL, pin | (Tessel.Pin.pullModes['none'] << 4)]
     );
 
     test.done();
   },
 
   // It should send the right packets for valid pull modes
-  setAllValidModes: function(test) {
+  setAllValidModes(test) {
     test.expect(6);
-    var pin = 2;
+    const pin = 2;
     ['pulldown', 'pullup', 'none', ].forEach(function(pullMode) {
       this.a.pin[pin].pull(pullMode);
 
-      test.equal(this._simple_cmd.callCount, 1);
+      test.equal(this.command.callCount, 1);
       test.deepEqual(
-        this._simple_cmd.lastCall.args[0], [CMD.GPIO_PULL, pin | (Tessel.Pin.pullModes[pullMode] << 4)]
+        this.command.lastCall.args[0], [CMD.GPIO_PULL, pin | (Tessel.Pin.pullModes[pullMode] << 4)]
       );
-      this._simple_cmd.reset();
+      this.command.reset();
     }, this);
     test.done();
   },
 
-  analogWritePortAndPinRangeError: function(test) {
+  analogWritePortAndPinRangeError(test) {
     test.expect(16);
 
     this.a.pin.forEach(pin => {
@@ -2009,7 +2029,7 @@ exports['Tessel.Pin'] = {
     test.done();
   },
 
-  analogWriteValueRangeError: function(test) {
+  analogWriteValueRangeError(test) {
     test.expect(6);
 
     test.doesNotThrow(() => {
@@ -2039,10 +2059,10 @@ exports['Tessel.Pin'] = {
     test.done();
   },
 
-  analogReadPortAndPinRangeWarning: function(test) {
+  analogReadPortAndPinRangeWarning(test) {
     test.expect(16);
 
-    var cb = function() {};
+    const cb = () => {};
 
     this.a.pin.forEach(pin => {
       if (pin.pin === 4 || pin.pin === 7) {
@@ -2065,7 +2085,7 @@ exports['Tessel.Pin'] = {
     test.done();
   },
 
-  analogReadAsyncWarning: function(test) {
+  analogReadAsyncWarning(test) {
     test.expect(10);
 
     test.throws(() => {
@@ -2085,10 +2105,10 @@ exports['Tessel.Pin'] = {
     test.done();
   },
 
-  analogReadReceivesCorrectValuesLower: function(test) {
+  analogReadReceivesCorrectValuesLower(test) {
     test.expect(1);
 
-    var value = 0;
+    const value = 0;
 
     this.a.pin[4].analogRead((error, value) => {
       test.equal(value, 0);
@@ -2099,10 +2119,10 @@ exports['Tessel.Pin'] = {
     this.a.sock.emit('readable');
   },
 
-  analogReadReceivesCorrectValuesUpper: function(test) {
+  analogReadReceivesCorrectValuesUpper(test) {
     test.expect(1);
 
-    var value = 4096;
+    const value = 4096;
 
     this.a.pin[4].analogRead((error, value) => {
 
@@ -2114,23 +2134,23 @@ exports['Tessel.Pin'] = {
     this.a.sock.emit('readable');
   },
 
-  rawWrite: function(test) {
+  rawWrite(test) {
     this.a.pin[4].rawWrite(1);
     this.a.pin[4].rawWrite(0);
     test.done();
   },
 
-  toggle: function(test) {
+  toggle(test) {
     test.expect(2);
     const pin = 2;
     this.a.pin[pin].toggle();
 
-    test.equal(this._simple_cmd.callCount, 1);
-    test.deepEqual(this._simple_cmd.lastCall.args[0], [CMD.GPIO_TOGGLE, pin]);
+    test.equal(this.command.callCount, 1);
+    test.deepEqual(this.command.lastCall.args[0], [CMD.GPIO_TOGGLE, pin]);
     test.done();
   },
 
-  output: function(test) {
+  output(test) {
     test.expect(2);
 
     const pin = 2;
@@ -2149,7 +2169,7 @@ exports['Tessel.Pin'] = {
     test.done();
   },
 
-  write: function(test) {
+  write(test) {
     test.expect(6);
 
     const pin = 2;
@@ -2170,7 +2190,7 @@ exports['Tessel.Pin'] = {
     test.done();
   },
 
-  rawDirection: function(test) {
+  rawDirection(test) {
     test.expect(1);
     test.throws(() => {
       this.a.pin[2].rawDirection();
@@ -2178,7 +2198,7 @@ exports['Tessel.Pin'] = {
     test.done();
   },
 
-  _readPin: function(test) {
+  _readPin(test) {
     test.expect(8);
     const pin = 2;
     const callback = sandbox.spy((error, data) => {
@@ -2194,19 +2214,19 @@ exports['Tessel.Pin'] = {
       }
     });
 
-    sandbox.stub(this.a.pin[pin]._port, 'enqueue');
+    sandbox.stub(this.a.pin[pin].port, 'enqueue');
 
     this.a.pin[pin]._readPin(CMD.GPIO_RAW_READ, callback);
 
-    test.equal(this.a.pin[pin]._port.sock.cork.callCount, 1);
-    test.equal(this.a.pin[pin]._port.sock.uncork.callCount, 1);
-    test.equal(this.a.pin[pin]._port.sock.write.callCount, 1);
-    test.equal(this.a.pin[pin]._port.enqueue.callCount, 1);
+    test.equal(this.a.pin[pin].port.sock.cork.callCount, 1);
+    test.equal(this.a.pin[pin].port.sock.uncork.callCount, 1);
+    test.equal(this.a.pin[pin].port.sock.write.callCount, 1);
+    test.equal(this.a.pin[pin].port.enqueue.callCount, 1);
 
-    test.equal(this.a.pin[pin]._port.enqueue.lastCall.args[0].size, 0);
+    test.equal(this.a.pin[pin].port.enqueue.lastCall.args[0].size, 0);
     // Our callback MUST be wrapped for REPLY.HIGH/REPLY.LOW handling
 
-    const queued = this.a.pin[pin]._port.enqueue.lastCall.args[0].callback;
+    const queued = this.a.pin[pin].port.enqueue.lastCall.args[0].callback;
 
     test.notEqual(queued, callback);
 
@@ -2214,7 +2234,7 @@ exports['Tessel.Pin'] = {
     queued(null, REPLY.LOW);
   },
 
-  rawRead: function(test) {
+  rawRead(test) {
     test.expect(2);
 
     const pin = 2;
@@ -2229,7 +2249,7 @@ exports['Tessel.Pin'] = {
     test.done();
   },
 
-  input: function(test) {
+  input(test) {
     test.expect(2);
 
     const pin = 2;
@@ -2237,12 +2257,12 @@ exports['Tessel.Pin'] = {
 
     this.a.pin[pin].input(callback);
 
-    test.deepEqual(this._simple_cmd.lastCall.args[0], [CMD.GPIO_INPUT, pin]);
-    test.equal(this._simple_cmd.lastCall.args[1], callback);
+    test.deepEqual(this.command.lastCall.args[0], [CMD.GPIO_INPUT, pin]);
+    test.equal(this.command.lastCall.args[1], callback);
     test.done();
   },
 
-  read: function(test) {
+  read(test) {
     test.expect(2);
     const callback = () => {};
 
@@ -2255,7 +2275,7 @@ exports['Tessel.Pin'] = {
     test.done();
   },
 
-  readIsAsync: function(test) {
+  readIsAsync(test) {
     test.expect(1);
     test.throws(() => {
       this.a.pin[2].read();
@@ -2263,7 +2283,7 @@ exports['Tessel.Pin'] = {
     test.done();
   },
 
-  rawReadIsAsync: function(test) {
+  rawReadIsAsync(test) {
     test.expect(1);
     test.throws(() => {
       this.a.pin[2].rawRead();
@@ -2271,7 +2291,7 @@ exports['Tessel.Pin'] = {
     test.done();
   },
 
-  pullInvalid: function(test) {
+  pullInvalid(test) {
     test.expect(1);
     test.throws(() => {
       this.a.pin[2].pull('bonkers');
@@ -2279,7 +2299,7 @@ exports['Tessel.Pin'] = {
     test.done();
   },
 
-  pullNotSupported: function(test) {
+  pullNotSupported(test) {
     test.expect(1);
 
     test.throws(() => {
@@ -2289,7 +2309,7 @@ exports['Tessel.Pin'] = {
     test.done();
   },
 
-  readPulse: function(test) {
+  readPulse(test) {
     test.expect(1);
 
     test.throws(() => {
@@ -2303,39 +2323,39 @@ exports['Tessel.Pin'] = {
 };
 
 exports['Tessel.I2C'] = {
-  setUp: function(done) {
+  setUp(done) {
     this.socket = new FakeSocket();
 
-    this.createConnection = sandbox.stub(net, 'createConnection').callsFake(function() {
+    this.createConnection = sandbox.stub(net, 'createConnection').callsFake(() => {
       this.socket.cork = sandbox.spy();
       this.socket.uncork = sandbox.spy();
       this.socket.write = sandbox.spy();
       return this.socket;
-    }.bind(this));
+    });
 
     this.tessel = new Tessel();
 
     this.cork = sandbox.stub(Tessel.Port.prototype, 'cork');
     this.uncork = sandbox.stub(Tessel.Port.prototype, 'uncork');
-    this._tx = sandbox.stub(Tessel.Port.prototype, '_tx');
-    this._rx = sandbox.stub(Tessel.Port.prototype, '_rx');
-    this._simple_cmd = sandbox.stub(Tessel.Port.prototype, '_simple_cmd');
+    this.tx = sandbox.stub(Tessel.Port.prototype, 'tx');
+    this.rx = sandbox.stub(Tessel.Port.prototype, 'rx');
+    this.command = sandbox.stub(Tessel.Port.prototype, 'command');
 
     this.port = new Tessel.Port('foo', '/foo/bar/baz', this.tessel);
 
     done();
   },
 
-  tearDown: function(done) {
+  tearDown(done) {
     Tessel.instance = null;
     sandbox.restore();
     done();
   },
 
-  shape: function(test) {
+  shape(test) {
     test.expect(5);
 
-    var device = new Tessel.I2C({
+    const device = new Tessel.I2C({
       address: 0x01,
       frequency: 1e5,
       port: this.port,
@@ -2345,12 +2365,12 @@ exports['Tessel.I2C'] = {
     test.equal(typeof device.addr !== 'undefined', true);
     test.equal(typeof device.baudrate !== 'undefined', true);
     test.equal(typeof device.frequency !== 'undefined', true);
-    test.equal(typeof device._port !== 'undefined', true);
+    test.equal(typeof device.port !== 'undefined', true);
 
     test.done();
   },
 
-  missingAddressArg: function(test) {
+  missingAddressArg(test) {
     test.expect(1);
 
     test.throws(() => {
@@ -2362,7 +2382,7 @@ exports['Tessel.I2C'] = {
     test.done();
   },
 
-  enableOnceOnly: function(test) {
+  enableOnceOnly(test) {
     test.expect(4);
 
     test.equal(this.port.I2C.enabled, false);
@@ -2378,21 +2398,21 @@ exports['Tessel.I2C'] = {
     });
 
     test.equal(this.port.I2C.enabled, true);
-    test.equal(this._simple_cmd.callCount, 1);
-    test.deepEqual(this._simple_cmd.lastCall.args[0], [CMD.ENABLE_I2C, 234]);
+    test.equal(this.command.callCount, 1);
+    test.deepEqual(this.command.lastCall.args[0], [CMD.ENABLE_I2C, 234]);
 
     test.done();
   },
 
-  frequencyStandardMode: function(test) {
+  frequencyStandardMode(test) {
     test.expect(5);
 
-    var device1 = new Tessel.I2C({
+    const device1 = new Tessel.I2C({
       address: 0x04,
       frequency: 1e5,
       port: this.port,
     });
-    var device2 = new Tessel.I2C({
+    const device2 = new Tessel.I2C({
       address: 0x04,
       frequency: 1e5,
       port: this.port,
@@ -2408,15 +2428,15 @@ exports['Tessel.I2C'] = {
     test.done();
   },
 
-  frequencyFastMode: function(test) {
+  frequencyFastMode(test) {
     test.expect(5);
 
-    var device1 = new Tessel.I2C({
+    const device1 = new Tessel.I2C({
       address: 0x04,
       frequency: 4e5,
       port: this.port,
     });
-    var device2 = new Tessel.I2C({
+    const device2 = new Tessel.I2C({
       address: 0x04,
       frequency: 4e5,
       port: this.port,
@@ -2432,7 +2452,7 @@ exports['Tessel.I2C'] = {
     test.done();
   },
 
-  frequencyInvalid: function(test) {
+  frequencyInvalid(test) {
     test.expect(2);
 
     test.throws(() => {
@@ -2452,12 +2472,10 @@ exports['Tessel.I2C'] = {
 
     test.done();
   },
-  explicitFreqChangesBaud: function(test) {
+  explicitFreqChangesBaud(test) {
     test.expect(1);
 
-    this.computeBaud = sandbox.stub(Tessel.I2C, 'computeBaud').callsFake(function() {
-      return 255;
-    });
+    this.computeBaud = sandbox.stub(Tessel.I2C, 'computeBaud').callsFake(() => 255);
 
     new Tessel.I2C({
       address: 0x01,
@@ -2466,111 +2484,111 @@ exports['Tessel.I2C'] = {
       port: this.port
     });
 
-    test.deepEqual(this._simple_cmd.lastCall.args[0], [CMD.ENABLE_I2C, 255]);
+    test.deepEqual(this.command.lastCall.args[0], [CMD.ENABLE_I2C, 255]);
 
     test.done();
   },
 
-  read: function(test) {
+  read(test) {
     test.expect(9);
 
-    var device = new Tessel.I2C({
+    const device = new Tessel.I2C({
       address: 0x01,
       port: this.port
     });
 
-    var handler = function() {};
+    const handler = () => {};
 
     // Avoid including the ENABLE_I2C command in
     // the tested calls below.
-    this._simple_cmd.reset();
+    this.command.reset();
 
     device.read(4, handler);
 
-    test.equal(device._port.cork.callCount, 1);
-    test.equal(device._port._simple_cmd.callCount, 2);
-    test.equal(device._port._rx.callCount, 1);
-    test.equal(device._port.uncork.callCount, 1);
+    test.equal(device.port.cork.callCount, 1);
+    test.equal(device.port.command.callCount, 2);
+    test.equal(device.port.rx.callCount, 1);
+    test.equal(device.port.uncork.callCount, 1);
 
-    test.deepEqual(device._port._rx.firstCall.args[0], 4);
-    test.equal(device._port._rx.firstCall.args[1], handler);
+    test.deepEqual(device.port.rx.firstCall.args[0], 4);
+    test.equal(device.port.rx.firstCall.args[1], handler);
 
     // See:
     // Tessel.I2C.prototype.read
-    // this._port._simple_cmd([CMD.START, this.addr << 1 | 1]);
+    // this.port.command([CMD.START, this.addr << 1 | 1]);
     //
-    test.deepEqual(device._port._simple_cmd.firstCall.args[0], [CMD.START, device.addr << 1 | 1]);
-    test.deepEqual(device._port._simple_cmd.firstCall.args[0], [CMD.START, device.address << 1 | 1]);
-    test.deepEqual(device._port._simple_cmd.lastCall.args[0], [CMD.STOP]);
+    test.deepEqual(device.port.command.firstCall.args[0], [CMD.START, device.addr << 1 | 1]);
+    test.deepEqual(device.port.command.firstCall.args[0], [CMD.START, device.address << 1 | 1]);
+    test.deepEqual(device.port.command.lastCall.args[0], [CMD.STOP]);
 
     test.done();
   },
 
-  send: function(test) {
+  send(test) {
     test.expect(8);
 
-    var device = new Tessel.I2C({
+    const device = new Tessel.I2C({
       address: 0x01,
       port: this.port
     });
 
     // Avoid including the ENABLE_I2C command in
     // the tested calls below.
-    this._simple_cmd.reset();
+    this.command.reset();
 
-    device.send([0, 1, 2, 3], function() {});
+    device.send([0, 1, 2, 3], () => {});
 
-    test.equal(device._port.cork.callCount, 1);
-    test.equal(device._port._simple_cmd.callCount, 2);
-    test.equal(device._port._tx.callCount, 1);
-    test.equal(device._port.uncork.callCount, 1);
+    test.equal(device.port.cork.callCount, 1);
+    test.equal(device.port.command.callCount, 2);
+    test.equal(device.port.tx.callCount, 1);
+    test.equal(device.port.uncork.callCount, 1);
 
-    test.deepEqual(device._port._tx.firstCall.args[0], [0, 1, 2, 3]);
+    test.deepEqual(device.port.tx.firstCall.args[0], [0, 1, 2, 3]);
 
     // See:
     // Tessel.I2C.prototype.send
-    // this._port._simple_cmd([CMD.START, this.addr << 1]);
+    // this.port.command([CMD.START, this.addr << 1]);
     //
-    test.deepEqual(device._port._simple_cmd.firstCall.args[0], [CMD.START, device.addr << 1]);
-    test.deepEqual(device._port._simple_cmd.firstCall.args[0], [CMD.START, device.address << 1]);
-    test.deepEqual(device._port._simple_cmd.lastCall.args[0], [CMD.STOP]);
+    test.deepEqual(device.port.command.firstCall.args[0], [CMD.START, device.addr << 1]);
+    test.deepEqual(device.port.command.firstCall.args[0], [CMD.START, device.address << 1]);
+    test.deepEqual(device.port.command.lastCall.args[0], [CMD.STOP]);
 
     test.done();
   },
 
-  transfer: function(test) {
+  transfer(test) {
     test.expect(11);
 
-    var device = new Tessel.I2C({
+    const device = new Tessel.I2C({
       address: 0x01,
       port: this.port
     });
 
-    var handler = function() {};
+    const handler = () => {};
 
     // Avoid including the ENABLE_I2C command in
     // the tested calls below.
-    this._simple_cmd.reset();
+    this.command.reset();
 
     device.transfer([0, 1, 2, 3], 4, handler);
 
-    test.equal(device._port.cork.callCount, 1);
-    test.equal(device._port._simple_cmd.callCount, 3);
-    test.equal(device._port._tx.callCount, 1);
-    test.equal(device._port._rx.callCount, 1);
-    test.equal(device._port.uncork.callCount, 1);
+    test.equal(device.port.cork.callCount, 1);
+    test.equal(device.port.command.callCount, 3);
+    test.equal(device.port.tx.callCount, 1);
+    test.equal(device.port.rx.callCount, 1);
+    test.equal(device.port.uncork.callCount, 1);
 
-    test.deepEqual(device._port._tx.firstCall.args[0], [0, 1, 2, 3]);
-    test.deepEqual(device._port._rx.firstCall.args[0], 4);
-    test.equal(device._port._rx.firstCall.args[1], handler);
+    test.deepEqual(device.port.tx.firstCall.args[0], [0, 1, 2, 3]);
+    test.deepEqual(device.port.rx.firstCall.args[0], 4);
+    test.equal(device.port.rx.firstCall.args[1], handler);
 
     // See:
     // Tessel.I2C.prototype.transfer
-    // this._port._simple_cmd([CMD.START, this.addr << 1]);
-    // this._port._simple_cmd([CMD.START, this.addr << 1 | 1]);
-    test.deepEqual(device._port._simple_cmd.firstCall.args[0], [CMD.START, device.addr << 1]);
-    test.deepEqual(device._port._simple_cmd.secondCall.args[0], [CMD.START, device.addr << 1 | 1]);
-    test.deepEqual(device._port._simple_cmd.lastCall.args[0], [CMD.STOP]);
+    // this.port.command([CMD.START, this.addr << 1]);
+    // this.port.command([CMD.START, this.addr << 1 | 1]);
+    test.deepEqual(device.port.command.firstCall.args[0], [CMD.START, device.addr << 1]);
+    test.deepEqual(device.port.command.secondCall.args[0], [CMD.START, device.addr << 1 | 1]);
+    test.deepEqual(device.port.command.lastCall.args[0], [CMD.STOP]);
 
     test.done();
   },
@@ -2578,7 +2596,7 @@ exports['Tessel.I2C'] = {
 };
 
 exports['Tessel.I2C.computeBaud'] = {
-  enforceBaudRateCalculationAlgorithm: function(test) {
+  enforceBaudRateCalculationAlgorithm(test) {
     test.expect(4);
 
     test.equal(Tessel.I2C.computeBaud(4e5), 54);
@@ -2595,15 +2613,15 @@ exports['Tessel.I2C.computeBaud'] = {
 };
 
 exports['Tessel.UART'] = {
-  setUp: function(done) {
+  setUp(done) {
     this.socket = new FakeSocket();
 
-    this.createConnection = sandbox.stub(net, 'createConnection').callsFake(function() {
+    this.createConnection = sandbox.stub(net, 'createConnection').callsFake(() => {
       this.socket.cork = sandbox.spy();
       this.socket.uncork = sandbox.spy();
       this.socket.write = sandbox.spy();
       return this.socket;
-    }.bind(this));
+    });
 
     // Block creation of automatically generated ports
     this.tessel = new Tessel({
@@ -2615,9 +2633,9 @@ exports['Tessel.UART'] = {
 
     this.cork = sandbox.stub(Tessel.Port.prototype, 'cork');
     this.uncork = sandbox.stub(Tessel.Port.prototype, 'uncork');
-    this._tx = sandbox.stub(Tessel.Port.prototype, '_tx');
-    this._rx = sandbox.stub(Tessel.Port.prototype, '_rx');
-    this._simple_cmd = sandbox.stub(Tessel.Port.prototype, '_simple_cmd');
+    this.tx = sandbox.stub(Tessel.Port.prototype, 'tx');
+    this.rx = sandbox.stub(Tessel.Port.prototype, 'rx');
+    this.command = sandbox.stub(Tessel.Port.prototype, 'command');
 
     // Explicitly generate our own port
     this.port = new Tessel.Port('foo', '/foo/bar/baz', this.tessel);
@@ -2627,13 +2645,13 @@ exports['Tessel.UART'] = {
     done();
   },
 
-  tearDown: function(done) {
+  tearDown(done) {
     Tessel.instance = null;
     sandbox.restore();
     done();
   },
 
-  _write: function(test) {
+  _write(test) {
     test.expect(4);
 
     const uart = new this.port.UART();
@@ -2641,9 +2659,9 @@ exports['Tessel.UART'] = {
     const callback = () => {};
     uart._write(data, null, callback);
 
-    test.equal(this._tx.lastCall.args[0], data);
-    test.deepEqual(this._tx.lastCall.args[0], data);
-    test.equal(this._tx.lastCall.args[1], callback);
+    test.equal(this.tx.lastCall.args[0], data);
+    test.deepEqual(this.tx.lastCall.args[0], data);
+    test.equal(this.tx.lastCall.args[1], callback);
 
     uart.disable();
 
@@ -2651,43 +2669,43 @@ exports['Tessel.UART'] = {
     test.done();
   },
 
-  baudrateCmd: function(test) {
+  baudrateCmd(test) {
     test.expect(2);
 
-    var b1 = 9600;
+    const b1 = 9600;
 
     new this.port.UART({
       baudrate: b1
     });
 
-    test.equal(this._simple_cmd.callCount, 1);
-    test.deepEqual(this._simple_cmd.lastCall.args[0], [14, 255, 46]);
+    test.equal(this.command.callCount, 1);
+    test.deepEqual(this.command.lastCall.args[0], [14, 255, 46]);
     test.done();
   },
 
-  baudrateSetterCmd: function(test) {
+  baudrateSetterCmd(test) {
     test.expect(3);
 
-    var b1 = 9600;
+    const b1 = 9600;
 
-    var uart = new this.port.UART({
+    const uart = new this.port.UART({
       baudrate: b1
     });
 
     uart.baudrate = 115200;
 
     test.equal(uart.baudrate, 115200);
-    test.equal(this._simple_cmd.callCount, 2);
-    test.deepEqual(this._simple_cmd.lastCall.args[0], [14, 246, 43]);
+    test.equal(this.command.callCount, 2);
+    test.deepEqual(this.command.lastCall.args[0], [14, 246, 43]);
     test.done();
   },
 
-  baudrateInvalidLow: function(test) {
+  baudrateInvalidLow(test) {
     test.expect(2);
 
-    var b1 = 9600;
+    const b1 = 9600;
 
-    var uart = new this.port.UART({
+    const uart = new this.port.UART({
       baudrate: b1
     });
 
@@ -2697,12 +2715,12 @@ exports['Tessel.UART'] = {
     test.done();
   },
 
-  baudrateInvalidHigh: function(test) {
+  baudrateInvalidHigh(test) {
     test.expect(2);
 
-    var b1 = 9600;
+    const b1 = 9600;
 
-    var uart = new this.port.UART({
+    const uart = new this.port.UART({
       baudrate: b1
     });
 
@@ -2712,13 +2730,13 @@ exports['Tessel.UART'] = {
     test.done();
   },
 
-  interfaceChange: function(test) {
+  interfaceChange(test) {
     test.expect(3);
 
-    var b1 = 9600;
-    var b2 = 115200;
+    const b1 = 9600;
+    const b2 = 115200;
 
-    var uart = new this.port.UART({
+    let uart = new this.port.UART({
       baudrate: b1
     });
 
@@ -2735,12 +2753,12 @@ exports['Tessel.UART'] = {
     test.done();
   },
 
-  oneUARTAtATime: function(test) {
+  oneUARTAtATime(test) {
     test.expect(4);
 
-    var u1 = new this.port.UART();
+    const u1 = new this.port.UART();
 
-    var u2 = new this.port.UART();
+    const u2 = new this.port.UART();
 
     test.notStrictEqual(u1, u2);
 
@@ -2753,19 +2771,19 @@ exports['Tessel.UART'] = {
     test.done();
   },
 
-  bufferOutput: function(test) {
+  bufferOutput(test) {
 
     test.expect(2);
 
     // Create our Tessel port
-    var u1 = new this.port.UART();
+    const u1 = new this.port.UART();
 
     // Buffers which we'll emit as mocked incoming UART data
-    var payload = new Buffer([0x00, 0x0F, 0xF0, 0xFF]);
-    var header = new Buffer([Tessel.REPLY.ASYNC_UART_RX, payload.length]);
+    const payload = new Buffer([0x00, 0x0F, 0xF0, 0xFF]);
+    const header = new Buffer([Tessel.REPLY.ASYNC_UART_RX, payload.length]);
 
     // Only return our test buffer on the first call, otherwise empty buff
-    var called = false;
+    let called = false;
     this.socket.read = () => {
       if (called) {
         return new Buffer([]);
@@ -2785,18 +2803,18 @@ exports['Tessel.UART'] = {
     });
 
     // Prod the socket to read our buffer
-    u1._port.sock.emit('readable');
+    u1.port.sock.emit('readable');
   },
 
-  bufferOutputIncomplete: function(test) {
+  bufferOutputIncomplete(test) {
     test.expect(2);
 
     // Create our Tessel port
-    var u1 = new this.port.UART();
+    const u1 = new this.port.UART();
 
-    var payload = new Buffer([0x01, 0x02, 0x03, 0x04]);
-    var header = new Buffer([Tessel.REPLY.ASYNC_UART_RX, payload.length]);
-    var called = false;
+    const payload = new Buffer([0x01, 0x02, 0x03, 0x04]);
+    const header = new Buffer([Tessel.REPLY.ASYNC_UART_RX, payload.length]);
+    let called = false;
     this.socket.read = () => {
       if (called) {
         return payload;
@@ -2813,13 +2831,13 @@ exports['Tessel.UART'] = {
     });
 
     // Prod the socket to read our buffer
-    u1._port.sock.emit('readable');
-    u1._port.sock.emit('readable');
+    u1.port.sock.emit('readable');
+    u1.port.sock.emit('readable');
   },
 };
 
 exports['Tessel.SPI'] = {
-  setUp: function(done) {
+  setUp(done) {
     this.socket = new FakeSocket();
 
     this.createConnection = sandbox.stub(net, 'createConnection').callsFake(() => {
@@ -2833,10 +2851,10 @@ exports['Tessel.SPI'] = {
 
     this.cork = sandbox.stub(Tessel.Port.prototype, 'cork');
     this.uncork = sandbox.stub(Tessel.Port.prototype, 'uncork');
-    this._tx = sandbox.stub(Tessel.Port.prototype, '_tx');
-    this._rx = sandbox.stub(Tessel.Port.prototype, '_rx');
-    this._txrx = sandbox.stub(Tessel.Port.prototype, '_txrx');
-    this._simple_cmd = sandbox.stub(Tessel.Port.prototype, '_simple_cmd');
+    this.tx = sandbox.stub(Tessel.Port.prototype, 'tx');
+    this.rx = sandbox.stub(Tessel.Port.prototype, 'rx');
+    this.txrx = sandbox.stub(Tessel.Port.prototype, 'txrx');
+    this.command = sandbox.stub(Tessel.Port.prototype, 'command');
 
     this.port = new Tessel.Port('foo', '/foo/bar/baz', this.tessel);
 
@@ -2845,16 +2863,16 @@ exports['Tessel.SPI'] = {
     done();
   },
 
-  tearDown: function(done) {
+  tearDown(done) {
     Tessel.instance = null;
     sandbox.restore();
     done();
   },
 
-  defaultOptionsWhenConstructedViaPort: function(test) {
+  defaultOptionsWhenConstructedViaPort(test) {
     test.expect(6);
 
-    var spi = new this.port.SPI();
+    const spi = new this.port.SPI();
 
     test.equal(spi.chipSelectActive, 0);
     test.equal(spi.clockSpeed, 2000000);
@@ -2866,10 +2884,10 @@ exports['Tessel.SPI'] = {
     test.done();
   },
 
-  defaultOptionsWhenConstructedDirectly: function(test) {
+  defaultOptionsWhenConstructedDirectly(test) {
     test.expect(6);
 
-    var spi = new Tessel.SPI(null, this.port);
+    const spi = new Tessel.SPI(null, this.port);
 
     test.equal(spi.chipSelectActive, 0);
     test.equal(spi.clockSpeed, 2000000);
@@ -2881,10 +2899,10 @@ exports['Tessel.SPI'] = {
     test.done();
   },
 
-  chipSelectActiveHigh: function(test) {
+  chipSelectActiveHigh(test) {
     test.expect(6);
 
-    var spi = new Tessel.SPI({
+    const spi = new Tessel.SPI({
       chipSelectActive: 'high'
     }, this.port);
 
@@ -2898,10 +2916,10 @@ exports['Tessel.SPI'] = {
     test.done();
   },
 
-  chipSelectActive1: function(test) {
+  chipSelectActive1(test) {
     test.expect(6);
 
-    var spi = new Tessel.SPI({
+    const spi = new Tessel.SPI({
       chipSelectActive: 1
     }, this.port);
 
@@ -2915,10 +2933,10 @@ exports['Tessel.SPI'] = {
     test.done();
   },
 
-  dataMode1: function(test) {
+  dataMode1(test) {
     test.expect(5);
 
-    var spi = new Tessel.SPI({
+    const spi = new Tessel.SPI({
       dataMode: 1
     }, this.port);
 
@@ -2931,10 +2949,10 @@ exports['Tessel.SPI'] = {
     test.done();
   },
 
-  dataMode0: function(test) {
+  dataMode0(test) {
     test.expect(5);
 
-    var spi = new Tessel.SPI({
+    const spi = new Tessel.SPI({
       dataMode: 0
     }, this.port);
 
@@ -2947,10 +2965,10 @@ exports['Tessel.SPI'] = {
     test.done();
   },
 
-  cpolHigh: function(test) {
+  cpolHigh(test) {
     test.expect(5);
 
-    var spi = new Tessel.SPI({
+    const spi = new Tessel.SPI({
       cpol: 'high'
     }, this.port);
 
@@ -2963,10 +2981,10 @@ exports['Tessel.SPI'] = {
     test.done();
   },
 
-  cpol1: function(test) {
+  cpol1(test) {
     test.expect(5);
 
-    var spi = new Tessel.SPI({
+    const spi = new Tessel.SPI({
       cpol: 1
     }, this.port);
 
@@ -2979,10 +2997,10 @@ exports['Tessel.SPI'] = {
     test.done();
   },
 
-  cphaSecond: function(test) {
+  cphaSecond(test) {
     test.expect(5);
 
-    var spi = new Tessel.SPI({
+    const spi = new Tessel.SPI({
       cpha: 'second'
     }, this.port);
 
@@ -2995,10 +3013,10 @@ exports['Tessel.SPI'] = {
     test.done();
   },
 
-  cpha1: function(test) {
+  cpha1(test) {
     test.expect(5);
 
-    var spi = new Tessel.SPI({
+    const spi = new Tessel.SPI({
       cpha: 1
     }, this.port);
 
@@ -3011,10 +3029,10 @@ exports['Tessel.SPI'] = {
     test.done();
   },
 
-  clockSpeed: function(test) {
+  clockSpeed(test) {
     test.expect(3);
 
-    var spi = new Tessel.SPI({
+    const spi = new Tessel.SPI({
       clockSpeed: 1e6
     }, this.port);
 
@@ -3024,10 +3042,10 @@ exports['Tessel.SPI'] = {
     test.done();
   },
 
-  clockDivUpper: function(test) {
+  clockDivUpper(test) {
     test.expect(3);
 
-    var spi = new Tessel.SPI({
+    const spi = new Tessel.SPI({
       clockSpeed: 24e6
     }, this.port);
 
@@ -3037,10 +3055,10 @@ exports['Tessel.SPI'] = {
     test.done();
   },
 
-  clockDivLower: function(test) {
+  clockDivLower(test) {
     test.expect(3);
 
-    var spi = new Tessel.SPI({
+    const spi = new Tessel.SPI({
       clockSpeed: 368
     }, this.port);
 
@@ -3050,10 +3068,10 @@ exports['Tessel.SPI'] = {
     test.done();
   },
 
-  clockDivFallback: function(test) {
+  clockDivFallback(test) {
     test.expect(3);
 
-    var spi = new Tessel.SPI({
+    const spi = new Tessel.SPI({
       clockSpeed: 92770
     }, this.port);
 
@@ -3063,13 +3081,13 @@ exports['Tessel.SPI'] = {
     test.done();
   },
 
-  interfaceChange: function(test) {
+  interfaceChange(test) {
     test.expect(3);
 
-    var s1 = 1e6;
-    var s2 = 1e4;
+    const s1 = 1e6;
+    const s2 = 1e4;
 
-    var spi = new this.port.SPI({
+    let spi = new this.port.SPI({
       clockSpeed: s1
     });
 
@@ -3086,7 +3104,7 @@ exports['Tessel.SPI'] = {
     test.done();
   },
 
-  clockSpeedRangeError: function(test) {
+  clockSpeedRangeError(test) {
     test.expect(2);
 
     test.throws(() => {
@@ -3104,12 +3122,12 @@ exports['Tessel.SPI'] = {
     test.done();
   },
 
-  oneSPIAtATime: function(test) {
+  oneSPIAtATime(test) {
     test.expect(4);
 
-    var s1 = new this.port.SPI();
+    const s1 = new this.port.SPI();
 
-    var s2 = new this.port.SPI();
+    const s2 = new this.port.SPI();
 
     test.notStrictEqual(s1, s2);
     test.notStrictEqual(this.port._spi, s1);
@@ -3118,7 +3136,7 @@ exports['Tessel.SPI'] = {
     test.done();
   },
 
-  send: function(test) {
+  send(test) {
     test.expect(7);
 
     const spi = new this.port.SPI({
@@ -3138,17 +3156,17 @@ exports['Tessel.SPI'] = {
 
     test.equal(this.cork.callCount, 1);
     test.equal(this.uncork.callCount, 1);
-    test.equal(this._tx.callCount, 1);
+    test.equal(this.tx.callCount, 1);
     test.equal(spi.chipSelect.low.callCount, 1);
     test.equal(spi.chipSelect.high.callCount, 1);
 
-    test.equal(this._tx.lastCall.args[0], data);
-    test.equal(this._tx.lastCall.args[1], callback);
+    test.equal(this.tx.lastCall.args[0], data);
+    test.equal(this.tx.lastCall.args[1], callback);
 
     test.done();
   },
 
-  receive: function(test) {
+  receive(test) {
     test.expect(7);
 
     const spi = new this.port.SPI({
@@ -3168,17 +3186,17 @@ exports['Tessel.SPI'] = {
 
     test.equal(this.cork.callCount, 1);
     test.equal(this.uncork.callCount, 1);
-    test.equal(this._rx.callCount, 1);
+    test.equal(this.rx.callCount, 1);
     test.equal(spi.chipSelect.low.callCount, 1);
     test.equal(spi.chipSelect.high.callCount, 1);
 
-    test.equal(this._rx.lastCall.args[0], length);
-    test.equal(this._rx.lastCall.args[1], callback);
+    test.equal(this.rx.lastCall.args[0], length);
+    test.equal(this.rx.lastCall.args[1], callback);
 
     test.done();
   },
 
-  transfer: function(test) {
+  transfer(test) {
     test.expect(7);
 
     const spi = new this.port.SPI({
@@ -3198,35 +3216,35 @@ exports['Tessel.SPI'] = {
 
     test.equal(this.cork.callCount, 1);
     test.equal(this.uncork.callCount, 1);
-    test.equal(this._txrx.callCount, 1);
+    test.equal(this.txrx.callCount, 1);
     test.equal(spi.chipSelect.low.callCount, 1);
     test.equal(spi.chipSelect.high.callCount, 1);
 
-    test.equal(this._txrx.lastCall.args[0], data);
-    test.equal(this._txrx.lastCall.args[1], callback);
+    test.equal(this.txrx.lastCall.args[0], data);
+    test.equal(this.txrx.lastCall.args[1], callback);
 
     test.done();
   },
 };
 
 exports['Tessel.Wifi'] = {
-  setUp: function(done) {
+  setUp(done) {
     this.Port = sandbox.stub(Tessel, 'Port');
     this.fsWrite = sandbox.stub(fs, 'writeFile');
-    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+    this.exec = sandbox.stub(cp, 'exec').callsFake((cmd, callback) => {
       callback();
     });
     this.tessel = new Tessel();
     done();
   },
 
-  tearDown: function(done) {
+  tearDown(done) {
     Tessel.instance = null;
     sandbox.restore();
     done();
   },
 
-  initialized: function(test) {
+  initialized(test) {
     test.expect(1);
 
     test.deepEqual(this.tessel.network.wifi.settings, {}, 'no setings by default');
@@ -3234,15 +3252,15 @@ exports['Tessel.Wifi'] = {
     test.done();
   },
 
-  connect: function(test) {
+  connect(test) {
     test.expect(4);
 
-    var settings = {
+    const settings = {
       ssid: 'TestNetwork',
       password: 'TestPassword',
       security: 'wep'
     };
-    var ipResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
+    const ipResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
         inet addr:10.0.1.11  Bcast:192.168.1.101  Mask:255.255.255.0
         inet6 addr: fe80::a3:aaff:fea9:fb02/64 Scope:Link
         UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
@@ -3250,8 +3268,8 @@ exports['Tessel.Wifi'] = {
         TX packets:493 errors:0 dropped:0 overruns:0 carrier:0
         collisions:0 txqueuelen:1000
         RX bytes:833626 (814.0 KiB)  TX bytes:97959 (95.6 KiB)`;
-    var ip = '10.0.1.11';
-    var network = {
+    const ip = '10.0.1.11';
+    const network = {
       ssid: 'TestNetwork',
       strength: '30/80',
       encryption: {
@@ -3261,7 +3279,7 @@ exports['Tessel.Wifi'] = {
     };
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+    this.exec = sandbox.stub(cp, 'exec').callsFake((cmd, callback) => {
       if (cmd === 'ifconfig wlan0') {
         callback(null, ipResult);
       } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
@@ -3271,8 +3289,8 @@ exports['Tessel.Wifi'] = {
       }
     });
 
-    var results = Object.assign({
-      ip: ip
+    const results = Object.assign({
+      ip
     }, settings, network);
     delete results.password;
 
@@ -3294,29 +3312,29 @@ exports['Tessel.Wifi'] = {
     });
   },
 
-  connectErrorNoSettings: function(test) {
+  connectErrorNoSettings(test) {
     test.expect(1);
 
     test.throws(this.tessel.network.wifi.connect, 'throws without settings');
     test.done();
   },
 
-  connectErrorNoSSID: function(test) {
+  connectErrorNoSSID(test) {
     test.expect(1);
 
     test.throws(this.tessel.network.wifi.connect.bind({}), 'throws without ssid');
     test.done();
   },
 
-  connectWithoutCallback: function(test) {
+  connectWithoutCallback(test) {
     test.expect(3);
 
-    var settings = {
+    const settings = {
       ssid: 'TestNetwork',
       password: 'TestPassword',
       security: 'psk'
     };
-    var ipResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
+    const ipResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
         inet addr:10.0.1.11  Bcast:192.168.1.101  Mask:255.255.255.0
         inet6 addr: fe80::a3:aaff:fea9:fb02/64 Scope:Link
         UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
@@ -3324,8 +3342,8 @@ exports['Tessel.Wifi'] = {
         TX packets:493 errors:0 dropped:0 overruns:0 carrier:0
         collisions:0 txqueuelen:1000
         RX bytes:833626 (814.0 KiB)  TX bytes:97959 (95.6 KiB)`;
-    var ip = '10.0.1.11';
-    var network = {
+    const ip = '10.0.1.11';
+    const network = {
       ssid: 'TestNetwork',
       strength: '30/80',
       encryption: {
@@ -3336,7 +3354,7 @@ exports['Tessel.Wifi'] = {
     };
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+    this.exec = sandbox.stub(cp, 'exec').callsFake((cmd, callback) => {
       if (cmd === 'ifconfig wlan0') {
         callback(null, ipResult);
       } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
@@ -3346,8 +3364,8 @@ exports['Tessel.Wifi'] = {
       }
     });
 
-    var results = Object.assign({
-      ip: ip
+    const results = Object.assign({
+      ip
     }, settings, network);
     delete results.password;
 
@@ -3366,14 +3384,14 @@ exports['Tessel.Wifi'] = {
     this.tessel.network.wifi.connect(settings);
   },
 
-  connectWithoutSecurity: function(test) {
+  connectWithoutSecurity(test) {
     test.expect(4);
 
-    var settings = {
+    const settings = {
       ssid: 'TestNetwork',
       password: 'TestPassword'
     };
-    var ipResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
+    const ipResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
         inet addr:10.0.1.11  Bcast:192.168.1.101  Mask:255.255.255.0
         inet6 addr: fe80::a3:aaff:fea9:fb02/64 Scope:Link
         UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
@@ -3381,8 +3399,8 @@ exports['Tessel.Wifi'] = {
         TX packets:493 errors:0 dropped:0 overruns:0 carrier:0
         collisions:0 txqueuelen:1000
         RX bytes:833626 (814.0 KiB)  TX bytes:97959 (95.6 KiB)`;
-    var ip = '10.0.1.11';
-    var network = {
+    const ip = '10.0.1.11';
+    const network = {
       ssid: 'TestNetwork',
       strength: '30/80',
       encryption: {
@@ -3393,7 +3411,7 @@ exports['Tessel.Wifi'] = {
     };
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+    this.exec = sandbox.stub(cp, 'exec').callsFake((cmd, callback) => {
       if (cmd === 'ifconfig wlan0') {
         callback(null, ipResult);
       } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
@@ -3403,8 +3421,8 @@ exports['Tessel.Wifi'] = {
       }
     });
 
-    var results = Object.assign({
-      ip: ip,
+    const results = Object.assign({
+      ip,
       security: 'psk2'
     }, settings, network);
     delete results.password;
@@ -3427,14 +3445,14 @@ exports['Tessel.Wifi'] = {
     });
   },
 
-  connectWithSecurityNone: function(test) {
+  connectWithSecurityNone(test) {
     test.expect(4);
 
-    var settings = {
+    const settings = {
       ssid: 'TestNetwork',
       security: 'none'
     };
-    var ipResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
+    const ipResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
         inet addr:10.0.1.11  Bcast:192.168.1.101  Mask:255.255.255.0
         inet6 addr: fe80::a3:aaff:fea9:fb02/64 Scope:Link
         UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
@@ -3442,8 +3460,8 @@ exports['Tessel.Wifi'] = {
         TX packets:493 errors:0 dropped:0 overruns:0 carrier:0
         collisions:0 txqueuelen:1000
         RX bytes:833626 (814.0 KiB)  TX bytes:97959 (95.6 KiB)`;
-    var ip = '10.0.1.11';
-    var network = {
+    const ip = '10.0.1.11';
+    const network = {
       ssid: 'TestNetwork',
       strength: '30/80',
       encryption: {
@@ -3452,7 +3470,7 @@ exports['Tessel.Wifi'] = {
     };
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+    this.exec = sandbox.stub(cp, 'exec').callsFake((cmd, callback) => {
       if (cmd === 'ifconfig wlan0') {
         callback(null, ipResult);
       } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
@@ -3462,8 +3480,8 @@ exports['Tessel.Wifi'] = {
       }
     });
 
-    var results = Object.assign({
-      ip: ip,
+    const results = Object.assign({
+      ip,
       security: 'psk2'
     }, settings, network);
     delete results.password;
@@ -3486,13 +3504,13 @@ exports['Tessel.Wifi'] = {
     });
   },
 
-  connectWithoutPassword: function(test) {
+  connectWithoutPassword(test) {
     test.expect(4);
 
-    var settings = {
+    const settings = {
       ssid: 'TestNetwork'
     };
-    var ipResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
+    const ipResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
         inet addr:10.0.1.11  Bcast:192.168.1.101  Mask:255.255.255.0
         inet6 addr: fe80::a3:aaff:fea9:fb02/64 Scope:Link
         UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
@@ -3500,8 +3518,8 @@ exports['Tessel.Wifi'] = {
         TX packets:493 errors:0 dropped:0 overruns:0 carrier:0
         collisions:0 txqueuelen:1000
         RX bytes:833626 (814.0 KiB)  TX bytes:97959 (95.6 KiB)`;
-    var ip = '10.0.1.11';
-    var network = {
+    const ip = '10.0.1.11';
+    const network = {
       ssid: 'TestNetwork',
       strength: '30/80',
       encryption: {
@@ -3510,7 +3528,7 @@ exports['Tessel.Wifi'] = {
     };
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+    this.exec = sandbox.stub(cp, 'exec').callsFake((cmd, callback) => {
       if (cmd === 'ifconfig wlan0') {
         callback(null, ipResult);
       } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
@@ -3520,8 +3538,8 @@ exports['Tessel.Wifi'] = {
       }
     });
 
-    var results = Object.assign({
-      ip: ip,
+    const results = Object.assign({
+      ip,
       security: 'none'
     }, settings, network);
 
@@ -3543,13 +3561,13 @@ exports['Tessel.Wifi'] = {
     });
   },
 
-  connectWithoutPasswordNoEncryption: function(test) {
+  connectWithoutPasswordNoEncryption(test) {
     test.expect(4);
 
-    var settings = {
+    const settings = {
       ssid: 'TestNetwork'
     };
-    var ipResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
+    const ipResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
         inet addr:10.0.1.11  Bcast:192.168.1.101  Mask:255.255.255.0
         inet6 addr: fe80::a3:aaff:fea9:fb02/64 Scope:Link
         UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
@@ -3557,14 +3575,14 @@ exports['Tessel.Wifi'] = {
         TX packets:493 errors:0 dropped:0 overruns:0 carrier:0
         collisions:0 txqueuelen:1000
         RX bytes:833626 (814.0 KiB)  TX bytes:97959 (95.6 KiB)`;
-    var ip = '10.0.1.11';
-    var network = {
+    const ip = '10.0.1.11';
+    const network = {
       ssid: 'TestNetwork',
       strength: '30/80'
     };
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+    this.exec = sandbox.stub(cp, 'exec').callsFake((cmd, callback) => {
       if (cmd === 'ifconfig wlan0') {
         callback(null, ipResult);
       } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
@@ -3574,8 +3592,8 @@ exports['Tessel.Wifi'] = {
       }
     });
 
-    var results = Object.assign({
-      ip: ip,
+    const results = Object.assign({
+      ip,
       security: 'none'
     }, settings, network);
 
@@ -3597,16 +3615,16 @@ exports['Tessel.Wifi'] = {
     });
   },
 
-  connectThrowsError: function(test) {
+  connectThrowsError(test) {
     test.expect(2);
 
-    var settings = {
+    const settings = {
       ssid: 'TestNetwork'
     };
-    var testError = 'This is a test';
+    const testError = 'This is a test';
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+    this.exec = sandbox.stub(cp, 'exec').callsFake((cmd, callback) => {
       callback(testError);
     });
 
@@ -3630,13 +3648,13 @@ exports['Tessel.Wifi'] = {
     });
   },
 
-  connection: function(test) {
+  connection(test) {
     test.expect(2);
 
-    var settings = {
+    const settings = {
       ssid: 'TestNetwork'
     };
-    var ipResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
+    const ipResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
         inet addr:10.0.1.11  Bcast:192.168.1.101  Mask:255.255.255.0
         inet6 addr: fe80::a3:aaff:fea9:fb02/64 Scope:Link
         UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
@@ -3644,18 +3662,18 @@ exports['Tessel.Wifi'] = {
         TX packets:493 errors:0 dropped:0 overruns:0 carrier:0
         collisions:0 txqueuelen:1000
         RX bytes:833626 (814.0 KiB)  TX bytes:97959 (95.6 KiB)`;
-    var ip = '10.0.1.11';
-    var network = {
+    const ip = '10.0.1.11';
+    const network = {
       ssid: 'TestNetwork',
       strength: '30/80',
       encryption: {
         enabled: false
       }
     };
-    var isFirstCheck = true;
+    let isFirstCheck = true;
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+    this.exec = sandbox.stub(cp, 'exec').callsFake((cmd, callback) => {
       if (cmd === 'ifconfig wlan0') {
         callback(null, ipResult);
       } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
@@ -3672,8 +3690,8 @@ exports['Tessel.Wifi'] = {
       }
     });
 
-    var results = Object.assign({
-      ip: ip,
+    const results = Object.assign({
+      ip,
       security: 'none'
     }, settings, network);
 
@@ -3699,12 +3717,12 @@ exports['Tessel.Wifi'] = {
     });
   },
 
-  connectionEnabledError: function(test) {
+  connectionEnabledError(test) {
     test.expect(2);
 
     const testError = new Error('Testing errors');
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+    this.exec = sandbox.stub(cp, 'exec').callsFake((cmd, callback) => {
       callback(testError);
     });
 
@@ -3723,10 +3741,10 @@ exports['Tessel.Wifi'] = {
     });
   },
 
-  reset: function(test) {
+  reset(test) {
     test.expect(2);
 
-    var ipResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
+    const ipResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
         inet addr:10.0.1.11  Bcast:192.168.1.101  Mask:255.255.255.0
         inet6 addr: fe80::a3:aaff:fea9:fb02/64 Scope:Link
         UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
@@ -3734,7 +3752,7 @@ exports['Tessel.Wifi'] = {
         TX packets:493 errors:0 dropped:0 overruns:0 carrier:0
         collisions:0 txqueuelen:1000
         RX bytes:833626 (814.0 KiB)  TX bytes:97959 (95.6 KiB)`;
-    var network = {
+    const network = {
       ssid: 'TestNetwork',
       strength: '30/80',
       encryption: {
@@ -3743,7 +3761,7 @@ exports['Tessel.Wifi'] = {
     };
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+    this.exec = sandbox.stub(cp, 'exec').callsFake((cmd, callback) => {
       if (cmd === 'ifconfig wlan0') {
         callback(null, ipResult);
       } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
@@ -3770,12 +3788,12 @@ exports['Tessel.Wifi'] = {
     });
   },
 
-  resetErrorCallback: function(test) {
+  resetErrorCallback(test) {
     test.expect(3);
 
     const testError = new Error('Testing errors');
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+    this.exec = sandbox.stub(cp, 'exec').callsFake((cmd, callback) => {
       callback(testError);
     });
 
@@ -3798,7 +3816,7 @@ exports['Tessel.Wifi'] = {
     });
   },
 
-  disable: function(test) {
+  disable(test) {
     test.expect(1);
 
     this.tessel.network.wifi.on('disconnect', () => {
@@ -3815,12 +3833,12 @@ exports['Tessel.Wifi'] = {
     });
   },
 
-  disableErrorCallback: function(test) {
+  disableErrorCallback(test) {
     test.expect(2);
 
     const testError = new Error('Testing errors');
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+    this.exec = sandbox.stub(cp, 'exec').callsFake((cmd, callback) => {
       callback(testError);
     });
 
@@ -3839,12 +3857,12 @@ exports['Tessel.Wifi'] = {
     });
   },
 
-  disableCommitWirelessError: function(test) {
+  disableCommitWirelessError(test) {
     test.expect(2);
 
     const testError = new Error('Testing errors');
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+    this.exec = sandbox.stub(cp, 'exec').callsFake((cmd, callback) => {
       if (cmd === 'uci commit wireless') {
         callback(testError);
       } else {
@@ -3867,10 +3885,10 @@ exports['Tessel.Wifi'] = {
     });
   },
 
-  enable: function(test) {
+  enable(test) {
     test.expect(1);
 
-    var ipResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
+    const ipResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
         inet addr:10.0.1.11  Bcast:192.168.1.101  Mask:255.255.255.0
         inet6 addr: fe80::a3:aaff:fea9:fb02/64 Scope:Link
         UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
@@ -3878,7 +3896,7 @@ exports['Tessel.Wifi'] = {
         TX packets:493 errors:0 dropped:0 overruns:0 carrier:0
         collisions:0 txqueuelen:1000
         RX bytes:833626 (814.0 KiB)  TX bytes:97959 (95.6 KiB)`;
-    var network = {
+    const network = {
       ssid: 'TestNetwork',
       strength: '30/80',
       encryption: {
@@ -3887,7 +3905,7 @@ exports['Tessel.Wifi'] = {
     };
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+    this.exec = sandbox.stub(cp, 'exec').callsFake((cmd, callback) => {
       if (cmd === 'ifconfig wlan0') {
         callback(null, ipResult);
       } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
@@ -3911,12 +3929,12 @@ exports['Tessel.Wifi'] = {
     });
   },
 
-  enableErrorCallback: function(test) {
+  enableErrorCallback(test) {
     test.expect(2);
 
     const testError = new Error('Testing errors');
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+    this.exec = sandbox.stub(cp, 'exec').callsFake((cmd, callback) => {
       callback(testError);
     });
 
@@ -3935,10 +3953,10 @@ exports['Tessel.Wifi'] = {
     });
   },
 
-  enableRejectGetWifiInfo: function(test) {
+  enableRejectGetWifiInfo(test) {
     test.expect(2);
 
-    var network = {
+    const network = {
       ssid: 'TestNetwork',
       strength: '30/80',
       encryption: {
@@ -3947,7 +3965,7 @@ exports['Tessel.Wifi'] = {
     };
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+    this.exec = sandbox.stub(cp, 'exec').callsFake((cmd, callback) => {
       if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
         callback(null, network);
       } else {
@@ -3970,11 +3988,11 @@ exports['Tessel.Wifi'] = {
     });
   },
 
-  enableRecursiveGetWifiInfo: function(test) {
+  enableRecursiveGetWifiInfo(test) {
     test.expect(2);
 
-    var recursiveCheckCount = 0;
-    var ipResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
+    let recursiveCheckCount = 0;
+    const ipResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
         inet addr:10.0.1.11  Bcast:192.168.1.101  Mask:255.255.255.0
         inet6 addr: fe80::a3:aaff:fea9:fb02/64 Scope:Link
         UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
@@ -3982,7 +4000,7 @@ exports['Tessel.Wifi'] = {
         TX packets:493 errors:0 dropped:0 overruns:0 carrier:0
         collisions:0 txqueuelen:1000
         RX bytes:833626 (814.0 KiB)  TX bytes:97959 (95.6 KiB)`;
-    var network = {
+    const network = {
       ssid: 'TestNetwork',
       strength: '30/80',
       encryption: {
@@ -3991,7 +4009,7 @@ exports['Tessel.Wifi'] = {
     };
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+    this.exec = sandbox.stub(cp, 'exec').callsFake((cmd, callback) => {
       if (cmd === 'ifconfig wlan0') {
         callback(null, ipResult);
       } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
@@ -4028,13 +4046,13 @@ exports['Tessel.Wifi'] = {
     });
   },
 
-  enableRecursiveGetWifiInfoError: function(test) {
+  enableRecursiveGetWifiInfoError(test) {
     test.expect(3);
 
-    var recursiveCheckCount = 0;
+    let recursiveCheckCount = 0;
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+    this.exec = sandbox.stub(cp, 'exec').callsFake((cmd, callback) => {
       if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
         recursiveCheckCount++;
         callback(null, JSON.stringify({}));
@@ -4059,13 +4077,13 @@ exports['Tessel.Wifi'] = {
     });
   },
 
-  enableRecursiveIP: function(test) {
+  enableRecursiveIP(test) {
     test.expect(2);
 
-    var recursiveCheckCount = 0;
-    var emptyResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
+    let recursiveCheckCount = 0;
+    const emptyResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
         inet addr: Bcast:192.168.1.101  Mask:255.255.255.0`;
-    var ipResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
+    const ipResult = `wlan0     Link encap:Ethernet  HWaddr 02:A3:AA:A9:FB:02
         inet addr:10.0.1.11  Bcast:192.168.1.101  Mask:255.255.255.0
         inet6 addr: fe80::a3:aaff:fea9:fb02/64 Scope:Link
         UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
@@ -4073,7 +4091,7 @@ exports['Tessel.Wifi'] = {
         TX packets:493 errors:0 dropped:0 overruns:0 carrier:0
         collisions:0 txqueuelen:1000
         RX bytes:833626 (814.0 KiB)  TX bytes:97959 (95.6 KiB)`;
-    var network = {
+    const network = {
       ssid: 'TestNetwork',
       strength: '30/80',
       encryption: {
@@ -4082,7 +4100,7 @@ exports['Tessel.Wifi'] = {
     };
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+    this.exec = sandbox.stub(cp, 'exec').callsFake((cmd, callback) => {
       if (cmd === 'ifconfig wlan0') {
         switch (recursiveCheckCount) {
           case 0:
@@ -4119,20 +4137,20 @@ exports['Tessel.Wifi'] = {
     });
   },
 
-  enableRejectRecursiveIP: function(test) {
+  enableRejectRecursiveIP(test) {
     test.expect(2);
 
-    var network = {
+    const network = {
       ssid: 'TestNetwork',
       strength: '30/80',
       encryption: {
         enabled: false
       }
     };
-    var testError = new Error('Testing the recursiveIP function.');
+    const testError = new Error('Testing the recursiveIP function.');
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+    this.exec = sandbox.stub(cp, 'exec').callsFake((cmd, callback) => {
       if (cmd === 'ifconfig wlan0') {
         callback(testError);
       } else if (cmd === `ubus call iwinfo info '{"device":"wlan0"}'`) {
@@ -4157,10 +4175,10 @@ exports['Tessel.Wifi'] = {
     });
   },
 
-  findAvailableNetworks: function(test) {
+  findAvailableNetworks(test) {
     test.expect(3);
 
-    var networks =
+    const networks =
       `Cell 01 - Address: 14:35:8B:11:30:F0
               ESSID: "technicallyHome"
               Mode: Master  Channel: 11
@@ -4180,10 +4198,10 @@ exports['Tessel.Wifi'] = {
               Encryption: WEP (CCMP)
 
 `;
-    var firstCheck = true;
+    let firstCheck = true;
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+    this.exec = sandbox.stub(cp, 'exec').callsFake((cmd, callback) => {
       if (cmd === 'iwinfo wlan0 scan') {
         if (firstCheck) {
           firstCheck = false;
@@ -4204,10 +4222,10 @@ exports['Tessel.Wifi'] = {
     });
   },
 
-  findAvailableNetworksNotEnabled: function(test) {
+  findAvailableNetworksNotEnabled(test) {
     test.expect(3);
 
-    var networks =
+    const networks =
       `Cell 01 - Address: 14:35:8B:11:30:F0
               ESSID: "technicallyHome"
               Mode: Master  Channel: 11
@@ -4223,7 +4241,7 @@ exports['Tessel.Wifi'] = {
 `;
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+    this.exec = sandbox.stub(cp, 'exec').callsFake((cmd, callback) => {
       if (cmd === 'iwinfo wlan0 scan') {
         callback(null, networks);
       } else if (cmd === `uci get wireless.@wifi-iface[0].disabled`) {
@@ -4241,12 +4259,12 @@ exports['Tessel.Wifi'] = {
     });
   },
 
-  findAvailableNetworksErrorCallback: function(test) {
+  findAvailableNetworksErrorCallback(test) {
     test.expect(2);
 
     const testError = new Error('Testing errors');
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+    this.exec = sandbox.stub(cp, 'exec').callsFake((cmd, callback) => {
       callback(testError);
     });
 
@@ -4265,13 +4283,13 @@ exports['Tessel.Wifi'] = {
     });
   },
 
-  findNoNetworks: function(test) {
+  findNoNetworks(test) {
     test.expect(1);
 
-    var networks = '';
+    const networks = '';
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+    this.exec = sandbox.stub(cp, 'exec').callsFake((cmd, callback) => {
       if (cmd === 'iwinfo wlan0 scan') {
         callback(null, networks);
       } else {
@@ -4285,10 +4303,10 @@ exports['Tessel.Wifi'] = {
     });
   },
 
-  findNetworksSafe: function(test) {
+  findNetworksSafe(test) {
     test.expect(7);
 
-    var networks = `Cell 01 - Address: 14:35:8B:11:30:F0
+    const networks = `Cell 01 - Address: 14:35:8B:11:30:F0
               ESSID: "worst"
               Mode: Master  Channel: 11
               Signal: -55 dBm  Quality: 30/
@@ -4310,7 +4328,7 @@ exports['Tessel.Wifi'] = {
     // Do not remove the blank line at the end of preceding string!!
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+    this.exec = sandbox.stub(cp, 'exec').callsFake((cmd, callback) => {
       if (cmd === 'iwinfo wlan0 scan') {
         callback(null, networks);
       } else {
@@ -4333,27 +4351,27 @@ exports['Tessel.Wifi'] = {
 };
 
 exports['Tessel.port.pwm'] = {
-  setUp: function(done) {
+  setUp(done) {
     this.socket = new FakeSocket();
 
-    this.createConnection = sandbox.stub(net, 'createConnection').callsFake(function() {
+    this.createConnection = sandbox.stub(net, 'createConnection').callsFake(() => {
       this.socket.cork = sandbox.spy();
       this.socket.uncork = sandbox.spy();
       this.socket.write = sandbox.spy();
       return this.socket;
-    }.bind(this));
+    });
 
     this.tessel = new Tessel();
     done();
   },
 
-  tearDown: function(done) {
+  tearDown(done) {
     Tessel.instance = null;
     sandbox.restore();
     done();
   },
 
-  pwmArray: function(test) {
+  pwmArray(test) {
     test.expect(26);
 
     test.equal(this.tessel.port.A.pwm.length, 2);
@@ -4389,45 +4407,45 @@ exports['Tessel.port.pwm'] = {
 };
 
 exports['determineDutyCycleAndPrescalar'] = {
-  setUp: function(done) {
+  setUp(done) {
     done();
   },
-  tearDown: function(done) {
+  tearDown(done) {
     done();
   },
-  onekHz: function(test) {
+  onekHz(test) {
     test.expect(2);
 
-    var frequency = 1000;
-    var expectedPrescalar = 1;
-    var results = Tessel.determineDutyCycleAndPrescalar(frequency);
+    const frequency = 1000;
+    const expectedPrescalar = 1;
+    const results = Tessel.determineDutyCycleAndPrescalar(frequency);
     test.equal(results.period, 48000000 / frequency);
     test.equal(results.prescalarIndex, Tessel.pwmPrescalars.indexOf(expectedPrescalar));
     test.done();
   },
-  oneHundredHz: function(test) {
+  oneHundredHz(test) {
     test.expect(2);
 
-    var frequency = 100;
-    var expectedPrescalar = 8;
-    var results = Tessel.determineDutyCycleAndPrescalar(frequency);
+    const frequency = 100;
+    const expectedPrescalar = 8;
+    const results = Tessel.determineDutyCycleAndPrescalar(frequency);
     test.equal(results.period, 48000000 / frequency / expectedPrescalar);
     test.equal(results.prescalarIndex, Tessel.pwmPrescalars.indexOf(expectedPrescalar));
     test.done();
   },
-  oneHz: function(test) {
+  oneHz(test) {
     test.expect(2);
 
-    var frequency = 1;
-    var expectedPrescalar = 1024;
-    var results = Tessel.determineDutyCycleAndPrescalar(frequency);
+    const frequency = 1;
+    const expectedPrescalar = 1024;
+    const results = Tessel.determineDutyCycleAndPrescalar(frequency);
     test.equal(results.period, 48000000 / frequency / expectedPrescalar);
     test.equal(results.prescalarIndex, Tessel.pwmPrescalars.indexOf(expectedPrescalar));
     test.done();
   },
-  frequencyTooLow: function(test) {
+  frequencyTooLow(test) {
     test.expect(1);
-    var frequency = 0.1;
+    const frequency = 0.1;
     try {
       Tessel.determineDutyCycleAndPrescalar(frequency);
     } catch (err) {
@@ -4439,23 +4457,23 @@ exports['determineDutyCycleAndPrescalar'] = {
 };
 
 exports['tessel.pwmFrequency'] = {
-  setUp: function(done) {
+  setUp(done) {
     this.socket = new FakeSocket();
 
-    this.createConnection = sandbox.stub(net, 'createConnection').callsFake(function() {
+    this.createConnection = sandbox.stub(net, 'createConnection').callsFake(() => {
       this.socket.cork = sandbox.spy();
       this.socket.uncork = sandbox.spy();
       this.socket.write = sandbox.spy();
       return this.socket;
-    }.bind(this));
+    });
 
     this.tessel = new Tessel();
 
     this.cork = sandbox.stub(Tessel.Port.prototype, 'cork');
     this.uncork = sandbox.stub(Tessel.Port.prototype, 'uncork');
-    this._tx = sandbox.stub(Tessel.Port.prototype, '_tx');
-    this._rx = sandbox.stub(Tessel.Port.prototype, '_rx');
-    this._simple_cmd = sandbox.stub(Tessel.Port.prototype, '_simple_cmd');
+    this.tx = sandbox.stub(Tessel.Port.prototype, 'tx');
+    this.rx = sandbox.stub(Tessel.Port.prototype, 'rx');
+    this.command = sandbox.stub(Tessel.Port.prototype, 'command');
 
     this.port = new Tessel.Port('foo', '/foo/bar/baz', this.tessel);
 
@@ -4464,15 +4482,15 @@ exports['tessel.pwmFrequency'] = {
     done();
   },
 
-  tearDown: function(done) {
+  tearDown(done) {
     Tessel.instance = null;
     sandbox.restore();
     done();
   },
   // Should throw an error if the frequency is outside the specified range
-  frequencyTooLow: function(test) {
+  frequencyTooLow(test) {
     test.expect(2);
-    var frequency = Tessel.pwmMinFrequency / 2;
+    const frequency = Tessel.pwmMinFrequency / 2;
 
     // test.throws is not handling the thrown error for whatever reason
     try {
@@ -4486,9 +4504,9 @@ exports['tessel.pwmFrequency'] = {
     }
   },
   // Should throw an error if the frequency is outside the specified range
-  frequencyTooHigh: function(test) {
+  frequencyTooHigh(test) {
     test.expect(2);
-    var frequency = Tessel.pwmMaxFrequency + 1;
+    const frequency = Tessel.pwmMaxFrequency + 1;
 
     // test.throws is not handling the thrown error for whatever reason
     try {
@@ -4502,8 +4520,8 @@ exports['tessel.pwmFrequency'] = {
     }
   },
 
-  testPacketStructure: function(test) {
-    var frequency = 100;
+  testPacketStructure(test) {
+    const frequency = 100;
     this.tessel.pwmFrequency(frequency, (err) => {
       // Ensure no error was thrown
       test.ifError(err);
@@ -4511,11 +4529,11 @@ exports['tessel.pwmFrequency'] = {
       test.done();
     });
 
-    var results = Tessel.determineDutyCycleAndPrescalar(frequency);
+    const results = Tessel.determineDutyCycleAndPrescalar(frequency);
 
     test.equal(this.socket.write.callCount, 1);
-    var packet = this.socket.write.lastCall.args[0];
-    var cb = this.socket.write.lastCall.args[1];
+    const packet = this.socket.write.lastCall.args[0];
+    const cb = this.socket.write.lastCall.args[1];
     // Ensure the callback was provided
     test.ok(typeof cb === 'function');
     // Ensure four bytes were passed
@@ -4534,23 +4552,23 @@ exports['tessel.pwmFrequency'] = {
 };
 
 exports['pin.pwmDutyCycle'] = {
-  setUp: function(done) {
+  setUp(done) {
     this.socket = new FakeSocket();
 
-    this.createConnection = sandbox.stub(net, 'createConnection').callsFake(function() {
+    this.createConnection = sandbox.stub(net, 'createConnection').callsFake(() => {
       this.socket.cork = sandbox.spy();
       this.socket.uncork = sandbox.spy();
       this.socket.write = sandbox.spy();
       return this.socket;
-    }.bind(this));
+    });
 
     this.tessel = new Tessel();
 
     this.cork = sandbox.stub(Tessel.Port.prototype, 'cork');
     this.uncork = sandbox.stub(Tessel.Port.prototype, 'uncork');
-    this._tx = sandbox.stub(Tessel.Port.prototype, '_tx');
-    this._rx = sandbox.stub(Tessel.Port.prototype, '_rx');
-    this._simple_cmd = sandbox.stub(Tessel.Port.prototype, '_simple_cmd');
+    this.tx = sandbox.stub(Tessel.Port.prototype, 'tx');
+    this.rx = sandbox.stub(Tessel.Port.prototype, 'rx');
+    this.command = sandbox.stub(Tessel.Port.prototype, 'command');
 
     this.port = new Tessel.Port('foo', '/foo/bar/baz', this.tessel);
 
@@ -4559,13 +4577,13 @@ exports['pin.pwmDutyCycle'] = {
     done();
   },
 
-  tearDown: function(done) {
+  tearDown(done) {
     Tessel.instance = null;
     sandbox.restore();
     done();
   },
   // Should throw an error if the pin does not support PWM
-  pwmNotSupportedPin: function(test) {
+  pwmNotSupportedPin(test) {
     test.expect(2);
 
     // test.throws is not handling the thrown error for whatever reason
@@ -4579,7 +4597,7 @@ exports['pin.pwmDutyCycle'] = {
       test.done();
     }
   },
-  dutyCycleNotNumber: function(test) {
+  dutyCycleNotNumber(test) {
     test.expect(2);
 
     // test.throws is not handling the thrown error for whatever reason
@@ -4593,7 +4611,7 @@ exports['pin.pwmDutyCycle'] = {
       test.done();
     }
   },
-  dutyCycleTooHigh: function(test) {
+  dutyCycleTooHigh(test) {
     test.expect(2);
 
     // test.throws is not handling the thrown error for whatever reason
@@ -4607,7 +4625,7 @@ exports['pin.pwmDutyCycle'] = {
       test.done();
     }
   },
-  dutyCycleTooLow: function(test) {
+  dutyCycleTooLow(test) {
     test.expect(2);
 
     // test.throws is not handling the thrown error for whatever reason
@@ -4621,7 +4639,7 @@ exports['pin.pwmDutyCycle'] = {
       test.done();
     }
   },
-  periodNotSet: function(test) {
+  periodNotSet(test) {
     test.expect(2);
 
     // test.throws is not handling the thrown error for whatever reason
@@ -4637,12 +4655,12 @@ exports['pin.pwmDutyCycle'] = {
       test.done();
     }
   },
-  standardUsageSucceeds: function(test) {
+  standardUsageSucceeds(test) {
     // Set some arbitrary non-zero period
     Tessel.pwmBankSettings.period = 10000;
     // Set some valid duty cycle value
-    var dutyCycle = 0.5;
-    var pin = this.tessel.port.A.pwm[0];
+    const dutyCycle = 0.5;
+    const pin = this.tessel.port.A.pwm[0];
     pin.pwmDutyCycle(dutyCycle, (err) => {
       // Ensure no error was thrown
       test.ifError(err);
@@ -4651,8 +4669,8 @@ exports['pin.pwmDutyCycle'] = {
     });
 
     test.equal(this.socket.write.callCount, 1);
-    var packet = this.socket.write.lastCall.args[0];
-    var cb = this.socket.write.lastCall.args[1];
+    const packet = this.socket.write.lastCall.args[0];
+    const cb = this.socket.write.lastCall.args[1];
     // Ensure the callback was provided
     test.ok(typeof cb === 'function');
     // Ensure four bytes were passed
@@ -4669,23 +4687,23 @@ exports['pin.pwmDutyCycle'] = {
 };
 
 exports['Tessel.AP'] = {
-  setUp: function(done) {
+  setUp(done) {
     this.Port = sandbox.stub(Tessel, 'Port');
     this.fsWrite = sandbox.stub(fs, 'writeFile');
-    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+    this.exec = sandbox.stub(cp, 'exec').callsFake((cmd, callback) => {
       callback();
     });
     this.tessel = new Tessel();
     done();
   },
 
-  tearDown: function(done) {
+  tearDown(done) {
     Tessel.instance = null;
     sandbox.restore();
     done();
   },
 
-  initialized: function(test) {
+  initialized(test) {
     test.expect(1);
 
     test.deepEqual(this.tessel.network.ap.settings, {}, 'no setings by default');
@@ -4693,18 +4711,18 @@ exports['Tessel.AP'] = {
     test.done();
   },
 
-  create: function(test) {
+  create(test) {
     test.expect(4);
 
-    var settings = {
+    const settings = {
       ssid: 'TestNetwork',
       password: 'TestPassword',
       security: 'psk2'
     };
-    var ip = '192.168.1.101';
+    const ip = '192.168.1.101';
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+    this.exec = sandbox.stub(cp, 'exec').callsFake((cmd, callback) => {
       if (cmd === 'uci get network.lan.ipaddr') {
         callback(null, ip);
       } else {
@@ -4712,8 +4730,8 @@ exports['Tessel.AP'] = {
       }
     });
 
-    var results = Object.assign({
-      ip: ip
+    const results = Object.assign({
+      ip
     }, settings);
 
     this.tessel.network.ap.on('create', (networkSettings) => {
@@ -4734,32 +4752,32 @@ exports['Tessel.AP'] = {
     });
   },
 
-  createErrorNoSettings: function(test) {
+  createErrorNoSettings(test) {
     test.expect(1);
 
     test.throws(this.tessel.network.ap.create, 'throws without settings');
     test.done();
   },
 
-  createErrorNoSSID: function(test) {
+  createErrorNoSSID(test) {
     test.expect(1);
 
     test.throws(this.tessel.network.ap.create.bind({}), 'throws without ssid');
     test.done();
   },
 
-  createWithoutCallback: function(test) {
+  createWithoutCallback(test) {
     test.expect(3);
 
-    var settings = {
+    const settings = {
       ssid: 'TestNetwork',
       password: 'TestPassword',
       security: 'psk2'
     };
-    var ip = '192.168.1.101';
+    const ip = '192.168.1.101';
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+    this.exec = sandbox.stub(cp, 'exec').callsFake((cmd, callback) => {
       if (cmd === 'uci get network.lan.ipaddr') {
         callback(null, ip);
       } else {
@@ -4767,8 +4785,8 @@ exports['Tessel.AP'] = {
       }
     });
 
-    var results = Object.assign({
-      ip: ip
+    const results = Object.assign({
+      ip
     }, settings);
 
     this.tessel.network.ap.on('create', (networkSettings) => {
@@ -4786,17 +4804,17 @@ exports['Tessel.AP'] = {
     this.tessel.network.ap.create(settings);
   },
 
-  createWithoutSecurity: function(test) {
+  createWithoutSecurity(test) {
     test.expect(4);
 
-    var settings = {
+    const settings = {
       ssid: 'TestNetwork',
       password: 'TestPassword'
     };
-    var ip = '192.168.1.101';
+    const ip = '192.168.1.101';
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+    this.exec = sandbox.stub(cp, 'exec').callsFake((cmd, callback) => {
       if (cmd === 'uci get network.lan.ipaddr') {
         callback(null, ip);
       } else {
@@ -4804,8 +4822,8 @@ exports['Tessel.AP'] = {
       }
     });
 
-    var results = Object.assign({
-      ip: ip,
+    const results = Object.assign({
+      ip,
       security: 'psk2'
     }, settings);
 
@@ -4827,17 +4845,17 @@ exports['Tessel.AP'] = {
     });
   },
 
-  createWithoutPassword: function(test) {
+  createWithoutPassword(test) {
     test.expect(4);
 
-    var settings = {
+    const settings = {
       ssid: 'TestNetwork',
       security: 'none'
     };
-    var ip = '192.168.1.101';
+    const ip = '192.168.1.101';
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+    this.exec = sandbox.stub(cp, 'exec').callsFake((cmd, callback) => {
       if (cmd === 'uci get network.lan.ipaddr') {
         callback(null, ip);
       } else {
@@ -4845,8 +4863,8 @@ exports['Tessel.AP'] = {
       }
     });
 
-    var results = Object.assign({
-      ip: ip,
+    const results = Object.assign({
+      ip,
       password: '',
       security: 'none'
     }, settings);
@@ -4869,16 +4887,16 @@ exports['Tessel.AP'] = {
     });
   },
 
-  createThrowsError: function(test) {
+  createThrowsError(test) {
     test.expect(2);
 
-    var settings = {
+    const settings = {
       ssid: 'TestNetwork'
     };
-    var testError = 'This is a test';
+    const testError = 'This is a test';
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+    this.exec = sandbox.stub(cp, 'exec').callsFake((cmd, callback) => {
       callback(testError);
     });
 
@@ -4902,16 +4920,16 @@ exports['Tessel.AP'] = {
     });
   },
 
-  createGetAccessPointIPThrowsError: function(test) {
+  createGetAccessPointIPThrowsError(test) {
     test.expect(2);
 
-    var settings = {
+    const settings = {
       ssid: 'TestNetwork'
     };
-    var testError = 'This is a test';
+    const testError = 'This is a test';
 
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+    this.exec = sandbox.stub(cp, 'exec').callsFake((cmd, callback) => {
       if (cmd === 'uci get network.lan.ipaddr') {
         callback(testError);
       } else {
@@ -4939,7 +4957,7 @@ exports['Tessel.AP'] = {
     });
   },
 
-  reset: function(test) {
+  reset(test) {
     test.expect(5);
 
     this.tessel.network.ap.on('reset', () => {
@@ -4970,12 +4988,12 @@ exports['Tessel.AP'] = {
     });
   },
 
-  resetErrorCallback: function(test) {
+  resetErrorCallback(test) {
     test.expect(5);
 
     const testError = new Error('Testing error');
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+    this.exec = sandbox.stub(cp, 'exec').callsFake((cmd, callback) => {
       callback(testError);
     });
 
@@ -5006,7 +5024,7 @@ exports['Tessel.AP'] = {
     });
   },
 
-  disable: function(test) {
+  disable(test) {
     test.expect(2);
 
     this.tessel.network.ap.on('off', () => {
@@ -5027,12 +5045,12 @@ exports['Tessel.AP'] = {
     });
   },
 
-  disableErrorCallback: function(test) {
+  disableErrorCallback(test) {
     test.expect(2);
 
     const testError = new Error('Testing error');
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+    this.exec = sandbox.stub(cp, 'exec').callsFake((cmd, callback) => {
       callback(testError);
     });
 
@@ -5051,7 +5069,7 @@ exports['Tessel.AP'] = {
     });
   },
 
-  enable: function(test) {
+  enable(test) {
     test.expect(2);
 
     this.tessel.network.ap.on('on', () => {
@@ -5072,12 +5090,12 @@ exports['Tessel.AP'] = {
     });
   },
 
-  enableErrorCallback: function(test) {
+  enableErrorCallback(test) {
     test.expect(2);
 
     const testError = new Error('Testing error');
     this.exec.restore();
-    this.exec = sandbox.stub(childProcess, 'exec').callsFake((cmd, callback) => {
+    this.exec = sandbox.stub(cp, 'exec').callsFake((cmd, callback) => {
       callback(testError);
     });
 
