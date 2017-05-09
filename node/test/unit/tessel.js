@@ -4734,9 +4734,13 @@ exports['Tessel.AP'] = {
   assignSettingsDirectly(test) {
     test.expect(1);
 
-    this.tessel.network.ap.settings = { foo: 1 };
+    this.tessel.network.ap.settings = {
+      foo: 1
+    };
 
-    test.deepEqual(this.tessel.network.ap.settings, { foo: 1 });
+    test.deepEqual(this.tessel.network.ap.settings, {
+      foo: 1
+    });
     test.done();
   },
 
@@ -4759,7 +4763,9 @@ exports['Tessel.AP'] = {
       }
     });
 
-    const results = Object.assign({ ip }, settings);
+    const results = Object.assign({
+      ip
+    }, settings);
 
     this.tessel.network.ap.on('create', (networkSettings) => {
       test.deepEqual(networkSettings, results, 'correct settings');
@@ -4810,7 +4816,9 @@ exports['Tessel.AP'] = {
       }
     });
 
-    const results = Object.assign({ ip }, settings);
+    const results = Object.assign({
+      ip
+    }, settings);
 
     this.tessel.network.ap.on('create', (networkSettings) => {
       test.deepEqual(networkSettings, results, 'correct settings');

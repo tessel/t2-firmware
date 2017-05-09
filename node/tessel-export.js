@@ -274,7 +274,7 @@ class Port extends EventEmitter {
 
     const port = this;
     let uart = null;
-    let spi = null
+    let spi = null;
 
     priv.set(this, {
       get uart() {
@@ -758,7 +758,7 @@ class Pin extends EventEmitter {
           port.command([CMD.GPIO_INT, pin | (mode ? INT_MODES[mode] << 4 : 0)]);
         }
       }
-    })
+    });
   }
 
   get resolution() {
@@ -1805,7 +1805,9 @@ class AP extends EventEmitter {
       .then(commitWireless)
       .then(restartWifi)
       .then(getAccessPointIP)
-      .then(ip => emitAndCallback('create', this, Object.assign(this.settings, settings, { ip }), callback))
+      .then(ip => emitAndCallback('create', this, Object.assign(this.settings, settings, {
+        ip
+      }), callback))
       .catch(error => emitErrorCallback(this, error, callback));
   }
 }
