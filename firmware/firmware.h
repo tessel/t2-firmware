@@ -208,3 +208,8 @@ void usbserial_in_completion();
 void usbserial_dma_rx_completion();
 void usbserial_dma_tx_completion();
 void usbserial_handle_tc();
+
+// ws2812.c
+void ws2812_init(Pin p);
+void ws2812_set_dma_addr(Pin p, void *addr);
+void ws2812_begin_animation(Pin p);

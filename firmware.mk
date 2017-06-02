@@ -3,6 +3,10 @@ TARGET := firmware
 include common.mk
 include usb.mk
 
+$(TARGET)_INCLUDE += \
+  -I$(DRIVERS_PATH) \
+  -I$(DRIVERS_PATH)/system/interrupt/ \
+
 $(TARGET)_SRC += \
   firmware/main.c \
   firmware/usb.c \
@@ -11,6 +15,7 @@ $(TARGET)_SRC += \
   firmware/port.c \
   firmware/usbpipe.c \
   firmware/usbserial.c \
+  firmware/ws2812.c \
 
 $(TARGET)_LDSCRIPT = common/samd21g18a_firmware_partition.ld
 $(TARGET)_DEFINE += -D __SAMD21G18A__

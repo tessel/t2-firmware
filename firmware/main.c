@@ -244,6 +244,9 @@ int main(void) {
     port_init(&port_b, 2, &PORT_B, GCLK_PORT_B,
         TCC_PORT_B, DMA_PORT_B_TX, DMA_PORT_B_RX);
 
+    // TEMPORARY
+    ws2812_init(PORT_B.power);
+
     __enable_irq();
     SCB->SCR |= SCB_SCR_SLEEPONEXIT_Msk;
 
