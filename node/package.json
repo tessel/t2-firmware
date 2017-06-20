@@ -5,6 +5,7 @@
   "main": "tessel.js",
   "dependencies": {},
   "devDependencies": {
+    "common-tags": "^1.4.0",
     "coveralls": "^2.13.0",
     "grunt": "^1.0.1",
     "grunt-cli": "^1.2.0",
@@ -24,3 +25,4 @@
   "author": "Technical Machine <team@technical.io>",
   "license": "MIT"
 }
+
