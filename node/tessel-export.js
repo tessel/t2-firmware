@@ -1627,7 +1627,7 @@ function getWifiInfo() {
           const inetMatches = ipResults.match(inetRegex);
 
           if (inetMatches === null) {
-            recursiveWifi(network);
+            return recursiveWifi(network);
           } else {
             // Successful matches will have a result that looks like:
             // ["inet addr:0.0.0.0", "inet addr", "0.0.0.0"]
@@ -1635,7 +1635,7 @@ function getWifiInfo() {
             if (inetMatches.length === 3) {
               network.ip = inetMatches[2];
             } else {
-              recursiveWifi(network);
+              return recursiveWifi(network);
             }
           }
 
