@@ -1456,9 +1456,9 @@ class Wifi extends EventEmitter {
   findAvailableNetworks(callback) {
     callback = enforceCallback(callback);
 
-    isEnabled()
-      .then(enabled => {
-        if (enabled) {
+    Promise.all([isEnabled(), isAPEnabled()])
+      .then(enableds => {
+        if (enableds[0] || enableds[1]) {
           return scanWifi();
         } else {
           return turnOnWifi()
@@ -1564,6 +1564,18 @@ function restartWifi() {
 function isEnabled() {
   return new Promise(resolve => {
     cp.exec('uci get wireless.@wifi-iface[0].disabled', (error, result) => {
+      if (error) {
+        throw error;
+      }
+
+      resolve(!Number(result));
+    });
+  });
+}
+
+function isAPEnabled() {
+  return new Promise(resolve => {
+    cp.exec('uci get wireless.@wifi-iface[1].disabled', (error, result) => {
       if (error) {
         throw error;
       }
