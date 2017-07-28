@@ -2,7 +2,6 @@
 
 // System Objects
 const cp = require('child_process');
-const path = require('path');
 
 // Third Party Dependencies
 const tags = require('common-tags');
