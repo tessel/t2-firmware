@@ -4268,6 +4268,8 @@ exports['Tessel.Wifi'] = {
         callback(null, networks);
       } else if (cmd === `uci get wireless.@wifi-iface[0].disabled`) {
         callback(null, 1);
+      } else if (cmd === `uci get wireless.@wifi-iface[1].disabled`) {
+        callback(null, 1);
       } else {
         callback();
       }
