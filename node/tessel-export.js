@@ -1457,8 +1457,8 @@ class Wifi extends EventEmitter {
     callback = enforceCallback(callback);
 
     Promise.all([isEnabled(), isAPEnabled()])
-      .then(enableds => {
-        if (enableds[0] || enableds[1]) {
+      .then(results => {
+        if (results[0] || results[1]) {
           return scanWifi();
         } else {
           return turnOnWifi()
