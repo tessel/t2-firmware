@@ -1185,8 +1185,8 @@ class UART extends Duplex {
           // samples_per_bit = 16, 8, or 3
           // f_ref = 48e6
 
-          if (value < 9600 || value > 115200) {
-            throw new Error('UART baudrate must be between 9600 and 115200');
+          if (value < 9600 || value > 230400) {
+            throw new Error('UART baudrate must be between 9600 and 230400');
           }
 
           baudrate = value;
