@@ -118,6 +118,28 @@ make
 Plug the USB port your T2 into your computer while holding down the button by the Tessel 2 logo - this will put T2 into bootloader mode, with the power LED blinking.
 
 Now flash the device:
+#### Preferred: t2-cli
+
+Make sure t2-cli is installed
+
+```
+npm i -g t2-cli 
+```
+
+then, to update the SAMD21 binary, run:
+
+```
+t2 update --firmware-path build/firmware.bin
+```
+
+to update the OpenWRT binary, run:
+
+`t2 update --openwrt-path [`path to your [tessel-openwrt](https://github.com/tessel/openwrt-tessel) `build]`
+
+
+**Note: if you do not provide a --firmware-path or --openwrt-path, t2-cli will default to pulling remote images!**
+
+#### Legacy: dfu-util
 ```
 ➜  dfu-util -aFlash -d 1209:7551 -D build/firmware.bin
 ...
@@ -141,7 +163,7 @@ dfu-util: unable to read DFU status after completion
 
 That should be it! Don't worry about the final warning at the bottom - it doesn't seem to affect anything.
 
-Note that this only updates the firmware on the SAMD21 coprocessor. You will need to [update OpenWrt on the SoC](https://github.com/tessel/t2-cli#updating) separately. [Eventually](https://github.com/tessel/t2-cli/issues/109) this process will be integrated as the `tessel update` command.
+Note that this only updates the firmware on the SAMD21 coprocessor. You will need to [update OpenWrt on the SoC](https://github.com/tessel/t2-cli#updating) separately-- TL;DR use t2-cli `t2 update` command.
 
 ## Using a SWD debug probe
 
