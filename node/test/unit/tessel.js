@@ -2760,7 +2760,7 @@ exports['Tessel.UART'] = {
       baudrate: b1
     });
 
-    test.throws(() => uart.baudrate = 115201);
+    test.throws(() => uart.baudrate = 230401);
     test.equal(uart.baudrate, b1);
 
     test.done();
