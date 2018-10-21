@@ -642,7 +642,7 @@ void port_disable_async_events(PortData *p) {
 }
 
 /// Return true if the port is in a state where it can handle asyncronous events
-inline bool port_async_events_allowed(PortData* p) {
+bool port_async_events_allowed(PortData* p) {
     if (!p->pending_in) {
         if (p->state == PORT_READ_CMD) return true;
 
