@@ -114,17 +114,17 @@ typedef struct {
 
 typedef struct {
     int pid;
-    pipebuf_t ctrl;
-    pipebuf_t stdin;
-    pipebuf_t stdout;
-    pipebuf_t stderr;
+    pipebuf_t ctrl_buf;
+    pipebuf_t stdin_buf;
+    pipebuf_t stdout_buf;
+    pipebuf_t stderr_buf;
 } procinfo_t;
 
 #define MAX_COMMAND_LEN 1024
 #define N_PROC 256
 procinfo_t* processes[N_PROC];
 
-void child(int ctrl, int stdin, int stdout, int stderr);
+void child(int ctrl, int stdin_fd, int stdout_fd, int stderr_fd);
 void pipebuf_out_ack(pipebuf_t* pb, size_t acksize);
 void modify_pipebuf_epoll(pipebuf_t* pb, int operation);
 void add_pipebuf_epoll(pipebuf_t* pb);
@@ -184,7 +184,7 @@ int read_until(int non_blocking_fd, void *buf, int len) {
             total_read += single_read;
         }
         else if (single_read == 0) {
-            // EOF 
+            // EOF
             return -1;
         }
         else {
@@ -699,12 +699,12 @@ void pipebuf_out_ack(pipebuf_t* pb, size_t acksize) {
     debug("(%d bytes)", num_size);
     // Tell the CLI that it can send more data to this stream
     send_header(CMD_ACK_CONTROL + pb->role, pb->id, 0, num_size);
-    
+
     // Set all the bytes to 0
     memset(size_bytes, 0, num_size);
     // Then copy over the bytes from acksize
     memcpy(size_bytes, &acksize, num_size);
-    // Then write this ack length to the socket 
+    // Then write this ack length to the socket
     int t = write(sock_fd, size_bytes, num_size);
 
     if (t < 0) {
@@ -723,17 +723,17 @@ void close_process(procinfo_t* p) {
     }
 
     // Close out all of the pipe buffers if they haven't been closed already
-    if ((&p->ctrl)->fd != -1) pipebuf_out_close(&p->ctrl, NO_FLUSH);
-    if ((&p->stdin)->fd != -1) pipebuf_out_close(&p->stdin, NO_FLUSH);
-    if ((&p->stdout)->fd != -1) pipebuf_in_close(&p->stdout, NO_FLUSH);
-    if ((&p->stderr)->fd != -1) pipebuf_in_close(&p->stderr, NO_FLUSH);
+    if ((&p->ctrl_buf)->fd != -1) pipebuf_out_close(&p->ctrl_buf, NO_FLUSH);
+    if ((&p->stdin_buf)->fd != -1) pipebuf_out_close(&p->stdin_buf, NO_FLUSH);
+    if ((&p->stdout_buf)->fd != -1) pipebuf_in_close(&p->stdout_buf, NO_FLUSH);
+    if ((&p->stderr_buf)->fd != -1) pipebuf_in_close(&p->stderr_buf, NO_FLUSH);
     // Free the process memory
     free(p);
     // Reset the pointer (may not be necessary)
     p = NULL;
 }
 
-/* 
+/*
 The primary method of handling new bytes coming in from the domain socket.
 It reads the first four bytes of the header in order to call the appropriate function.
 */
@@ -777,17 +777,17 @@ void handle_socket_readable() {
             if (p != NULL) {
                 fatal("Process %i already in use", id);
             }
-            
+
             // Create a new process
             p = processes[id] = malloc(sizeof(procinfo_t));
 
             // Create a writable pipebuf and return the readable pipe for the child process
-            int ctrl_fd   = pipebuf_out_init (&p->ctrl,   id, 0);
-            int stdin_fd  = pipebuf_out_init (&p->stdin,  id, 1);
+            int ctrl_fd   = pipebuf_out_init (&p->ctrl_buf,   id, 0);
+            int stdin_fd  = pipebuf_out_init (&p->stdin_buf,  id, 1);
 
             // Create a readable pipebuf and return the writable pipe for the child process
-            int stdout_fd = pipebuf_in_init(&p->stdout, id, 2);
-            int stderr_fd = pipebuf_in_init(&p->stderr, id, 3);
+            int stdout_fd = pipebuf_in_init(&p->stdout_buf, id, 2);
+            int stderr_fd = pipebuf_in_init(&p->stderr_buf, id, 3);
 
             int pid;
             // Fork the child process, if this is the child process
@@ -801,10 +801,10 @@ void handle_socket_readable() {
                     // If this process exists
                     if (parent_process) {
                         // Close all of the file descriptors for this child
-                        if ((&parent_process->ctrl)->fd != -1) close((&parent_process->ctrl)->fd);
-                        if ((&parent_process->stdin)->fd != -1) close((&parent_process->stdin)->fd);
-                        if ((&parent_process->stdout)->fd != -1) close((&parent_process->stdout)->fd);
-                        if ((&parent_process->stderr)->fd != -1) close((&parent_process->stderr)->fd);
+                        if ((&parent_process->ctrl_buf)->fd != -1) close((&parent_process->ctrl_buf)->fd);
+                        if ((&parent_process->stdin_buf)->fd != -1) close((&parent_process->stdin_buf)->fd);
+                        if ((&parent_process->stdout_buf)->fd != -1) close((&parent_process->stdout_buf)->fd);
+                        if ((&parent_process->stderr_buf)->fd != -1) close((&parent_process->stderr_buf)->fd);
                     }
                 }
 
@@ -819,7 +819,7 @@ void handle_socket_readable() {
             } else if (pid < 0) {
                 // Notify the user
                 fatal("Error in fork: %s", strerror(errno));
-            // If this is the parent process 
+            // If this is the parent process
             } else {
                 // Close the child ends of the pipes
                 close(ctrl_fd);
@@ -855,42 +855,42 @@ void handle_socket_readable() {
 
         case CMD_WRITE_CONTROL:
             debug("CMD: Write to CTRL buf of process with id %d", id);
-            pipebuf_out_to_internal_buffer(&p->ctrl, header[3] | (header[2] << 8));
+            pipebuf_out_to_internal_buffer(&p->ctrl_buf, header[3] | (header[2] << 8));
             break;
 
         case CMD_WRITE_STDIN:
             debug("CMD: Write to STDIN buf of process with id %d", id);
-            pipebuf_out_to_internal_buffer(&p->stdin, header[3] | (header[2] << 8));
+            pipebuf_out_to_internal_buffer(&p->stdin_buf, header[3] | (header[2] << 8));
             break;
 
         case CMD_ACK_STDOUT:
             debug("CMD: Add more credits to stdout of process with id %d", id);
-            pipebuf_in_ack(&p->stdout, header[3]);
+            pipebuf_in_ack(&p->stdout_buf, header[3]);
             break;
 
         case CMD_ACK_STDERR:
             debug("CMD: Add more credits to stderr of process with id %d", id);
-            pipebuf_in_ack(&p->stderr, header[3]);
+            pipebuf_in_ack(&p->stderr_buf, header[3]);
             break;
 
         case CMD_CLOSE_CONTROL:
             debug("CMD: Close CTRL of process with id %d", id);
-            pipebuf_out_close(&p->ctrl, FLUSH);
+            pipebuf_out_close(&p->ctrl_buf, FLUSH);
             break;
 
         case CMD_CLOSE_STDIN:
             debug("CMD: Close STDIN of process with id %d", id);
-            pipebuf_out_close(&p->stdin, FLUSH);
+            pipebuf_out_close(&p->stdin_buf, FLUSH);
             break;
 
         case CMD_CLOSE_STDOUT:
             debug("CMD: Close STDOUT of process with id %d", id);
-            pipebuf_in_close(&p->stdout, FLUSH);
+            pipebuf_in_close(&p->stdout_buf, FLUSH);
             break;
 
         case CMD_CLOSE_STDERR:
             debug("CMD: Close STDERR of process with id %d", id);
-            pipebuf_in_close(&p->stderr, FLUSH);
+            pipebuf_in_close(&p->stderr_buf, FLUSH);
             break;
     }
 }
@@ -914,7 +914,7 @@ all children deaths and reporting them to the CLI
 */
 void handle_sigchld() {
     // Struct for reading signal info
-    struct signalfd_siginfo si; 
+    struct signalfd_siginfo si;
     // Length of bytes read from signal file descriptor
     int r = 0;
 
@@ -1215,7 +1215,7 @@ Param stdin - the stdin file descriptor
 Param stdout - the stdout file descriptor
 Param stderr - the stderr file descriptor
 */
-void child(int ctrl, int stdin, int stdout, int stderr) {
+void child(int ctrl, int stdin_fd, int stdout_fd, int stderr_fd) {
 
     // Create buffer to store incoming command
     char command[MAX_COMMAND_LEN];
@@ -1242,20 +1242,20 @@ void child(int ctrl, int stdin, int stdout, int stderr) {
         else {
             fatal("Control Pipe is unable to read command: %s", strerror(errno));
         }
-    } 
+    }
 
     // Add a null character to the end of the command
     command[total_read] = '\0';
 
     // Duplicate these pipes so we can have comms with the parent
-    dup2(stdin, STDIN_FILENO);
-    dup2(stdout, STDOUT_FILENO);
-    dup2(stderr, STDERR_FILENO);
+    dup2(stdin_fd, STDIN_FILENO);
+    dup2(stdout_fd, STDOUT_FILENO);
+    dup2(stderr_fd, STDERR_FILENO);
 
     // Close non-standard pipes (control was already closed)
-    close(stdin);
-    close(stderr);
-    close(stdout);
+    close(stdin_fd);
+    close(stderr_fd);
+    close(stdout_fd);
 
     // The number of arguments for the command
     int argc = 0;
